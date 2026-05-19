@@ -3,7 +3,73 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TeamMember, Process, Task } from "../types";
+import { TeamMember, Process, Task, Company, Industry, Role } from "../types";
+
+export const initialRoles: Role[] = [
+  {
+    id: "role-admin",
+    name: "Administrador",
+    description: "Tiene acceso total a todas las configuraciones, gestión de usuarios, procesos y datos financieros del sistema.",
+    permissions: ["gestionar_usuarios", "editar_configuracion", "gestionar_procesos", "ver_reportes", "gestionar_roles"],
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "role-lider",
+    name: "Líder de Proceso",
+    description: "Responsable de la gestión operativa de un proceso específico, supervisión de tareas y cumplimiento de objetivos.",
+    permissions: ["gestionar_tareas_proceso", "editar_proceso", "ver_reportes_proceso", "asignar_responsables"],
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "role-colaborador",
+    name: "Colaborador",
+    description: "Integrante del equipo que ejecuta tareas diarias y reporta avances sobre los proyectos asignados.",
+    permissions: ["ver_tareas", "actualizar_propios_avances", "comentar_tareas"],
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "role-invitado",
+    name: "Invitado",
+    description: "Acceso limitado para visualización de progreso general sin permisos de edición.",
+    permissions: ["ver_dashboard", "ver_miembros"],
+    createdAt: new Date().toISOString()
+  }
+];
+
+export const initialIndustries: Industry[] = [
+  { id: "ind-1", name: "Construcción", createdAt: new Date().toISOString() },
+  { id: "ind-2", name: "Tecnología", createdAt: new Date().toISOString() },
+  { id: "ind-3", name: "Publicidad", createdAt: new Date().toISOString() },
+  { id: "ind-4", name: "Energía", createdAt: new Date().toISOString() },
+  { id: "ind-5", name: "Servicios", createdAt: new Date().toISOString() }
+];
+
+export const initialCompanies: Company[] = [
+  {
+    id: "comp-1",
+    name: "Tech Solutions Inc.",
+    ruc: "1790011223001",
+    industry: "Tecnología",
+    industries: ["Tecnología", "Servicios"],
+    email: "contacto@techsolutions.com",
+    phone: "+593 2 2555666",
+    address: "Av. de los Granados, Quito",
+    mainAddress: "Av. de los Granados, Quito",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "comp-2",
+    name: "Marketing Experts S.A.",
+    ruc: "1790022334001",
+    industry: "Publicidad",
+    industries: ["Publicidad"],
+    email: "info@marketingexperts.ec",
+    phone: "+593 2 2444555",
+    address: "La Floresta, Quito",
+    mainAddress: "La Floresta, Quito",
+    createdAt: new Date().toISOString()
+  }
+];
 
 export const initialProcesses: Process[] = [
   {
@@ -43,6 +109,8 @@ export const initialMembers: TeamMember[] = [
     id: "mem-1",
     name: "Elena Rodriguez",
     role: "Desarrolladora Fullstack Senior",
+    systemRoleId: "role-lider",
+    categories: ["miembro"],
     processId: "proc-eng",
     skills: ["React", "Node.js", "PostgreSQL"],
     responsibilities: ["Arquitectura de API", "Líder de Frontend"],
@@ -57,6 +125,8 @@ export const initialMembers: TeamMember[] = [
     id: "mem-2",
     name: "Lucas Smith",
     role: "Marketer de Crecimiento",
+    systemRoleId: "role-colaborador",
+    categories: ["miembro"],
     processId: "proc-mkt",
     skills: ["SEO", "Estrategia de Contenido", "GA4"],
     responsibilities: ["Gestión de campañas", "Optimización SEO"],
@@ -71,6 +141,8 @@ export const initialMembers: TeamMember[] = [
     id: "mem-3",
     name: "Sofia Chen",
     role: "Directora de Operaciones",
+    systemRoleId: "role-admin",
+    categories: ["miembro"],
     processId: "proc-hr",
     skills: ["Estrategia", "Presupuesto", "Oratoria"],
     responsibilities: ["Escalamiento del equipo", "Supervisión de presupuesto"],
@@ -88,7 +160,7 @@ export const initialTasks: Task[] = [
     id: "task-1",
     title: "Migración a Cloud Run",
     description: "Mover todos los servicios actuales de la infraestructura antigua a Cloud Run para mejorar escalabilidad.",
-    status: "en_progreso",
+    status: "in_progress",
     processId: "proc-eng",
     memberId: "mem-1",
     createdAt: new Date().toISOString()
@@ -97,7 +169,7 @@ export const initialTasks: Task[] = [
     id: "task-2",
     title: "Campaña Q2",
     description: "Diseñar y ejecutar la campaña de marketing para el segundo trimestre.",
-    status: "pendiente",
+    status: "todo",
     processId: "proc-mkt",
     memberId: "mem-2",
     createdAt: new Date().toISOString()
@@ -106,7 +178,7 @@ export const initialTasks: Task[] = [
     id: "task-3",
     title: "Contratación Desarrolladores",
     description: "Entrevistar y seleccionar a los 5 nuevos desarrolladores para el equipo técnico.",
-    status: "pendiente",
+    status: "backlog",
     processId: "proc-hr",
     memberId: "mem-3",
     createdAt: new Date().toISOString()

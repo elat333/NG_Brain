@@ -26,7 +26,7 @@ export async function analyzeTranscript(
     1. Busca nuevas habilidades mencionadas para miembros específicos.
     2. Busca nuevas responsabilidades asignadas o mencionadas.
     3. Busca menciones de Equipo de Protección Personal (EPP) necesario para miembros específicos.
-    4. Busca logros recientes o tareas completadas.
+    4. Busca logros recientes o tareas hechas (Done).
     5. Busca actualizaciones sobre lo que está haciendo un proceso o sus nuevas metas.
     6. Solo devuelve actualizaciones para miembros/procesos que estén explícitamente mencionados o sean claramente identificables.
     7. IMPORTANTE: Devuelve TODAS las descripciones y textos en ESPAÑOL.

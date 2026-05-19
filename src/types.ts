@@ -3,31 +3,80 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export type PersonCategory = 'miembro' | 'cliente' | 'proveedor' | 'aliado' | 'contacto' | 'otro';
+
+export interface Company {
+  id: string;
+  name: string;
+  ruc: string;
+  industry?: string;
+  description?: string; // Long description of the company
+  email?: string;
+  phone?: string;
+  website?: string;
+  address?: string; // Used for backwards compatibility or general address
+  mainAddress?: string; // Address of the headquarters (Matriz)
+  branchAddresses?: string[]; // Array of branch addresses (Sucursales)
+  industries?: string[]; // Multiple industries or sectors
+  notes?: string;
+  createdAt: string;
+}
+
+export interface Industry {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  createdAt: string;
+}
+
 export interface TeamMember {
   id: string;
   name: string;
-  role: string;
-  processId: string;
+  role: string; // This is the job title
+  systemRoleId?: string; // Link to Role.id
+  categories: PersonCategory[]; // Changed from category to categories
+  processId?: string;
+  companyId?: string; // ID of the company they belong to
+  ruc?: string; // For "Persona Natural con RUC"
   skills: string[];
   responsibilities: string[];
   recentAchievements: string[];
   avatar?: string;
-  personality?: string; // Información sobre personalidad y percepciones
-  notes?: string;       // Notas adicionales o "dictados"
+  personality?: string; 
+  notes?: string;       
   email?: string;
   phone?: string;
-  epp?: string[];      // Equipo de Protección Personal (NUEVO)
+  epp?: string[];      
+}
+
+export interface Deliverable {
+  id: string;
+  label: string;
+  url: string;
 }
 
 export interface Task {
   id: string;
   title: string;
   description: string;
-  status: 'pendiente' | 'en_progreso' | 'completada';
+  status: 'backlog' | 'todo' | 'in_progress' | 'blocked' | 'review' | 'done' | 'rejected';
   memberId?: string; // Enlazada a un responsable
   auxiliaryId?: string; // Miembro auxiliar opcional (NUEVO)
   processId: string; // Enlazada a un proceso
   projectId?: string; // Enlazada a un proyecto (NUEVO)
+  deliverables?: Deliverable[]; // Nueva sección de entregables
+  plannedHours?: number; // Horas planificadas
+  actualHours?: number; // Horas reales
+  dueDate?: string; // Fecha de entrega
+  blockedByTaskIds?: string[]; // IDs de tareas que bloquean a esta tarea
   createdAt: string;
 }
 
@@ -37,6 +86,7 @@ export interface Project {
   description: string;
   processId: string; // Relacionado con un proceso
   status: 'activo' | 'completado' | 'pausado';
+  city?: string; // Ciudad a la que pertenece la campaña/proyecto
   createdAt: string;
 }
 
