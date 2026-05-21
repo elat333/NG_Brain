@@ -1,8 +1,10 @@
 {
-  "name": "NG_Brain",
+  "name": "Novagreen AI",
   "description": "Este es un sistema que integra las actividades , recursos, y análisis de todo Novagreen a fin de centralizar la información operativa de la empresa y automatizar tareas con IA",
   "requestFramePermissions": [
     "microphone"
   ],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

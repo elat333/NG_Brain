@@ -1,0 +1,167 @@
+{
+  "entities": {
+    "TeamMember": {
+      "title": "Team Member",
+      "description": "A member of the team, potentially associated with a user account.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "systemRoleId": { "type": "string" },
+        "categories": { "type": "array", "items": { "type": "string" } },
+        "processId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "ruc": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "responsibilities": { "type": "array", "items": { "type": "string" } },
+        "recentAchievements": { "type": "array", "items": { "type": "string" } },
+        "avatar": { "type": "string" },
+        "personality": { "type": "string" },
+        "notes": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "epp": { "type": "array", "items": { "type": "string" } },
+        "uid": { "type": "string", "description": "Firebase Auth UID if linked" }
+      },
+      "required": ["id", "name", "role", "categories", "skills", "responsibilities"]
+    },
+    "Process": {
+      "title": "Process",
+      "description": "A business process or department.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "goals": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "name", "description", "goals"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A task assigned to a member within a process.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["backlog", "todo", "in_progress", "blocked", "review", "done", "rejected"] },
+        "memberId": { "type": "string" },
+        "auxiliaryId": { "type": "string" },
+        "processId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "deliverables": { "type": "array", "items": { "$ref": "Deliverable" } },
+        "plannedHours": { "type": "number" },
+        "actualHours": { "type": "number" },
+        "dueDate": { "type": "string" },
+        "blockedByTaskIds": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "status", "processId", "createdAt"]
+    },
+    "Deliverable": {
+      "title": "Deliverable",
+      "description": "A deliverable associated with a task.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["id", "label", "url"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "A project involving tasks and processes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "processId": { "type": "string" },
+        "status": { "type": "string", "enum": ["activo", "completado", "pausado"] },
+        "city": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "processId", "status", "createdAt"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "An external company (client, provider, etc.)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ruc": { "type": "string" },
+        "industry": { "type": "string" },
+        "description": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "website": { "type": "string" },
+        "address": { "type": "string" },
+        "mainAddress": { "type": "string" },
+        "branchAddresses": { "type": "array", "items": { "type": "string" } },
+        "industries": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "ruc", "createdAt"]
+    },
+    "Industry": {
+      "title": "Industry",
+      "description": "An industry or sector categorization.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "createdAt"]
+    },
+    "Role": {
+      "title": "Role",
+      "description": "A system role with specific permissions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "description", "permissions", "createdAt"]
+    }
+  },
+  "firestore": {
+    "members": {
+      "schema": "TeamMember",
+      "description": "Collection of team members."
+    },
+    "processes": {
+      "schema": "Process",
+      "description": "Collection of business processes."
+    },
+    "tasks": {
+      "schema": "Task",
+      "description": "Collection of tasks."
+    },
+    "projects": {
+      "schema": "Project",
+      "description": "Collection of projects."
+    },
+    "companies": {
+      "schema": "Company",
+      "description": "Collection of companies."
+    },
+    "industries": {
+      "schema": "Industry",
+      "description": "Collection of industries."
+    },
+    "roles": {
+      "schema": "Role",
+      "description": "Collection of system roles."
+    }
+  }
+}

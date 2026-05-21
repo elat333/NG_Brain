@@ -112,6 +112,13 @@ export const initialMembers: TeamMember[] = [
     systemRoleId: "role-lider",
     categories: ["miembro"],
     processId: "proc-eng",
+    companyAssociations: [
+      { companyId: "comp-1", role: "Arquitecta de Software" },
+      { companyId: "comp-2", role: "Consultora Técnica" }
+    ],
+    identificationId: "1721548796",
+    hasRuc: true,
+    ruc: "1721548796001",
     skills: ["React", "Node.js", "PostgreSQL"],
     responsibilities: ["Arquitectura de API", "Líder de Frontend"],
     recentAchievements: ["Optimización de consultas de base de datos en un 40%"],
@@ -128,6 +135,11 @@ export const initialMembers: TeamMember[] = [
     systemRoleId: "role-colaborador",
     categories: ["miembro"],
     processId: "proc-mkt",
+    companyAssociations: [
+      { companyId: "comp-2", role: "Líder de Estrategia" }
+    ],
+    identificationId: "1715487623",
+    hasRuc: false,
     skills: ["SEO", "Estrategia de Contenido", "GA4"],
     responsibilities: ["Gestión de campañas", "Optimización SEO"],
     recentAchievements: ["Primer puesto en términos clave de la industria"],
@@ -144,6 +156,12 @@ export const initialMembers: TeamMember[] = [
     systemRoleId: "role-admin",
     categories: ["miembro"],
     processId: "proc-hr",
+    companyAssociations: [
+      { companyId: "comp-1", role: "Directora Ejecutiva" }
+    ],
+    identificationId: "1709854123",
+    hasRuc: true,
+    ruc: "1709854123001",
     skills: ["Estrategia", "Presupuesto", "Oratoria"],
     responsibilities: ["Escalamiento del equipo", "Supervisión de presupuesto"],
     recentAchievements: ["Cierre de ronda de inversión de $2M"],

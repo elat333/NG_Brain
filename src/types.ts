@@ -37,14 +37,21 @@ export interface Role {
   createdAt: string;
 }
 
+export interface CompanyAssociation {
+  companyId: string;
+  role: string; // Specific role/relationship with this company
+}
+
 export interface TeamMember {
   id: string;
   name: string;
-  role: string; // This is the job title
+  role: string; // Basic profile job title (e.g. "Especialista en Seguridad")
   systemRoleId?: string; // Link to Role.id
-  categories: PersonCategory[]; // Changed from category to categories
+  categories: PersonCategory[]; 
   processId?: string;
-  companyId?: string; // ID of the company they belong to
+  companyAssociations: CompanyAssociation[]; // New: list of companies and roles
+  identificationId?: string; // Cedula or Passport
+  hasRuc?: boolean; // If they have a RUC
   ruc?: string; // For "Persona Natural con RUC"
   skills: string[];
   responsibilities: string[];
@@ -143,8 +150,11 @@ export interface MemberDraft {
   memberId?: string;
   data: {
     name?: string;
+    identificationId?: string;
+    hasRuc?: boolean;
     role?: string;
     processId?: string;
+    companyAssociations?: { companyId: string, role: string }[];
     skills?: string[];
     responsibilities?: string[];
     personality?: string;

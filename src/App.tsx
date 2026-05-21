@@ -52,6 +52,24 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TeamMember, Process, ExtractedUpdates, Task, Project, SuggestedActivity, MemberDraft, Deliverable, Company, PersonCategory, Industry, Role } from './types';
 import { initialMembers, initialProcesses, initialTasks, initialCompanies, initialIndustries, initialRoles } from './lib/initialData';
 import { analyzeTranscript, getPlanningSuggestions, processMemberInput } from './services/aiService';
+import { 
+  auth, 
+  db, 
+  loginWithGoogle, 
+  logout, 
+  collection, 
+  doc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  query, 
+  where,
+  OperationType,
+  handleFirestoreError,
+  User as FirebaseUser
+} from './lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 // Helper functions
 const isTaskBlocked = (id: string, allTasks: Task[]): { isBlocked: boolean; blockers: Task[] } => {
@@ -70,7 +88,203 @@ const normalizeText = (text: string): string => {
 };
 
 export default function App() {
-// ... existing state ...
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [isInitializingData, setIsInitializingData] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'transcript' | 'tasks' | 'planner' | 'projects' | 'settings' | 'directory'>('dashboard');
+  const [lastTab, setLastTab] = useState<string | null>(null);
+  const [settingsSubTab, setSettingsSubTab] = useState<'roles' | 'processes' | 'members' | 'general'>('general');
+  const [directorySubTab, setDirectorySubTab] = useState<'people' | 'companies' | 'industries'>('people');
+  
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [selectedRoleId, setSelectedRoleId] = useState<string>('role-admin');
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [processes, setProcesses] = useState<Process[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoadingAuth(false);
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const collections = [
+      { name: 'members', setState: setMembers, initial: initialMembers },
+      { name: 'processes', setState: setProcesses, initial: initialProcesses },
+      { name: 'tasks', setState: setTasks, initial: initialTasks },
+      { name: 'projects', setState: setProjects, initial: [] },
+      { name: 'companies', setState: setCompanies, initial: initialCompanies },
+      { name: 'industries', setState: setIndustries, initial: initialIndustries },
+      { name: 'roles', setState: setRoles, initial: initialRoles },
+    ];
+
+    const unsubscribes = collections.map(col => {
+      return onSnapshot(collection(db, col.name), (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ ...doc.data() } as any));
+        col.setState(data);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, col.name);
+      });
+    });
+
+    return () => unsubscribes.forEach(unsub => unsub());
+  }, [user]);
+
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [localDataFound, setLocalDataFound] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string>('/src/assets/images/logo_novagreen_clean_1779216947627.png');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const savedLogo = localStorage.getItem('novagreen_custom_logo');
+    if (savedLogo) {
+      setLogoUrl(savedLogo);
+    }
+  }, []);
+
+  const handleLogoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setLogoUrl(result);
+      localStorage.setItem('novagreen_custom_logo', result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  useEffect(() => {
+    // Check if there's any data in localStorage that could be migrated
+    const keysToCheck = [
+      'teampulse_members', 'tp_members', 'ng_members', 'members',
+      'teampulse_tasks', 'tp_tasks', 'ng_tasks', 'tasks',
+      'teampulse_projects', 'tp_projects', 'ng_projects', 'projects',
+      'teampulse_processes', 'tp_processes', 'ng_processes', 'processes',
+      'teampulse_companies', 'tp_companies', 'ng_companies', 'companies'
+    ];
+    const found = keysToCheck.some(key => {
+      const data = localStorage.getItem(key);
+      try {
+        return data && JSON.parse(data).length > 0;
+      } catch {
+        return false;
+      }
+    });
+    setLocalDataFound(found);
+  }, []);
+
+  const migrateFromLocalStorage = async () => {
+    if (!user) return;
+    if (!window.confirm('Se han detectado datos guardados en este navegador. ¿Deseas migrarlos a tu cuenta de Novagreen AI? Esto no borrará los datos técnicos, pero subirá tu información a la nube.')) return;
+    
+    setIsMigrating(true);
+    try {
+      const collections = [
+        { local: 'teampulse_members', cloud: 'members' },
+        { local: 'tp_members', cloud: 'members' },
+        { local: 'ng_members', cloud: 'members' },
+        { local: 'members', cloud: 'members' },
+        
+        { local: 'teampulse_tasks', cloud: 'tasks' },
+        { local: 'tp_tasks', cloud: 'tasks' },
+        { local: 'ng_tasks', cloud: 'tasks' },
+        { local: 'tasks', cloud: 'tasks' },
+        
+        { local: 'teampulse_projects', cloud: 'projects' },
+        { local: 'tp_projects', cloud: 'projects' },
+        { local: 'ng_projects', cloud: 'projects' },
+        { local: 'projects', cloud: 'projects' },
+
+        { local: 'teampulse_processes', cloud: 'processes' },
+        { local: 'tp_processes', cloud: 'processes' },
+        { local: 'ng_processes', cloud: 'processes' },
+        { local: 'processes', cloud: 'processes' },
+
+        { local: 'teampulse_companies', cloud: 'companies' },
+        { local: 'tp_companies', cloud: 'companies' },
+        { local: 'ng_companies', cloud: 'companies' },
+        { local: 'companies', cloud: 'companies' },
+
+        { local: 'teampulse_industries', cloud: 'industries' },
+        { local: 'industries', cloud: 'industries' },
+
+        { local: 'teampulse_roles', cloud: 'roles' },
+        { local: 'roles', cloud: 'roles' },
+      ];
+
+      let migratedCount = 0;
+      for (const col of collections) {
+        const localData = localStorage.getItem(col.local);
+        if (localData) {
+          try {
+            const data = JSON.parse(localData);
+            if (Array.isArray(data)) {
+              for (const item of data) {
+                if (item.id) {
+                  await setDoc(doc(db, col.cloud, item.id), item);
+                  migratedCount++;
+                }
+              }
+            }
+          } catch (e) {
+            console.error(`Error migrating ${col.local}`, e);
+          }
+        }
+      }
+
+      if (migratedCount > 0) {
+        alert(`${migratedCount} elementos migrados correctamente a la nube. El sistema se actualizará ahora.`);
+        setLocalDataFound(false);
+      } else {
+        alert('No se encontraron datos estructurados compatibles para migrar. Intenta cargar los datos iniciales si la cuenta está vacía.');
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'migration');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
+  const bootstrapData = async () => {
+    if (!user) return;
+    setIsInitializingData(true);
+    try {
+      const collectionsToBootstrap = [
+        { name: 'members', data: initialMembers },
+        { name: 'processes', data: initialProcesses },
+        { name: 'tasks', data: initialTasks },
+        { name: 'companies', data: initialCompanies },
+        { name: 'industries', data: initialIndustries },
+        { name: 'roles', data: initialRoles },
+      ];
+
+      for (const col of collectionsToBootstrap) {
+        for (const item of col.data) {
+          await setDoc(doc(db, col.name, item.id), item);
+        }
+      }
+      alert('Datos inicializados correctamente en Firebase.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'bootstrap');
+    } finally {
+      setIsInitializingData(false);
+    }
+  };
 
   const handleMemberAssistantAnalyze = async () => {
     if (!memberAssistantInput.trim()) return;
@@ -85,139 +299,59 @@ export default function App() {
     }
   };
 
-  const applyMemberDraft = () => {
+  const applyMemberDraft = async () => {
     if (!suggestedMemberDraft) return;
 
-    if (suggestedMemberDraft.type === 'create') {
-      const newMember: TeamMember = {
-        id: `mem-${Date.now()}`,
-        name: suggestedMemberDraft.data.name || 'Nuevo Miembro',
-        role: suggestedMemberDraft.data.role || 'Rol Pendiente',
-        systemRoleId: '',
-        categories: ['miembro'],
-        processId: suggestedMemberDraft.data.processId || processes[0]?.id || 'default',
-        skills: suggestedMemberDraft.data.skills || [],
-        responsibilities: suggestedMemberDraft.data.responsibilities || [],
-        epp: suggestedMemberDraft.data.epp || [],
-        recentAchievements: [],
-        avatar: `https://picsum.photos/seed/${(suggestedMemberDraft.data.name || 'new').replace(/\s/g, '')}/150/150`,
-        personality: suggestedMemberDraft.data.personality || '',
-        notes: suggestedMemberDraft.data.notes || '',
-        email: suggestedMemberDraft.data.email || '',
-        phone: suggestedMemberDraft.data.phone || ''
-      };
-      setMembers(prev => [...prev, newMember]);
-    } else if (suggestedMemberDraft.type === 'update' && suggestedMemberDraft.memberId) {
-      setMembers(prev => prev.map(m => {
-        if (m.id === suggestedMemberDraft.memberId) {
-          return {
+    try {
+      if (suggestedMemberDraft.type === 'create') {
+        const id = `mem-${Date.now()}`;
+        const newMember: TeamMember = {
+          id,
+          name: suggestedMemberDraft.data.name || 'Nuevo Miembro',
+          role: suggestedMemberDraft.data.role || 'Rol Pendiente',
+          systemRoleId: '',
+          categories: ['miembro'],
+          processId: suggestedMemberDraft.data.processId || processes[0]?.id || 'default',
+          companyAssociations: (suggestedMemberDraft.data as any).companyAssociations || [],
+          identificationId: suggestedMemberDraft.data.identificationId || '',
+          hasRuc: suggestedMemberDraft.data.hasRuc || false,
+          ruc: suggestedMemberDraft.data.hasRuc ? `${suggestedMemberDraft.data.identificationId}001` : '',
+          skills: suggestedMemberDraft.data.skills || [],
+          responsibilities: suggestedMemberDraft.data.responsibilities || [],
+          epp: suggestedMemberDraft.data.epp || [],
+          recentAchievements: [],
+          avatar: `https://picsum.photos/seed/${(suggestedMemberDraft.data.name || 'new').replace(/\s/g, '')}/150/150`,
+          personality: suggestedMemberDraft.data.personality || '',
+          notes: suggestedMemberDraft.data.notes || '',
+          email: suggestedMemberDraft.data.email || '',
+          phone: suggestedMemberDraft.data.phone || ''
+        };
+        await setDoc(doc(db, 'members', id), newMember);
+      } else if (suggestedMemberDraft.type === 'update' && suggestedMemberDraft.memberId) {
+        const m = members.find(mem => mem.id === suggestedMemberDraft.memberId);
+        if (m) {
+          const updated = {
             ...m,
             ...suggestedMemberDraft.data,
-            // Deep merge for arrays if needed, but for now we follow AI suggestion
+            ruc: (suggestedMemberDraft.data.hasRuc !== undefined ? suggestedMemberDraft.data.hasRuc : m.hasRuc)
+              ? `${suggestedMemberDraft.data.identificationId || m.identificationId}001`
+              : (suggestedMemberDraft.data.hasRuc === false ? '' : m.ruc),
             skills: suggestedMemberDraft.data.skills ? Array.from(new Set([...m.skills, ...suggestedMemberDraft.data.skills])) : m.skills,
             responsibilities: suggestedMemberDraft.data.responsibilities ? Array.from(new Set([...m.responsibilities, ...suggestedMemberDraft.data.responsibilities])) : m.responsibilities,
             epp: suggestedMemberDraft.data.epp ? Array.from(new Set([...(m.epp || []), ...suggestedMemberDraft.data.epp])) : m.epp,
           };
+          await updateDoc(doc(db, 'members', m.id), updated);
         }
-        return m;
-      }));
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'members');
     }
 
     setSuggestedMemberDraft(null);
     setMemberAssistantInput('');
     setIsMemberAssistantOpen(false);
   };
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'transcript' | 'tasks' | 'planner' | 'projects' | 'settings' | 'directory'>('dashboard');
-  const [lastTab, setLastTab] = useState<string | null>(null);
-  const [settingsSubTab, setSettingsSubTab] = useState<'roles' | 'processes' | 'members' | 'general'>('general');
-  const [directorySubTab, setDirectorySubTab] = useState<'people' | 'companies' | 'industries'>('people');
-  
-  const [industries, setIndustries] = useState<Industry[]>(() => {
-    const saved = localStorage.getItem('teampulse_industries');
-    if (saved) return JSON.parse(saved);
-    return initialIndustries;
-  });
 
-  const [roles, setRoles] = useState<Role[]>(() => {
-    const saved = localStorage.getItem('teampulse_roles');
-    if (saved) return JSON.parse(saved);
-    return initialRoles;
-  });
-
-  const [selectedRoleId, setSelectedRoleId] = useState<string>('role-admin');
-
-  const [companies, setCompanies] = useState<Company[]>(() => {
-    const saved = localStorage.getItem('teampulse_companies');
-    if (saved) return JSON.parse(saved);
-    return initialCompanies;
-  });
-
-  const [members, setMembers] = useState<TeamMember[]>(() => {
-    const saved = localStorage.getItem('teampulse_members');
-    if (!saved) return initialMembers;
-    try {
-      const data = JSON.parse(saved);
-      // Migrate individual members
-      return data.map((m: any) => ({
-        ...m,
-        categories: m.categories || [m.category || 'miembro'],
-        processId: m.processId || m.departmentId || 'default'
-      }));
-    } catch (e) {
-      return initialMembers;
-    }
-  });
-  const [processes, setProcesses] = useState<Process[]>(() => {
-    const savedNew = localStorage.getItem('teampulse_processes');
-    if (savedNew) return JSON.parse(savedNew);
-    
-    // Fallback and migrate from old key
-    const savedOld = localStorage.getItem('teampulse_departments');
-    if (savedOld) {
-      try {
-        return JSON.parse(savedOld);
-      } catch (e) {
-        return initialProcesses;
-      }
-    }
-    
-    return initialProcesses;
-  });
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('teampulse_tasks');
-    if (!saved) return initialTasks;
-    try {
-      const data = JSON.parse(saved);
-      // Migrate individual tasks if they still have departmentId or old statuses
-      return data.map((t: any) => {
-        let status = t.status;
-        // Migrate old statuses to new ones
-        if (status === 'pendiente') status = 'backlog';
-        if (status === 'en_progreso') status = 'in_progress';
-        if (status === 'completada') status = 'done';
-
-        return {
-          ...t,
-          status,
-          processId: t.processId || t.departmentId || 'default',
-          projectId: t.projectId || undefined
-        };
-      });
-    } catch (e) {
-      return initialTasks;
-    }
-  });
-
-  const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = localStorage.getItem('teampulse_projects');
-    if (!saved) return [];
-    try {
-      return JSON.parse(saved);
-    } catch (e) {
-      return [];
-    }
-  });
-  
   const [transcript, setTranscript] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [extractedUpdates, setExtractedUpdates] = useState<ExtractedUpdates | null>(null);
@@ -230,7 +364,9 @@ export default function App() {
     systemRoleId: '',
     categories: ['miembro'] as PersonCategory[],
     processId: '',
-    companyId: '',
+    companyAssociations: [] as { companyId: string, role: string }[],
+    identificationId: '',
+    hasRuc: false,
     ruc: '',
     skills: '',
     responsibilities: '',
@@ -402,34 +538,6 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    localStorage.setItem('teampulse_members', JSON.stringify(members));
-  }, [members]);
-
-  useEffect(() => {
-    localStorage.setItem('teampulse_companies', JSON.stringify(companies));
-  }, [companies]);
-
-  useEffect(() => {
-    localStorage.setItem('teampulse_industries', JSON.stringify(industries));
-  }, [industries]);
-
-  useEffect(() => {
-    localStorage.setItem('teampulse_roles', JSON.stringify(roles));
-  }, [roles]);
-
-  useEffect(() => {
-    localStorage.setItem('teampulse_projects', JSON.stringify(projects));
-  }, [projects]);
-
-  useEffect(() => {
-    localStorage.setItem('teampulse_processes', JSON.stringify(processes));
-  }, [processes]);
-
-  useEffect(() => {
-    localStorage.setItem('teampulse_tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
   const handleAnalyze = async () => {
     if (!transcript.trim()) return;
     setIsAnalyzing(true);
@@ -444,84 +552,94 @@ export default function App() {
     }
   };
 
-  const applyUpdates = () => {
+  const applyUpdates = async () => {
     if (!extractedUpdates) return;
 
-    // Apply member updates
-    setMembers(prev => prev.map(member => {
-      const update = extractedUpdates.memberUpdates.find(u => u.memberId === member.id);
-      if (!update) return member;
+    try {
+      // Apply member updates
+      for (const update of extractedUpdates.memberUpdates) {
+        const member = members.find(m => m.id === update.memberId);
+        if (member) {
+          await updateDoc(doc(db, 'members', member.id), {
+            role: update.roleUpdate || member.role,
+            skills: Array.from(new Set([...member.skills, ...(update.newSkills || [])])),
+            responsibilities: Array.from(new Set([...member.responsibilities, ...(update.newResponsibilities || [])])),
+            epp: Array.from(new Set([...(member.epp || []), ...(update.epp || [])])),
+            recentAchievements: [...(update.achievements || []), ...member.recentAchievements].slice(0, 5)
+          });
+        }
+      }
 
-      return {
-        ...member,
-        role: update.roleUpdate || member.role,
-        skills: Array.from(new Set([...member.skills, ...(update.newSkills || [])])),
-        responsibilities: Array.from(new Set([...member.responsibilities, ...(update.newResponsibilities || [])])),
-        epp: Array.from(new Set([...(member.epp || []), ...(update.epp || [])])),
-        recentAchievements: [...(update.achievements || []), ...member.recentAchievements].slice(0, 5)
-      };
-    }));
-
-    // Apply process updates
-    setProcesses(prev => prev.map(proc => {
-      const update = extractedUpdates.processUpdates.find(u => u.processId === proc.id);
-      if (!update) return proc;
-
-      return {
-        ...proc,
-        description: update.descriptionUpdate || proc.description,
-        goals: Array.from(new Set([...proc.goals, ...(update.newGoals || [])]))
-      };
-    }));
+      // Apply process updates
+      for (const update of extractedUpdates.processUpdates) {
+        const proc = processes.find(p => p.id === update.processId);
+        if (proc) {
+          await updateDoc(doc(db, 'processes', proc.id), {
+            description: update.descriptionUpdate || proc.description,
+            goals: Array.from(new Set([...proc.goals, ...(update.newGoals || [])]))
+          });
+        }
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'extracted_updates');
+    }
 
     setExtractedUpdates(null);
     setTranscript('');
     setActiveTab('dashboard');
   };
 
-  const handleAddMember = (e: React.FormEvent) => {
+  const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemberData.name) return;
 
-    if (editingMember) {
-      setMembers(prev => prev.map(m => m.id === editingMember.id ? {
-        ...m,
-        name: newMemberData.name,
-        role: newMemberData.role,
-        systemRoleId: newMemberData.systemRoleId,
-        categories: newMemberData.categories,
-        processId: newMemberData.processId || undefined,
-        companyId: newMemberData.companyId || undefined,
-        ruc: newMemberData.ruc || undefined,
-        skills: newMemberData.skills.split(',').map(s => s.trim()).filter(s => s !== ''),
-        responsibilities: newMemberData.responsibilities.split(',').map(r => r.trim()).filter(r => r !== ''),
-        personality: newMemberData.personality,
-        notes: newMemberData.notes,
-        email: newMemberData.email,
-        phone: newMemberData.phone,
-        epp: newMemberData.epp.split(',').map(e => e.trim()).filter(e => e !== '')
-      } : m));
-    } else {
-      const newMember: TeamMember = {
-        id: `mem-${Date.now()}`,
-        name: newMemberData.name,
-        role: newMemberData.role,
-        systemRoleId: newMemberData.systemRoleId,
-        categories: newMemberData.categories,
-        processId: newMemberData.processId || undefined,
-        companyId: newMemberData.companyId || undefined,
-        ruc: newMemberData.ruc || undefined,
-        skills: newMemberData.skills.split(',').map(s => s.trim()).filter(s => s !== ''),
-        responsibilities: newMemberData.responsibilities.split(',').map(r => r.trim()).filter(r => r !== ''),
-        recentAchievements: [],
-        avatar: `https://picsum.photos/seed/${newMemberData.name.replace(/\s/g, '')}/150/150`,
-        personality: newMemberData.personality,
-        notes: newMemberData.notes,
-        email: newMemberData.email,
-        phone: newMemberData.phone,
-        epp: newMemberData.epp.split(',').map(e => e.trim()).filter(e => e !== '')
-      };
-      setMembers(prev => [...prev, newMember]);
+    try {
+      if (editingMember) {
+        await updateDoc(doc(db, 'members', editingMember.id), {
+          name: newMemberData.name,
+          role: newMemberData.role,
+          systemRoleId: newMemberData.systemRoleId,
+          categories: newMemberData.categories,
+          processId: newMemberData.processId || '',
+          companyAssociations: newMemberData.companyAssociations,
+          identificationId: newMemberData.identificationId,
+          hasRuc: newMemberData.hasRuc,
+          ruc: newMemberData.hasRuc ? `${newMemberData.identificationId}001` : '',
+          skills: newMemberData.skills.split(',').map(s => s.trim()).filter(s => s !== ''),
+          responsibilities: newMemberData.responsibilities.split(',').map(r => r.trim()).filter(r => r !== ''),
+          personality: newMemberData.personality,
+          notes: newMemberData.notes,
+          email: newMemberData.email,
+          phone: newMemberData.phone,
+          epp: newMemberData.epp.split(',').map(e => e.trim()).filter(e => e !== '')
+        });
+      } else {
+        const id = `mem-${Date.now()}`;
+        const newMember: TeamMember = {
+          id,
+          name: newMemberData.name,
+          role: newMemberData.role,
+          systemRoleId: newMemberData.systemRoleId,
+          categories: newMemberData.categories,
+          processId: newMemberData.processId || '',
+          companyAssociations: newMemberData.companyAssociations,
+          identificationId: newMemberData.identificationId,
+          hasRuc: newMemberData.hasRuc,
+          ruc: newMemberData.hasRuc ? `${newMemberData.identificationId}001` : '',
+          skills: newMemberData.skills.split(',').map(s => s.trim()).filter(s => s !== ''),
+          responsibilities: newMemberData.responsibilities.split(',').map(r => r.trim()).filter(r => r !== ''),
+          recentAchievements: [],
+          avatar: `https://picsum.photos/seed/${newMemberData.name.replace(/\s/g, '')}/150/150`,
+          personality: newMemberData.personality,
+          notes: newMemberData.notes,
+          email: newMemberData.email,
+          phone: newMemberData.phone,
+          epp: newMemberData.epp.split(',').map(e => e.trim()).filter(e => e !== '')
+        };
+        await setDoc(doc(db, 'members', id), newMember);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'members');
     }
 
     setIsAddingMember(false);
@@ -532,7 +650,9 @@ export default function App() {
       systemRoleId: '',
       categories: ['miembro'],
       processId: '',
-      companyId: '',
+      companyAssociations: [],
+      identificationId: '',
+      hasRuc: false,
       ruc: '',
       skills: '',
       responsibilities: '',
@@ -544,58 +664,56 @@ export default function App() {
     });
   };
 
-  const handleDeleteMember = (id: string) => {
-    const member = members.find(m => m.id === id);
-    if (member) {
-      setMemberToDelete(member);
-    }
-  };
-
-  const confirmDeleteMember = () => {
+  const confirmDeleteMember = async () => {
     if (!memberToDelete) return;
-    setMembers(prev => prev.filter(m => m.id !== memberToDelete.id));
+    try {
+      await deleteDoc(doc(db, 'members', memberToDelete.id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'members');
+    }
     setMemberToDelete(null);
   };
 
-  const handleAddCompany = (e: React.FormEvent) => {
+  const handleDeleteMember = (member: TeamMember) => {
+    setMemberToDelete(member);
+  };
+
+  const handleAddCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCompanyData.name || !newCompanyData.ruc) return;
 
-    // Manage industries list
-    const companyIndustries = newCompanyData.industries || [];
-    const updatedIndustries = [...industries];
-    let industriesChanged = false;
-
-    companyIndustries.forEach(indName => {
-      if (!updatedIndustries.some(i => normalizeText(i.name) === normalizeText(indName))) {
-        updatedIndustries.push({
-          id: `ind-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          name: indName,
-          createdAt: new Date().toISOString()
-        });
-        industriesChanged = true;
+    try {
+      // Manage industries list
+      const companyIndustries = newCompanyData.industries || [];
+      for (const indName of companyIndustries) {
+        if (!industries.some(i => normalizeText(i.name) === normalizeText(indName))) {
+          const id = `ind-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+          await setDoc(doc(db, 'industries', id), {
+            id,
+            name: indName,
+            createdAt: new Date().toISOString()
+          });
+        }
       }
-    });
 
-    if (industriesChanged) {
-      setIndustries(updatedIndustries);
-    }
-
-    if (editingCompany) {
-      setCompanies(prev => prev.map(c => c.id === editingCompany.id ? {
-        ...c,
-        ...newCompanyData,
-        mainAddress: newCompanyData.mainAddress,
-        address: newCompanyData.mainAddress // for compatibility
-      } : c));
-    } else {
-      const newCompany: Company = {
-        id: `comp-${Date.now()}`,
-        ...newCompanyData,
-        address: newCompanyData.mainAddress, // for compatibility
-        createdAt: new Date().toISOString()
-      };
-      setCompanies(prev => [...prev, newCompany]);
+      if (editingCompany) {
+        await updateDoc(doc(db, 'companies', editingCompany.id), {
+          ...newCompanyData,
+          mainAddress: newCompanyData.mainAddress,
+          address: newCompanyData.mainAddress // for compatibility
+        });
+      } else {
+        const id = `comp-${Date.now()}`;
+        const newCompany: Company = {
+          id,
+          ...newCompanyData,
+          address: newCompanyData.mainAddress, // for compatibility
+          createdAt: new Date().toISOString()
+        };
+        await setDoc(doc(db, 'companies', id), newCompany);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'companies');
     }
 
     setIsAddingCompany(false);
@@ -631,33 +749,39 @@ export default function App() {
     setIsAddingCompany(true);
   };
 
-  const handleDeleteCompany = (id: string) => {
+  const handleDeleteCompany = async (id: string) => {
     if (window.confirm('¿Estás seguro de que deseas eliminar esta compañía?')) {
-      setCompanies(prev => prev.filter(c => c.id !== id));
-      // Optionally unassign members from this company
-      setMembers(prev => prev.map(m => m.companyId === id ? { ...m, companyId: undefined } : m));
+      try {
+        await deleteDoc(doc(db, 'companies', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, 'companies');
+      }
     }
   };
 
-  const handleAddProcess = (e: React.FormEvent) => {
+  const handleAddProcess = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProcessData.name) return;
 
-    if (editingProcess) {
-      setProcesses(prev => prev.map(p => p.id === editingProcess.id ? {
-        ...p,
-        name: newProcessData.name,
-        description: newProcessData.description,
-        goals: newProcessData.goals.split(',').map(g => g.trim()).filter(g => g !== '')
-      } : p));
-    } else {
-      const newProc: Process = {
-        id: `proc-${Date.now()}`,
-        name: newProcessData.name,
-        description: newProcessData.description,
-        goals: newProcessData.goals.split(',').map(g => g.trim()).filter(g => g !== '')
-      };
-      setProcesses(prev => [...prev, newProc]);
+    try {
+      if (editingProcess) {
+        await updateDoc(doc(db, 'processes', editingProcess.id), {
+          name: newProcessData.name,
+          description: newProcessData.description,
+          goals: newProcessData.goals.split(',').map(g => g.trim()).filter(g => g !== '')
+        });
+      } else {
+        const id = `proc-${Date.now()}`;
+        const newProc: Process = {
+          id,
+          name: newProcessData.name,
+          description: newProcessData.description,
+          goals: newProcessData.goals.split(',').map(g => g.trim()).filter(g => g !== '')
+        };
+        await setDoc(doc(db, 'processes', id), newProc);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'processes');
     }
 
     setIsAddingProcess(false);
@@ -665,18 +789,14 @@ export default function App() {
     setNewProcessData({ name: '', description: '', goals: '' });
   };
 
-  const confirmDeleteProcess = () => {
+  const confirmDeleteProcess = async () => {
     if (!processToDelete) return;
 
-    const id = processToDelete.id;
-    setProcesses(prev => prev.filter(p => p.id !== id));
-    
-    setMembers(prev => prev.map(m => {
-      if (m.processId === id) {
-        return { ...m, processId: reassignToId === 'unassigned' ? 'unassigned' : reassignToId };
-      }
-      return m;
-    }));
+    try {
+      await deleteDoc(doc(db, 'processes', processToDelete.id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'processes');
+    }
 
     setProcessToDelete(null);
     setReassignToId('unassigned');
@@ -709,28 +829,34 @@ export default function App() {
     setIsAddingTask(true);
   };
 
-  const handleAddTask = (e: React.FormEvent) => {
+  const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskData.title || !newTaskData.processId) return;
 
-    const newTask: Task = {
-      id: newTaskData.id || `task-${Date.now()}`,
-      title: newTaskData.title,
-      description: newTaskData.description,
-      status: newTaskData.status,
-      processId: newTaskData.processId,
-      memberId: newTaskData.memberId || undefined,
-      auxiliaryId: newTaskData.auxiliaryId || undefined,
-      projectId: newTaskData.projectId || undefined,
-      deliverables: newTaskData.deliverables,
-      plannedHours: newTaskData.plannedHours || 0,
-      actualHours: newTaskData.actualHours || 0,
-      dueDate: newTaskData.dueDate || undefined,
-      blockedByTaskIds: newTaskData.blockedByTaskIds,
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const id = newTaskData.id || `task-${Date.now()}`;
+      const newTask: Task = {
+        id,
+        title: newTaskData.title,
+        description: newTaskData.description,
+        status: newTaskData.status,
+        processId: newTaskData.processId,
+        memberId: newTaskData.memberId || '',
+        auxiliaryId: newTaskData.auxiliaryId || '',
+        projectId: newTaskData.projectId || '',
+        deliverables: newTaskData.deliverables,
+        plannedHours: newTaskData.plannedHours || 0,
+        actualHours: newTaskData.actualHours || 0,
+        dueDate: newTaskData.dueDate || '',
+        blockedByTaskIds: newTaskData.blockedByTaskIds,
+        createdAt: new Date().toISOString()
+      };
 
-    setTasks(prev => [...prev, newTask]);
+      await setDoc(doc(db, 'tasks', id), newTask);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'tasks');
+    }
+
     setIsAddingTask(false);
     if (lastTab) {
       setActiveTab(lastTab as any);
@@ -753,24 +879,27 @@ export default function App() {
     });
   };
   
-  const handleUpdateTask = (e: React.FormEvent) => {
+  const handleUpdateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTask || !newTaskData.title || !newTaskData.processId) return;
 
-    setTasks(prev => prev.map(t => t.id === editingTask.id ? { 
-      ...t, 
-      title: newTaskData.title,
-      description: newTaskData.description,
-      memberId: newTaskData.memberId || undefined,
-      auxiliaryId: newTaskData.auxiliaryId || undefined,
-      projectId: newTaskData.projectId || undefined,
-      status: newTaskData.status as any,
-      deliverables: newTaskData.deliverables,
-      plannedHours: newTaskData.plannedHours || 0,
-      actualHours: newTaskData.actualHours || 0,
-      dueDate: newTaskData.dueDate || undefined,
-      blockedByTaskIds: newTaskData.blockedByTaskIds
-    } : t));
+    try {
+      await updateDoc(doc(db, 'tasks', editingTask.id), { 
+        title: newTaskData.title,
+        description: newTaskData.description,
+        memberId: newTaskData.memberId || '',
+        auxiliaryId: newTaskData.auxiliaryId || '',
+        projectId: newTaskData.projectId || '',
+        status: newTaskData.status as any,
+        deliverables: newTaskData.deliverables,
+        plannedHours: newTaskData.plannedHours || 0,
+        actualHours: newTaskData.actualHours || 0,
+        dueDate: newTaskData.dueDate || '',
+        blockedByTaskIds: newTaskData.blockedByTaskIds
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'tasks');
+    }
 
     setEditingTask(null);
     setIsAddingTask(false);
@@ -814,7 +943,7 @@ export default function App() {
     });
   };
 
-  const updateTaskStatus = (id: string, newStatus: Task['status']) => {
+  const updateTaskStatus = async (id: string, newStatus: Task['status']) => {
     if (newStatus === 'in_progress') {
       const { isBlocked, blockers } = isTaskBlocked(id, tasks);
       if (isBlocked) {
@@ -822,49 +951,65 @@ export default function App() {
         return;
       }
     }
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+    try {
+      await updateDoc(doc(db, 'tasks', id), { status: newStatus });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'tasks');
+    }
   };
 
-  const handleAddProject = (e: React.FormEvent) => {
+  const handleAddProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectData.name || !newProjectData.processId) return;
 
-    const project: Project = {
-      id: `proj-${Date.now()}`,
-      name: newProjectData.name,
-      description: newProjectData.description,
-      processId: newProjectData.processId,
-      status: newProjectData.status,
-      city: newProjectData.city,
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const id = `proj-${Date.now()}`;
+      const project: Project = {
+        id,
+        name: newProjectData.name,
+        description: newProjectData.description,
+        processId: newProjectData.processId,
+        status: newProjectData.status,
+        city: newProjectData.city,
+        createdAt: new Date().toISOString()
+      };
 
-    setProjects(prev => [...prev, project]);
+      await setDoc(doc(db, 'projects', id), project);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'projects');
+    }
+
     setIsAddingProject(false);
     setNewProjectData({ name: '', description: '', processId: '', status: 'activo', city: '' });
   };
 
-  const handleUpdateProject = (e: React.FormEvent) => {
+  const handleUpdateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProject || !newProjectData.name || !newProjectData.processId) return;
 
-    setProjects(prev => prev.map(p => p.id === editingProject.id ? {
-      ...p,
-      name: newProjectData.name,
-      description: newProjectData.description,
-      processId: newProjectData.processId,
-      status: newProjectData.status,
-      city: newProjectData.city
-    } : p));
+    try {
+      await updateDoc(doc(db, 'projects', editingProject.id), {
+        name: newProjectData.name,
+        description: newProjectData.description,
+        processId: newProjectData.processId,
+        status: newProjectData.status,
+        city: newProjectData.city
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'projects');
+    }
 
     setEditingProject(null);
     setNewProjectData({ name: '', description: '', processId: '', status: 'activo', city: '' });
   };
 
-  const deleteProject = (id: string) => {
+  const deleteProject = async (id: string) => {
     if (window.confirm('¿Estás seguro de que deseas eliminar este proyecto? Las tareas asociadas perderán su vinculación con el proyecto.')) {
-      setProjects(prev => prev.filter(p => p.id !== id));
-      setTasks(prev => prev.map(t => t.projectId === id ? { ...t, projectId: undefined } : t));
+      try {
+        await deleteDoc(doc(db, 'projects', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, 'projects');
+      }
     }
   };
 
@@ -889,9 +1034,13 @@ export default function App() {
     }
   };
 
-  const confirmDeleteTask = () => {
+  const confirmDeleteTask = async () => {
     if (!taskToDelete) return;
-    setTasks(prev => prev.filter(t => t.id !== taskToDelete.id));
+    try {
+      await deleteDoc(doc(db, 'tasks', taskToDelete.id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'tasks');
+    }
     setTaskToDelete(null);
   };
 
@@ -913,7 +1062,9 @@ export default function App() {
       systemRoleId: member.systemRoleId || '',
       categories: member.categories || [],
       processId: member.processId || '',
-      companyId: member.companyId || '',
+      companyAssociations: member.companyAssociations || [],
+      identificationId: member.identificationId || '',
+      hasRuc: member.hasRuc || false,
       ruc: member.ruc || '',
       skills: member.skills.join(', '),
       responsibilities: member.responsibilities.join(', '),
@@ -943,16 +1094,83 @@ export default function App() {
     return matchesSearch && matchesProject && matchesMember;
   });
 
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-8">
+        <motion.div 
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
+        />
+        <p className="text-sm font-bold text-gray-500 animate-pulse uppercase tracking-widest">Cargando Teampulse AI...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white p-12 rounded-[2.5rem] shadow-2xl border border-gray-100 max-w-lg w-full text-center"
+        >
+          <div 
+            onClick={handleLogoClick}
+            className="w-24 h-24 rounded-[2rem] flex items-center justify-center overflow-hidden mx-auto mb-8 shadow-2xl shadow-ng-lime/20 border-4 border-white transition-transform hover:scale-105 duration-500 cursor-pointer group relative"
+          >
+            <img src={logoUrl} alt="Novagreen Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Plus className="text-white" size={24} />
+            </div>
+          </div>
+          <h1 className="text-4xl font-black text-ng-black mb-4 tracking-tight">Novagreen AI</h1>
+          <p className="text-ng-black/40 font-bold mb-10 leading-relaxed uppercase text-xs tracking-widest">
+            La plataforma inteligente para la gestión de equipos y optimización de procesos. 
+            Inicia sesión con tu cuenta corporativa para continuar.
+          </p>
+          <button 
+            type="button"
+            onClick={() => loginWithGoogle()}
+            className="flex items-center justify-center gap-4 w-full py-5 bg-white border-2 border-gray-100 rounded-3xl text-ng-black font-black hover:bg-gray-50 hover:border-ng-lime transition-all shadow-sm group"
+          >
+            <img src="https://www.google.com/favicon.ico" alt="Google" className="w-6 h-6 grayscale group-hover:grayscale-0 transition-all" />
+            Ingresar con Google
+          </button>
+          
+          <div className="mt-12 pt-8 border-t border-gray-50 space-y-4">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-loose">
+              Al ingresar aceptas nuestros <a href="#" className="text-ng-green hover:underline">términos de servicio</a> y <a href="#" className="text-ng-green hover:underline">política de privacidad</a>.
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-[#1A1A1A] font-sans">
       {/* Sidebar Navigation */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-[#E5E7EB] z-10 hidden md:flex flex-col">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        className="hidden" 
+        accept="image/*" 
+        onChange={handleLogoChange} 
+      />
+      <aside className="fixed left-0 top-0 h-full w-64 bg-ng-black border-r border-ng-gray/10 z-10 hidden md:flex flex-col">
         <div className="p-6">
-          <div className="flex items-center gap-2 text-[#2563EB] mb-8">
-            <div className="w-8 h-8 rounded-lg bg-[#2563EB] flex items-center justify-center text-white">
-              <BrainCircuit size={20} />
+          <div 
+            onClick={handleLogoClick}
+            className="flex items-center gap-3 text-ng-lime mb-10 group cursor-pointer"
+          >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden shadow-lg shadow-ng-lime/10 group-hover:shadow-ng-lime/20 transition-all duration-300 relative">
+              <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Plus className="text-white" size={12} />
+              </div>
             </div>
-            <span className="font-bold text-xl tracking-tight">TeamPulse AI</span>
+            <span className="font-black text-xl tracking-tighter text-white group-hover:text-ng-lime transition-colors">Novagreen AI</span>
           </div>
 
           <nav className="space-y-1">
@@ -1065,12 +1283,50 @@ export default function App() {
           </nav>
         </div>
 
-        <div className="mt-auto p-6 border-t border-[#E5E7EB]">
-          <div className="bg-[#EFF6FF] p-4 rounded-xl">
-            <h4 className="text-xs font-semibold text-[#1E40AF] uppercase tracking-wider mb-2">Estado del Agente</h4>
-            <div className="flex items-center gap-2 text-sm text-[#3B82F6]">
-              <div className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+        <div className="mt-auto p-6 border-t border-ng-gray/10">
+          <div className="bg-ng-gray/5 p-4 rounded-xl border border-ng-gray/10">
+            <h4 className="text-xs font-semibold text-ng-lime uppercase tracking-wider mb-2">Estado del Agente</h4>
+            <div className="flex items-center gap-2 text-sm text-ng-gray mb-4">
+              <div className="w-2 h-2 rounded-full bg-ng-lime animate-pulse" />
               Conectado y Escuchando
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2 border-t border-ng-gray/10 mt-2">
+              <div className="flex items-center gap-3">
+                <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} className="w-8 h-8 rounded-lg border border-ng-gray/20" alt={user.displayName || 'User'} />
+                <div className="overflow-hidden">
+                  <p className="text-[10px] font-black text-white truncate">{user.displayName}</p>
+                  <p className="text-[9px] font-bold text-ng-lime truncate opacity-70">{user.email}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => logout()}
+                className="flex items-center gap-2 w-full py-2 px-3 bg-red-500/10 text-red-500 text-[10px] font-black rounded-lg hover:bg-red-500/20 transition-all uppercase tracking-widest mt-2"
+              >
+                <X size={14} />
+                Cerrar Sesión
+              </button>
+              {members.length === 0 && (
+                <div className="flex flex-col gap-1 mt-2">
+                  <button 
+                    onClick={() => bootstrapData()}
+                    disabled={isInitializingData}
+                    className="text-[8px] font-bold text-ng-gray/50 hover:text-ng-lime transition-all uppercase tracking-tighter text-left"
+                  >
+                    {isInitializingData ? 'Inicializando...' : '¿Sin datos? Cargar iniciales'}
+                  </button>
+                  {localDataFound && (
+                    <button 
+                      onClick={() => migrateFromLocalStorage()}
+                      disabled={isMigrating}
+                      className="text-[8px] font-bold text-ng-lime/60 hover:text-ng-lime transition-all uppercase tracking-tighter text-left flex items-center gap-1"
+                    >
+                      <Zap size={8} />
+                      {isMigrating ? 'Migrando...' : 'Recuperar datos locales'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1078,9 +1334,9 @@ export default function App() {
 
       {/* Main Content */}
       <main className="md:ml-64 h-screen flex flex-col overflow-hidden">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 pb-0">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 bg-white text-ng-black border-b border-gray-100 shadow-sm relative z-10">
           <div>
-            <h1 className="text-2xl font-bold text-[#111827]">
+            <h1 className="text-2xl font-black tracking-tight">
               {activeTab === 'dashboard' && 'Panel de Control'}
               {activeTab === 'transcript' && 'Análisis de Transcripciones'}
               {activeTab === 'projects' && 'Gestión de Proyectos'}
@@ -1098,175 +1354,144 @@ export default function App() {
                 'Configuración del Sistema'
               )}
             </h1>
-            <p className="text-[#6B7280] text-sm mt-1">
-              Información del equipo actualizada por IA en tiempo real.
+            <p className="text-ng-black/40 text-[10px] font-bold uppercase tracking-widest mt-1">
+              Inteligencia colectiva para un futuro sostenible
             </p>
           </div>
 
-          {activeTab === 'settings' && settingsSubTab === 'members' && (
-            <div className="flex items-center gap-4">
-              {!isAddingMember && !editingMember && (
-                <>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                      type="text" 
-                      placeholder="Buscar miembro..."
-                      className="pl-10 pr-4 py-2 bg-white border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent transition-all w-64"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                  <button 
-                    onClick={() => setIsMemberAssistantOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-sm font-bold rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all shadow-sm group"
-                  >
-                    <Sparkles size={18} className="group-hover:rotate-12 transition-transform" />
-                    Asistente Maestro
-                  </button>
-                  <button 
-                    onClick={() => setIsAddingMember(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E5E7EB] text-[#111827] text-sm font-bold rounded-lg hover:bg-gray-50 transition-all shadow-sm"
-                  >
-                    <UserPlus size={18} />
-                    Nuevo Miembro
-                  </button>
-                </>
-              )}
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Buscar..."
+                className="pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-ng-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-ng-lime focus:border-transparent transition-all w-64"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-          )}
-          {activeTab === 'processes' && (
-            <button 
-              onClick={() => {
-                setEditingProcess(null);
-                setNewProcessData({ name: '', description: '', goals: '' });
-                setIsAddingProcess(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-bold rounded-lg hover:bg-purple-700 transition-all shadow-sm"
-            >
-              <Building2 size={18} />
-              Nuevo Proceso
-            </button>
-          )}
-          {activeTab === 'projects' && (
-            <button 
-              onClick={() => {
-                setEditingProject(null);
-                setNewProjectData({ name: '', description: '', processId: '', status: 'activo' });
-                setIsAddingProject(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-all shadow-sm"
-            >
-              <FolderKanban size={18} />
-              Nuevo Proyecto
-            </button>
-          )}
-          {activeTab === 'tasks' && (
-            <div className="flex items-center gap-3">
-              {!isAddingTask && !editingTask && (
-                <>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                      type="text" 
-                      placeholder="Filtrar tareas..."
-                      className="pl-10 pr-4 py-2 bg-white border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB] transition-all w-48"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                  
-                  <select 
-                    className="px-4 py-2 bg-white border border-[#E5E7EB] rounded-lg text-xs font-bold text-gray-600 focus:ring-2 focus:ring-blue-500 transition-all outline-none shadow-sm"
-                    value={activeProjectFilter || ''}
-                    onChange={(e) => setActiveProjectFilter(e.target.value || null)}
-                  >
-                    <option value="">Todos los Proyectos</option>
-                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
+            {activeTab === 'settings' && settingsSubTab === 'members' && !isAddingMember && !editingMember && (
+              <>
+                <button 
+                  onClick={() => setIsMemberAssistantOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-ng-black text-ng-lime text-sm font-bold rounded-lg hover:bg-ng-black/90 transition-all shadow-xl group"
+                >
+                  <Sparkles size={18} className="group-hover:rotate-12 transition-transform" />
+                  Asistente Maestro
+                </button>
+                <button 
+                  onClick={() => setIsAddingMember(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-ng-lime text-ng-black text-sm font-bold rounded-lg hover:opacity-90 transition-all shadow-xl"
+                >
+                  <UserPlus size={18} />
+                  Nuevo Miembro
+                </button>
+              </>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-4">
+            {activeTab === 'processes' && (
+              <button 
+                onClick={() => {
+                  setEditingProcess(null);
+                  setNewProcessData({ name: '', description: '', goals: '' });
+                  setIsAddingProcess(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-ng-lime text-ng-black text-sm font-bold rounded-lg hover:opacity-90 transition-all shadow-sm"
+              >
+                <Building2 size={18} />
+                Nuevo Proceso
+              </button>
+            )}
+            {activeTab === 'projects' && (
+              <button 
+                onClick={() => {
+                  setEditingProject(null);
+                  setNewProjectData({ name: '', description: '', processId: '', status: 'activo' });
+                  setIsAddingProject(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-ng-lime text-ng-black text-sm font-bold rounded-lg hover:opacity-90 transition-all shadow-sm"
+              >
+                <FolderKanban size={18} />
+                Nuevo Proyecto
+              </button>
+            )}
+            {activeTab === 'tasks' && (
+              <div className="flex items-center gap-3">
+                {!isAddingTask && !editingTask && (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={18} />
+                      <input 
+                        type="text" 
+                        placeholder="Filtrar..."
+                        className="pl-10 pr-4 py-2 bg-white/10 border border-white/20 backdrop-blur-sm rounded-lg text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-ng-lime transition-all w-48"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    
+                    <button 
+                      onClick={() => openAddTaskModal()}
+                      className="flex items-center gap-2 px-6 py-2.5 bg-ng-lime text-ng-black text-xs font-black rounded-xl hover:opacity-90 transition-all shadow-lg shadow-ng-lime/10 uppercase tracking-widest"
+                    >
+                      <Plus size={18} />
+                      Nueva Tarea
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
 
-                  <select 
-                    className="px-4 py-2 bg-white border border-[#E5E7EB] rounded-lg text-xs font-bold text-gray-600 focus:ring-2 focus:ring-blue-500 transition-all outline-none shadow-sm"
-                    value={activeMemberFilter || ''}
-                    onChange={(e) => setActiveMemberFilter(e.target.value || null)}
-                  >
-                    <option value="">Todo el Equipo</option>
-                    {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-
+            {activeTab === 'directory' && (
+              <div className="flex items-center gap-4">
+                {directorySubTab !== 'industries' && (
                   <button 
-                    onClick={() => openAddTaskModal()}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white text-xs font-black rounded-xl hover:bg-green-700 transition-all shadow-lg shadow-green-100 uppercase tracking-widest"
+                    onClick={() => {
+                      if (directorySubTab === 'people') {
+                        setEditingMember(null);
+                        setNewMemberData({
+                          name: '',
+                          role: '',
+                          category: 'contacto',
+                          processId: '',
+                          companyId: '',
+                          ruc: '',
+                          skills: '',
+                          responsibilities: '',
+                          personality: '',
+                          notes: '',
+                          email: '',
+                          phone: '',
+                          epp: ''
+                        });
+                        setIsAddingMember(true);
+                      } else {
+                        setEditingCompany(null);
+                        setNewCompanyData({
+                          name: '',
+                          ruc: '',
+                          email: '',
+                          phone: '',
+                          website: '',
+                          mainAddress: '',
+                          branchAddresses: [],
+                          industries: [],
+                          notes: ''
+                        });
+                        setIsAddingCompany(true);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-ng-lime text-ng-black text-xs font-black rounded-xl hover:opacity-90 transition-all shadow-lg shadow-ng-lime/10 uppercase tracking-widest"
                   >
                     <Plus size={18} />
-                    Nueva Tarea
+                    {directorySubTab === 'people' ? 'Nueva Persona' : 'Nueva Compañía'}
                   </button>
-                </>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'directory' && (
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input 
-                  type="text" 
-                  placeholder={
-                    directorySubTab === 'people' ? "Buscar persona..." : 
-                    directorySubTab === 'companies' ? "Buscar compañía..." : 
-                    "Buscar industria..."
-                  }
-                  className="pl-10 pr-4 py-2 bg-white border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB] transition-all w-64"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+                )}
               </div>
-              {directorySubTab !== 'industries' && (
-                <button 
-                  onClick={() => {
-                    if (directorySubTab === 'people') {
-                      setEditingMember(null);
-                      setNewMemberData({
-                        name: '',
-                        role: '',
-                        category: 'contacto',
-                        processId: '',
-                        companyId: '',
-                        ruc: '',
-                        skills: '',
-                        responsibilities: '',
-                        personality: '',
-                        notes: '',
-                        email: '',
-                        phone: '',
-                        epp: ''
-                      });
-                      setIsAddingMember(true);
-                    } else {
-                      setEditingCompany(null);
-                      setNewCompanyData({
-                        name: '',
-                        ruc: '',
-                        email: '',
-                        phone: '',
-                        website: '',
-                        mainAddress: '',
-                        branchAddresses: [],
-                        industries: [],
-                        notes: ''
-                      });
-                      setIsAddingCompany(true);
-                    }
-                  }}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest"
-                >
-                  <Plus size={18} />
-                  {directorySubTab === 'people' ? 'Nueva Persona' : 'Nueva Compañía'}
-                </button>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
@@ -1293,9 +1518,10 @@ export default function App() {
                   icon={<Building2 className="text-purple-600" />} 
                   trend="Estructura óptima"
                 />
-                <div className="md:col-span-2 bg-white p-6 rounded-2xl border border-[#E5E7EB] shadow-sm">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Clock size={20} className="text-gray-400" />
+                <div className="md:col-span-2 bg-white p-6 rounded-2xl border border-ng-gray shadow-sm relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-ng-green opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <h3 className="text-lg font-black mb-4 flex items-center gap-2 text-ng-black">
+                    <Clock size={20} className="text-ng-green" />
                     Insight Recientes de IA
                   </h3>
                   <div className="space-y-4">
@@ -1320,29 +1546,30 @@ export default function App() {
 
               {/* Quick Actions / New Analysis */}
               <div className="space-y-6">
-                <div className="bg-[#2563EB] text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
-                  <Sparkles className="absolute right-[-10px] top-[-10px] w-32 h-32 opacity-10" />
-                  <h3 className="text-lg font-bold mb-2">¿Nueva Reunión?</h3>
-                  <p className="text-blue-100 text-sm mb-6">Pega la transcripción y deja que la IA actualice los perfiles automáticamente.</p>
+                <div className="bg-ng-black text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
+                  <Sparkles className="absolute right-[-10px] top-[-10px] w-32 h-32 text-ng-lime opacity-5 group-hover:opacity-10 transition-opacity duration-500" />
+                  <h3 className="text-lg font-black mb-2 tracking-tight">¿Nueva Reunión?</h3>
+                  <p className="text-ng-gray/60 text-sm mb-6 font-medium">Pega la transcripción y deja que la IA actualice los perfiles automáticamente.</p>
                   <button 
                     onClick={() => setActiveTab('transcript')}
-                    className="w-full py-3 bg-white text-[#2563EB] font-bold rounded-xl hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-ng-lime text-ng-black font-black rounded-2xl hover:opacity-90 transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest shadow-lg shadow-ng-lime/10"
                   >
                     Empezar Análisis
                     <ArrowRight size={18} />
                   </button>
                 </div>
 
-                <div className="bg-white p-6 rounded-2xl border border-[#E5E7EB] shadow-sm">
-                  <h3 className="font-semibold mb-4">Procesos Vigentes</h3>
+                <div className="bg-white p-6 rounded-[2.5rem] border border-ng-gray shadow-sm relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-ng-green opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <h3 className="font-black mb-4 text-ng-black uppercase text-xs tracking-widest">Procesos Vigentes</h3>
                   <div className="space-y-3">
                     {processes.map(p => (
-                      <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer">
+                      <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-ng-lime/10 transition-colors cursor-pointer group/item">
                         <div className="flex items-center gap-3">
-                          <div className="w-2 h-2 rounded-full bg-blue-500" />
-                          <span className="text-sm font-medium">{p.name}</span>
+                          <div className="w-2 h-2 rounded-full bg-ng-green" />
+                          <span className="text-sm font-bold text-ng-black/70 group-hover/item:text-ng-black">{p.name}</span>
                         </div>
-                        <ChevronRight size={16} className="text-gray-400" />
+                        <ChevronRight size={16} className="text-ng-gray group-hover/item:text-ng-green" />
                       </div>
                     ))}
                   </div>
@@ -1398,19 +1625,19 @@ export default function App() {
                   <div className="flex items-center gap-4 mb-8">
                     <button 
                       onClick={() => setDirectorySubTab('people')}
-                      className={`px-6 py-2 rounded-xl font-bold transition-all ${directorySubTab === 'people' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
+                      className={`px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${directorySubTab === 'people' ? 'bg-ng-lime text-ng-black shadow-lg shadow-ng-lime/20' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
                     >
                       Personas
                     </button>
                     <button 
                       onClick={() => setDirectorySubTab('companies')}
-                      className={`px-6 py-2 rounded-xl font-bold transition-all ${directorySubTab === 'companies' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
+                      className={`px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${directorySubTab === 'companies' ? 'bg-ng-lime text-ng-black shadow-lg shadow-ng-lime/20' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
                     >
                       Compañías
                     </button>
                     <button 
                       onClick={() => setDirectorySubTab('industries')}
-                      className={`px-6 py-2 rounded-xl font-bold transition-all ${directorySubTab === 'industries' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
+                      className={`px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${directorySubTab === 'industries' ? 'bg-ng-lime text-ng-black shadow-lg shadow-ng-lime/20' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
                     >
                       Industrias
                     </button>
@@ -1718,7 +1945,7 @@ export default function App() {
                         <Users size={18} /> Miembros Actualizados ({extractedUpdates.memberUpdates.length})
                       </h3>
                       {extractedUpdates.memberUpdates.length === 0 && (
-                        <div className="p-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-center text-gray-400 italic">
+                        <div className="p-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-center text-gray-400">
                           No se detectaron cambios para miembros específicos.
                         </div>
                       )}
@@ -1758,7 +1985,7 @@ export default function App() {
                         <Building2 size={18} /> Procesos Actualizados ({extractedUpdates.processUpdates.length})
                       </h3>
                       {extractedUpdates.processUpdates.length === 0 && (
-                        <div className="p-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-center text-gray-400 italic">
+                        <div className="p-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-center text-gray-400">
                           No se detectaron cambios para los procesos.
                         </div>
                       )}
@@ -1774,7 +2001,7 @@ export default function App() {
                               {u.descriptionUpdate && (
                                 <div>
                                   <span className="text-[10px] uppercase font-bold text-purple-500 block mb-1">Actualización de Misión</span>
-                                  <p className="text-xs text-gray-600 italic">"{u.descriptionUpdate}"</p>
+                                  <p className="text-xs text-gray-600">"{u.descriptionUpdate}"</p>
                                 </div>
                               )}
                               {u.newGoals && u.newGoals.length > 0 && (
@@ -1915,7 +2142,7 @@ export default function App() {
                       {filteredTasks.filter(t => t.status === column.id).length === 0 && (
                         <button 
                           onClick={() => openAddTaskModal(column.id as any)}
-                          className="w-full h-32 flex flex-col items-center justify-center text-gray-300 text-xs italic gap-3 opacity-50 hover:opacity-100 hover:bg-white/50 hover:text-blue-500 rounded-[1.5rem] transition-all border-2 border-transparent hover:border-blue-100 group"
+                          className="w-full h-32 flex flex-col items-center justify-center text-gray-300 text-xs gap-3 opacity-50 hover:opacity-100 hover:bg-white/50 hover:text-blue-500 rounded-[1.5rem] transition-all border-2 border-transparent hover:border-blue-100 group"
                         >
                           <div className="p-3 bg-gray-50 rounded-xl group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
                             <Plus size={20} />
@@ -2097,8 +2324,8 @@ export default function App() {
                     <Settings size={48} className="animate-[spin_10s_linear_infinite]" />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-black text-gray-900 mb-2 italic">Configuración del Sistema</h2>
-                    <p className="text-gray-500 max-w-sm mx-auto font-medium">Personaliza los parámetros globales de TeamPulse AI y gestiona las integraciones de Gemini.</p>
+                    <h2 className="text-3xl font-black text-gray-900 mb-2">Configuración del Sistema</h2>
+                    <p className="text-gray-500 max-w-sm mx-auto font-medium">Personaliza los parámetros globales de Novagreen AI y gestiona las integraciones de Gemini.</p>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
@@ -2131,7 +2358,7 @@ export default function App() {
                       <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
                         <Shield size={24} />
                       </div>
-                      <h2 className="text-xl font-black text-gray-900 italic">Roles del Sistema</h2>
+                      <h2 className="text-xl font-black text-gray-900">Roles del Sistema</h2>
                     </div>
                     <div className="space-y-3">
                       {roles.map(role => (
@@ -2172,7 +2399,7 @@ export default function App() {
                         <div className="space-y-12 relative z-10">
                           <div className="flex justify-between items-start">
                             <div className="space-y-3">
-                              <h3 className="text-5xl font-black text-gray-900 leading-tight italic tracking-tighter">{role.name}</h3>
+                              <h3 className="text-5xl font-black text-gray-900 leading-tight tracking-tighter">{role.name}</h3>
                               <p className="text-gray-500 font-medium max-w-md text-lg leading-relaxed">{role.description}</p>
                             </div>
                             <div className="p-6 bg-blue-600 text-white rounded-[2.5rem] shadow-xl shadow-blue-100">
@@ -2234,9 +2461,13 @@ export default function App() {
                                       .map(m => (
                                         <button
                                           key={m.id}
-                                          onClick={() => {
-                                            setMembers(prev => prev.map(member => member.id === m.id ? { ...member, systemRoleId: role.id } : member));
-                                            setSearchQuery('');
+                                          onClick={async () => {
+                                            try {
+                                              await updateDoc(doc(db, 'members', m.id), { systemRoleId: role.id });
+                                              setSearchQuery('');
+                                            } catch (error) {
+                                              handleFirestoreError(error, OperationType.UPDATE, `members/${m.id}`);
+                                            }
                                           }}
                                           className="w-full flex items-center gap-3 p-3 hover:bg-blue-50 rounded-xl transition-all text-left group"
                                         >
@@ -2277,9 +2508,13 @@ export default function App() {
                                         <Edit size={18} />
                                       </button>
                                       <button 
-                                        onClick={() => {
+                                        onClick={async () => {
                                           if (window.confirm(`¿Remover a ${member.name} del rol ${role.name}?`)) {
-                                            setMembers(prev => prev.map(m => m.id === member.id ? { ...m, systemRoleId: '' } : m));
+                                            try {
+                                              await updateDoc(doc(db, 'members', member.id), { systemRoleId: '' });
+                                            } catch (error) {
+                                              handleFirestoreError(error, OperationType.UPDATE, `members/${member.id}`);
+                                            }
                                           }
                                         }}
                                         className="p-2.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover/item:opacity-100"
@@ -2292,7 +2527,7 @@ export default function App() {
                                 {roleMembers.length === 0 && !searchQuery && (
                                   <div className="py-16 text-center bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200">
                                     <Users size={48} className="mx-auto text-slate-200 mb-4" />
-                                    <p className="text-sm text-slate-400 font-bold italic">No hay integrantes asignados a este rol.</p>
+                                    <p className="text-sm text-slate-400 font-bold">No hay integrantes asignados a este rol.</p>
                                     <p className="text-[10px] text-slate-400 mt-2">Usa el buscador de arriba para asignar uno.</p>
                                   </div>
                                 )}
@@ -2310,12 +2545,12 @@ export default function App() {
                 <div className="space-y-8">
                   <div className="flex items-center justify-between bg-white p-8 rounded-[3rem] border border-[#E5E7EB] shadow-xl">
                     <div className="flex items-center gap-4">
-                      <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                      <div className="p-3 bg-ng-lime/10 text-ng-green rounded-2xl">
                         <Building2 size={24} />
                       </div>
                       <div>
-                        <h2 className="text-2xl font-black text-gray-900 italic">Gestión de Procesos</h2>
-                        <p className="text-gray-500 text-sm font-medium">Estructura operativa y departamentos de la organización.</p>
+                        <h2 className="text-2xl font-black text-ng-black">Gestión de Procesos</h2>
+                        <p className="text-ng-black/40 text-sm font-medium">Estructura operativa y departamentos de la organización.</p>
                       </div>
                     </div>
                     <button 
@@ -2324,7 +2559,7 @@ export default function App() {
                         setNewProcessData({ name: '', description: '', goals: '' });
                         setIsAddingProcess(true);
                       }}
-                      className="px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex items-center gap-2"
+                      className="px-6 py-3 bg-ng-lime text-ng-black font-black rounded-2xl shadow-lg shadow-ng-lime/20 hover:opacity-90 transition-all flex items-center gap-2 uppercase text-xs tracking-widest"
                     >
                       <Plus size={18} />
                       Añadir Proceso
@@ -2351,17 +2586,17 @@ export default function App() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between bg-white p-8 rounded-[3rem] border border-[#E5E7EB] shadow-xl">
                     <div className="flex items-center gap-4">
-                      <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                      <div className="p-3 bg-ng-lime/10 text-ng-green rounded-2xl">
                         <Users size={24} />
                       </div>
                       <div>
-                        <h2 className="text-2xl font-black text-gray-900 italic">Gestión de Equipo</h2>
-                        <p className="text-gray-500 text-sm font-medium">Control operativo y perfiles de los integrantes del equipo.</p>
+                        <h2 className="text-2xl font-black text-ng-black">Gestión de Equipo</h2>
+                        <p className="text-ng-black/40 text-sm font-medium">Control operativo y perfiles de los integrantes del equipo.</p>
                       </div>
                     </div>
                     <button 
                       onClick={() => setIsAddingMember(true)}
-                      className="px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex items-center gap-2"
+                      className="px-6 py-3 bg-ng-lime text-ng-black font-black rounded-2xl shadow-lg shadow-ng-lime/20 hover:opacity-90 transition-all flex items-center gap-2 uppercase text-xs tracking-widest"
                     >
                       <Plus size={18} />
                       Añadir Integrante
@@ -2380,8 +2615,22 @@ export default function App() {
                         setIsAddingMember(false);
                         setEditingMember(null);
                         setNewMemberData({
-                          name: '', role: '', systemRoleId: '', categories: ['miembro'], processId: '', companyId: '', ruc: '',
-                          skills: '', responsibilities: '', personality: '', notes: '', email: '', phone: '', epp: ''
+                          name: '', 
+                          role: '', 
+                          systemRoleId: '', 
+                          categories: ['miembro'], 
+                          processId: '', 
+                          companyAssociations: [], 
+                          identificationId: '',
+                          hasRuc: false,
+                          ruc: '',
+                          skills: '', 
+                          responsibilities: '', 
+                          personality: '', 
+                          notes: '', 
+                          email: '', 
+                          phone: '', 
+                          epp: ''
                         });
                       }}
                       onSave={handleAddMember}
@@ -2389,15 +2638,27 @@ export default function App() {
                   ) : (
                     <div className="space-y-12">
                       {processes.map(process => {
-                        const processMembers = members.filter(m => m.processId === process.id && (m.categories || []).includes('miembro'));
+                        const processMembers = members.filter(m => {
+                          const matchesProcess = m.processId === process.id && (m.categories || []).includes('miembro');
+                          const matchesSearch = 
+                            normalizeText(m.name).includes(normalizeText(searchQuery)) || 
+                            normalizeText(m.role).includes(normalizeText(searchQuery)) ||
+                            (m.companyAssociations || []).some(assoc => {
+                              const comp = companies.find(c => c.id === assoc.companyId);
+                              return normalizeText(comp?.name || '').includes(normalizeText(searchQuery)) ||
+                                     normalizeText(assoc.role).includes(normalizeText(searchQuery));
+                            }) ||
+                            m.identificationId?.includes(searchQuery);
+                          return matchesProcess && matchesSearch;
+                        });
                         if (processMembers.length === 0) return null;
                         
                         return (
                           <div key={process.id} className="space-y-6">
                             <div className="flex items-center gap-3 px-4">
-                              <div className="w-2 h-8 bg-blue-600 rounded-full" />
-                              <h3 className="text-xl font-black text-gray-800 uppercase tracking-wider">{process.name}</h3>
-                              <span className="text-sm font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+                              <div className="w-2 h-8 bg-ng-green rounded-full" />
+                              <h3 className="text-xl font-black text-ng-black uppercase tracking-wider">{process.name}</h3>
+                              <span className="text-sm font-bold text-ng-black/40 bg-gray-100 px-3 py-1 rounded-full">
                                 {processMembers.length} integrante{processMembers.length !== 1 ? 's' : ''}
                               </span>
                             </div>
@@ -2408,7 +2669,7 @@ export default function App() {
                                     <MemberProfileCard 
                                       member={member} 
                                       processName={process.name}
-                                      companyName={companies.find(c => c.id === member.companyId)?.name}
+                                      companies={companies}
                                       roles={roles}
                                     />
                                   </div>
@@ -2442,23 +2703,59 @@ export default function App() {
                       })}
 
                       {/* Unassigned members */}
-                      {members.filter(m => (!m.processId || m.processId === 'unassigned') && (m.categories || []).includes('miembro')).length > 0 && (
+                      {members.filter(m => {
+                        const matchesProcess = (!m.processId || m.processId === 'unassigned') && (m.categories || []).includes('miembro');
+                        const matchesSearch = 
+                          normalizeText(m.name).includes(normalizeText(searchQuery)) || 
+                          normalizeText(m.role).includes(normalizeText(searchQuery)) ||
+                          m.companyAssociations?.some(assoc => {
+                            const comp = companies.find(c => c.id === assoc.companyId);
+                            return normalizeText(comp?.name || '').includes(normalizeText(searchQuery)) ||
+                                   normalizeText(assoc.role).includes(normalizeText(searchQuery));
+                          }) ||
+                          m.identificationId?.includes(searchQuery);
+                        return matchesProcess && matchesSearch;
+                      }).length > 0 && (
                         <div className="space-y-6">
                           <div className="flex items-center gap-3 px-4">
                             <div className="w-2 h-8 bg-gray-400 rounded-full" />
                             <h3 className="text-xl font-black text-gray-800 uppercase tracking-wider">Sin Proceso Asignado</h3>
                             <span className="text-sm font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
-                              {members.filter(m => (!m.processId || m.processId === 'unassigned') && (m.categories || []).includes('miembro')).length} integrante(s)
+                              {members.filter(m => {
+                                const matchesProcess = (!m.processId || m.processId === 'unassigned') && (m.categories || []).includes('miembro');
+                                const matchesSearch = 
+                                  normalizeText(m.name).includes(normalizeText(searchQuery)) || 
+                                  normalizeText(m.role).includes(normalizeText(searchQuery)) ||
+                                  m.companyAssociations?.some(assoc => {
+                                    const comp = companies.find(c => c.id === assoc.companyId);
+                                    return normalizeText(comp?.name || '').includes(normalizeText(searchQuery)) ||
+                                           normalizeText(assoc.role).includes(normalizeText(searchQuery));
+                                  }) ||
+                                  m.identificationId?.includes(searchQuery);
+                                return matchesProcess && matchesSearch;
+                              }).length} integrante(s)
                             </span>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {members.filter(m => (!m.processId || m.processId === 'unassigned') && (m.categories || []).includes('miembro')).map(member => (
+                            {members.filter(m => {
+                              const matchesProcess = (!m.processId || m.processId === 'unassigned') && (m.categories || []).includes('miembro');
+                              const matchesSearch = 
+                                normalizeText(m.name).includes(normalizeText(searchQuery)) || 
+                                normalizeText(m.role).includes(normalizeText(searchQuery)) ||
+                                m.companyAssociations?.some(assoc => {
+                                  const comp = companies.find(c => c.id === assoc.companyId);
+                                  return normalizeText(comp?.name || '').includes(normalizeText(searchQuery)) ||
+                                         normalizeText(assoc.role).includes(normalizeText(searchQuery));
+                                }) ||
+                                m.identificationId?.includes(searchQuery);
+                              return matchesProcess && matchesSearch;
+                            }).map(member => (
                               <div key={member.id} className="relative group">
                                 <div onClick={() => openEditMember(member)} className="cursor-pointer h-full">
                                   <MemberProfileCard 
                                     member={member} 
                                     processName="Sin Proceso"
-                                    companyName={companies.find(c => c.id === member.companyId)?.name}
+                                    companies={companies}
                                     roles={roles}
                                   />
                                 </div>
@@ -3015,7 +3312,7 @@ export default function App() {
                   <div className="pt-8 border-t border-gray-100 bg-white sticky bottom-0 z-10 -m-10 p-10 mt-10">
                     <button 
                       type="submit"
-                      className={`w-full py-5 text-white text-lg font-black rounded-3xl shadow-2xl transition-all transform hover:scale-[1.01] active:scale-[0.99] ${editingTask ? 'bg-blue-600 shadow-blue-200 hover:bg-blue-700' : 'bg-green-600 shadow-green-200 hover:bg-green-700'}`}
+                      className={`w-full py-5 text-ng-black text-lg font-black rounded-3xl shadow-2xl transition-all transform hover:scale-[1.01] active:scale-[0.99] uppercase tracking-widest ${editingTask ? 'bg-ng-lime shadow-ng-lime/20' : 'bg-ng-green text-white shadow-ng-green/20'}`}
                     >
                       {editingTask ? 'ACTUALIZAR HISTORIA DE USUARIO' : 'REGISTRAR EN EL BACKLOG'}
                     </button>
@@ -3193,6 +3490,7 @@ export default function App() {
               onClose={() => setViewingMember(null)} 
               tasks={tasks.filter(t => t.memberId === viewingMember.id)}
               process={processes.find(p => p.id === viewingMember.processId)}
+              companies={companies}
               onUpdateMember={(updated) => {
                 setMembers(prev => prev.map(m => m.id === updated.id ? updated : m));
                 setViewingMember(updated);
@@ -3256,7 +3554,7 @@ function ProjectCard({ project, tasks, onEdit, onDelete }: { project: Project, t
             <ListTodo size={12} />
             {completedTasks.length} / {tasks.length} Tareas
           </div>
-          <div className="text-[10px] font-medium text-gray-400 italic">
+          <div className="text-[10px] font-medium text-gray-400">
             Creado {new Date(project.createdAt).toLocaleDateString()}
           </div>
         </div>
@@ -3271,8 +3569,8 @@ function NavButton({ active, icon, label, onClick }: { active: boolean, icon: Re
       onClick={onClick}
       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
         active 
-        ? 'bg-[#2563EB] text-white shadow-md shadow-blue-100' 
-        : 'text-gray-500 hover:bg-gray-100'
+        ? 'bg-ng-lime text-ng-black shadow-lg shadow-ng-lime/20' 
+        : 'text-ng-gray/60 hover:text-white hover:bg-white/5'
       }`}
     >
       {React.cloneElement(icon as React.ReactElement, { size: 20 })}
@@ -3287,8 +3585,8 @@ function SubNavButton({ active, icon, label, onClick }: { active: boolean, icon:
       onClick={onClick}
       className={`w-full flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200 ${
         active 
-        ? 'text-[#2563EB] bg-[#EFF6FF]' 
-        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+        ? 'text-ng-lime bg-ng-lime/10' 
+        : 'text-ng-gray/40 hover:text-ng-gray/80 hover:bg-white/5'
       }`}
     >
       {icon}
@@ -3299,15 +3597,16 @@ function SubNavButton({ active, icon, label, onClick }: { active: boolean, icon:
 
 function StatCard({ title, value, icon, trend }: { title: string, value: string, icon: React.ReactNode, trend: string }) {
   return (
-    <div className="bg-white p-6 rounded-2xl border border-[#E5E7EB] shadow-sm hover:shadow-md transition-shadow">
+    <div className="bg-white p-6 rounded-2xl border border-ng-gray shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+      <div className="absolute top-0 left-0 w-full h-1 bg-ng-green opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className="flex items-center justify-between mb-4">
-        <div className="p-2 bg-gray-50 rounded-lg">
+        <div className="p-2 bg-ng-lime/10 text-ng-green rounded-lg">
           {icon}
         </div>
-        <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">{trend}</span>
+        <span className="text-xs font-bold text-ng-green bg-ng-lime/20 px-2.5 py-1 rounded-full uppercase leading-none">{trend}</span>
       </div>
-      <h3 className="text-gray-500 text-sm font-medium">{title}</h3>
-      <div className="text-3xl font-bold mt-1 text-[#111827]">{value}</div>
+      <h3 className="text-ng-black/40 text-[10px] font-black uppercase tracking-widest">{title}</h3>
+      <div className="text-3xl font-black mt-1 text-ng-black">{value}</div>
     </div>
   );
 }
@@ -3725,7 +4024,7 @@ function CompanyDetailsModal({ company, onClose, onEdit }: { company: Company, o
                     <AlertCircle size={14} className="text-blue-500" /> Observaciones Adicionales
                   </h3>
                   <div className="bg-amber-50/10 p-8 rounded-[2rem] border border-amber-100/30">
-                    <p className="text-gray-600 text-sm italic">{company.notes}</p>
+                    <p className="text-gray-600 text-sm">{company.notes}</p>
                   </div>
                 </section>
               )}
@@ -3773,7 +4072,7 @@ function CompanyDetailsModal({ company, onClose, onEdit }: { company: Company, o
                   </div>
                   <h4 className="text-xs font-black uppercase tracking-[0.2em]">Análisis IA</h4>
                 </div>
-                <p className="text-sm text-slate-300 leading-relaxed italic">
+                <p className="text-sm text-slate-300 leading-relaxed">
                   "Esta empresa tiene una fuerte presencia en {company.industries?.[0] || company.industry || 'varios sectores'}. Se recomienda mantener actualizadas las notas de seguimiento para mejorar la relación comercial."
                 </p>
               </div>
@@ -3884,14 +4183,38 @@ function MemberEditorView({
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">RUC (Si es Persona Natural)</label>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Identificación / Pasaporte</label>
                 <input 
                   type="text" 
-                  placeholder="Ej: 1729384756001"
+                  required
+                  placeholder="Ej: 1729384756"
                   className="w-full px-6 py-4 bg-gray-50 border border-transparent rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-blue-50 focus:bg-white focus:border-blue-100 transition-all text-gray-700 font-medium"
-                  value={newMemberData.ruc}
-                  onChange={e => setNewMemberData({...newMemberData, ruc: e.target.value})}
+                  value={newMemberData.identificationId}
+                  onChange={e => setNewMemberData({...newMemberData, identificationId: e.target.value})}
                 />
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1 block">¿Posee RUC?</label>
+                <div className="flex items-center gap-4">
+                  <button 
+                    type="button"
+                    onClick={() => setNewMemberData({...newMemberData, hasRuc: !newMemberData.hasRuc})}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${
+                      newMemberData.hasRuc 
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
+                        : 'bg-white text-gray-400 border-gray-100 hover:bg-gray-50'
+                    }`}
+                  >
+                    {newMemberData.hasRuc ? <CheckCircle2 size={16} /> : <div className="w-4 h-4 rounded-full border-2 border-gray-100" />}
+                    <span className="text-xs font-bold uppercase tracking-tight">Sí, tiene RUC</span>
+                  </button>
+                  {newMemberData.hasRuc && (
+                    <div className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg text-[10px] font-bold border border-blue-100 animate-in fade-in slide-in-from-left-2">
+                       RUC: {newMemberData.identificationId}001
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -3907,29 +4230,69 @@ function MemberEditorView({
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Compañía / Organización</label>
-              <select 
-                className="w-full px-6 py-4 bg-gray-50 border border-transparent rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-blue-50 focus:bg-white focus:border-blue-100 transition-all text-gray-700 font-medium appearance-none"
-                value={newMemberData.companyId}
-                onChange={e => setNewMemberData({...newMemberData, companyId: e.target.value})}
-              >
-                <option value="">Ninguna / Independiente</option>
-                {companies.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+            <div className="space-y-4">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Compañías y Cargos Asociados</label>
+              <div className="space-y-3">
+                {newMemberData.companyAssociations.map((assoc: any, index: number) => (
+                  <div key={index} className="flex flex-col md:flex-row gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100 relative group animate-in fade-in slide-in-from-top-2">
+                    <div className="flex-1 space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide ml-1">Compañía</label>
+                      <select 
+                        className="w-full px-4 py-3 bg-white border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-200 transition-all text-sm font-medium appearance-none"
+                        value={assoc.companyId}
+                        onChange={e => {
+                          const updated = [...newMemberData.companyAssociations];
+                          updated[index].companyId = e.target.value;
+                          setNewMemberData({...newMemberData, companyAssociations: updated});
+                        }}
+                      >
+                        <option value="">Seleccionar compañía...</option>
+                        {companies.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide ml-1">Cargo en esta empresa</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej: Consultor"
+                        className="w-full px-4 py-3 bg-white border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-200 transition-all text-sm font-medium"
+                        value={assoc.role}
+                        onChange={e => {
+                          const updated = [...newMemberData.companyAssociations];
+                          updated[index].role = e.target.value;
+                          setNewMemberData({...newMemberData, companyAssociations: updated});
+                        }}
+                      />
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const updated = newMemberData.companyAssociations.filter((_: any, i: number) => i !== index);
+                        setNewMemberData({...newMemberData, companyAssociations: updated});
+                      }}
+                      className="absolute -right-2 -top-2 md:relative md:right-0 md:top-0 p-2 bg-white text-red-400 hover:text-red-600 rounded-lg border border-gray-100 shadow-sm transition-all self-end mb-1"
+                    >
+                      <Trash size={16} />
+                    </button>
+                  </div>
                 ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Cargo / Rol</label>
-              <input 
-                type="text" 
-                placeholder="Ej: UX Designer"
-                className="w-full px-6 py-4 bg-gray-50 border border-transparent rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-blue-50 focus:bg-white focus:border-blue-100 transition-all text-gray-700 font-medium"
-                value={newMemberData.role}
-                onChange={e => setNewMemberData({...newMemberData, role: e.target.value})}
-              />
+                
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setNewMemberData({
+                      ...newMemberData, 
+                      companyAssociations: [...(newMemberData.companyAssociations || []), { companyId: '', role: '' }]
+                    });
+                  }}
+                  className="w-full py-4 border-2 border-dashed border-gray-100 rounded-2xl text-gray-400 hover:text-blue-500 hover:border-blue-100 hover:bg-blue-50/30 transition-all flex items-center justify-center gap-2 group"
+                >
+                  <Plus size={18} className="group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold uppercase tracking-widest">Asociar Nueva Compañía</span>
+                </button>
+              </div>
             </div>
 
             {(newMemberData.categories || []).includes('miembro') && (
@@ -4026,7 +4389,7 @@ function MemberEditorView({
                 value={newMemberData.epp}
                 onChange={e => setNewMemberData({...newMemberData, epp: e.target.value})}
               />
-              <p className="text-[10px] text-gray-400 mt-1 ml-1 font-medium italic">Separa los elementos con comas para que se visualicen individualmente.</p>
+              <p className="text-[10px] text-gray-400 mt-1 ml-1 font-medium">Separa los elementos con comas para que se visualicen individualmente.</p>
             </div>
           </div>
 
@@ -4056,17 +4419,17 @@ function AIInsightItem({ title, desc, time }: { title: string, desc: string, tim
   return (
     <div className="flex gap-4 group cursor-default">
       <div className="relative">
-        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
+        <div className="w-10 h-10 rounded-xl bg-ng-lime/10 flex items-center justify-center text-ng-green group-hover:bg-ng-lime group-hover:text-ng-black transition-colors duration-300">
           <MessageSquareQuote size={18} />
         </div>
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[1px] h-4 bg-gray-100" />
+        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[1px] h-4 bg-ng-gray/20" />
       </div>
       <div className="flex-1 pb-4">
         <div className="flex items-center justify-between mb-1">
-          <span className="font-semibold text-sm">{title}</span>
-          <span className="text-[10px] text-gray-400">{time}</span>
+          <span className="font-black text-ng-black text-sm">{title}</span>
+          <span className="text-[10px] font-black text-ng-gray uppercase tracking-widest">{time}</span>
         </div>
-        <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
+        <p className="text-xs text-ng-black/60 leading-relaxed font-medium">{desc}</p>
       </div>
     </div>
   );
@@ -4299,7 +4662,7 @@ function CompanyEditorView({
                       </button>
                     )}
                     {filteredSuggestions.length === 0 && !industryInput && (
-                      <div className="px-4 py-3 text-xs text-gray-400 italic">Escribe para buscar o añadir...</div>
+                      <div className="px-4 py-3 text-xs text-gray-400">Escribe para buscar o añadir...</div>
                     )}
                   </div>
                 )}
@@ -4442,12 +4805,12 @@ function CompanyEditorView({
 interface MemberProfileCardProps {
   member: TeamMember;
   processName: string;
-  companyName?: string;
+  companies: Company[];
   roles: Role[];
   key?: string | number;
 }
 
-function MemberProfileCard({ member, processName, companyName, roles }: MemberProfileCardProps) {
+function MemberProfileCard({ member, processName, companies, roles }: MemberProfileCardProps) {
   const categoryColors = {
     miembro: 'bg-blue-50 text-blue-600 border-blue-100',
     cliente: 'bg-green-50 text-green-600 border-green-100',
@@ -4482,7 +4845,45 @@ function MemberProfileCard({ member, processName, companyName, roles }: MemberPr
         />
         <div className="pt-12">
           <h4 className="text-lg font-bold text-[#111827]">{member.name}</h4>
-          <p className="text-sm text-gray-500 font-medium">{member.role}</p>
+          <p className="text-sm text-gray-400 font-medium">{member.role}</p>
+          
+          <div className="mt-2 flex flex-col gap-1.5">
+            {member.identificationId && (
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                <Contact size={10} className="text-blue-500" /> ID: {member.identificationId}
+              </p>
+            )}
+            {member.ruc && (
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                <Zap size={10} className="text-amber-500" /> RUC: {member.ruc}
+              </p>
+            )}
+            
+            <div className="mt-1 space-y-1">
+              {member.companyAssociations && member.companyAssociations.length > 0 ? (
+                member.companyAssociations.map((assoc, idx) => {
+                  const company = companies.find(c => c.id === assoc.companyId);
+                  return (
+                    <div key={idx} className="flex flex-col gap-0.5 p-2 bg-gray-50/50 rounded-xl border border-gray-100/50 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-1.5 overflow-hidden">
+                        <Building2 size={10} className="text-blue-500 shrink-0" />
+                        <span className="text-[9px] font-black text-gray-700 truncate uppercase tracking-tight">{company?.name || 'Independiente'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 pl-3">
+                        <User size={8} className="text-gray-400 shrink-0" />
+                        <span className="text-[9px] font-medium text-gray-400 italic truncate">{assoc.role || 'Sin cargo'}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 text-[10px] font-bold text-gray-400 rounded-lg border border-gray-100/50">
+                  <Building2 size={10} />
+                  <span>Independiente</span>
+                </div>
+              )}
+            </div>
+          </div>
           
           <div className="mt-3 flex flex-wrap gap-2">
             {member.systemRoleId && (
@@ -4495,12 +4896,6 @@ function MemberProfileCard({ member, processName, companyName, roles }: MemberPr
               <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-[10px] font-black text-blue-600 rounded-full uppercase tracking-widest">
                 <Layers size={10} />
                 {processName}
-              </div>
-            )}
-            {companyName && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-50 text-[10px] font-black text-gray-600 rounded-full uppercase tracking-widest">
-                <Building2 size={10} />
-                {companyName}
               </div>
             )}
           </div>
@@ -4550,7 +4945,7 @@ function MemberProfileCard({ member, processName, companyName, roles }: MemberPr
               <span className="text-[10px] uppercase font-bold text-green-500 tracking-wider flex items-center gap-1">
                 <Sparkles size={10} /> Logro Reciente
               </span>
-              <p className="text-[11px] text-gray-700 mt-1 font-medium italic">
+              <p className="text-[11px] text-gray-700 mt-1 font-medium">
                 "{member.recentAchievements[0]}"
               </p>
             </div>
@@ -4561,7 +4956,7 @@ function MemberProfileCard({ member, processName, companyName, roles }: MemberPr
               <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider flex items-center gap-1">
                 <Info size={10} /> Notas
               </span>
-              <p className="text-[11px] text-gray-600 mt-1 line-clamp-2 italic">
+              <p className="text-[11px] text-gray-600 mt-1 line-clamp-2">
                 {member.notes}
               </p>
             </div>
@@ -4628,7 +5023,7 @@ function ProcessDetailCard({ proc, members, onEdit, onDelete }: ProcessDetailCar
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-gray-400 italic">No hay miembros asignados a este proceso.</p>
+                <p className="text-xs text-gray-400">No hay miembros asignados a este proceso.</p>
               )}
             </div>
           </div>
@@ -4892,7 +5287,21 @@ function DeleteTaskModal({ task, onClose, onConfirm }: { task: Task, onClose: ()
   );
 }
 
-function MemberDetailsModal({ member, onClose, tasks, process, onUpdateMember }: { member: TeamMember, onClose: () => void, tasks: Task[], process?: Process, onUpdateMember: (m: TeamMember) => void }) {
+function MemberDetailsModal({ 
+  member, 
+  onClose, 
+  tasks, 
+  process, 
+  companies,
+  onUpdateMember 
+}: { 
+  member: TeamMember, 
+  onClose: () => void, 
+  tasks: Task[], 
+  process?: Process, 
+  companies: Company[],
+  onUpdateMember: (m: TeamMember) => void 
+}) {
   const [localNotes, setLocalNotes] = useState(member.notes || '');
   const [localPersonality, setLocalPersonality] = useState(member.personality || '');
   const [localEmail, setLocalEmail] = useState(member.email || '');
@@ -4930,9 +5339,39 @@ function MemberDetailsModal({ member, onClose, tasks, process, onUpdateMember }:
             <img src={member.avatar} className="w-32 h-32 rounded-3xl border-8 border-white shadow-xl bg-white" />
             <div className="mb-4">
               <h2 className="text-3xl font-bold text-white mb-1">{member.name}</h2>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <span className="px-3 py-1 bg-white/20 text-white text-xs font-bold rounded-lg backdrop-blur-md">{member.role}</span>
                 <span className="px-3 py-1 bg-white/20 text-white text-xs font-bold rounded-lg backdrop-blur-md uppercase">{process?.name}</span>
+                {member.identificationId && (
+                  <span className="px-3 py-1 bg-blue-500/30 text-white text-[10px] font-black rounded-lg backdrop-blur-md flex items-center gap-1.5 border border-white/10 uppercase tracking-widest">
+                    <Contact size={12} /> {member.identificationId}
+                  </span>
+                )}
+                {member.ruc && (
+                  <span className="px-3 py-1 bg-amber-500/30 text-white text-[10px] font-black rounded-lg backdrop-blur-md flex items-center gap-1.5 border border-white/10 uppercase tracking-widest">
+                    <Zap size={12} /> RUC: {member.ruc}
+                  </span>
+                )}
+              </div>
+              
+              <div className="flex flex-wrap gap-2 mt-3">
+                {member.companyAssociations && member.companyAssociations.length > 0 ? (
+                  member.companyAssociations.map((assoc, idx) => {
+                    const company = companies?.find((c: any) => c.id === assoc.companyId) 
+                      || { name: 'Independiente' }; 
+                    return (
+                      <div key={idx} className="px-3 py-1.5 bg-white/10 border border-white/10 rounded-xl backdrop-blur-md flex items-center gap-2">
+                        <Building2 size={12} className="text-blue-300" />
+                        <div className="flex flex-col leading-none">
+                          <span className="text-[10px] font-black text-white uppercase tracking-tight">{company.name}</span>
+                          <span className="text-[8px] font-bold text-white/50 uppercase tracking-widest">{assoc.role || 'Sin cargo'}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest italic bg-white/5 px-3 py-1 rounded-lg">Independiente</span>
+                )}
               </div>
             </div>
           </div>
@@ -5055,7 +5494,7 @@ function MemberDetailsModal({ member, onClose, tasks, process, onUpdateMember }:
                 </h3>
                 <div className="space-y-2">
                   {member.recentAchievements.map((a, i) => (
-                    <div key={i} className="flex gap-2 text-xs text-gray-600 bg-green-50 p-3 rounded-xl border border-green-100 italic">
+                    <div key={i} className="flex gap-2 text-xs text-gray-600 bg-green-50 p-3 rounded-xl border border-green-100">
                       <Sparkles size={14} className="text-green-500 shrink-0" />
                       {a}
                     </div>

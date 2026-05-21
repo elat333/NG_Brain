@@ -3,6 +3,11 @@
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-ng-green: #87B637;
+  --color-ng-lime: #E0F555;
+  --color-ng-black: #191919;
+  --color-ng-gray: #DCDCDC;
+  --background-image-ng-gradient: linear-gradient(to right, #87B637, #E0F555);
 }
 
 @layer base {

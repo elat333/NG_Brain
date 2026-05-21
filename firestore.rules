@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Check if the user has the 'role-admin' system role
+    function isAdmin() {
+      let member = get(/databases/$(database)/documents/members/$(request.auth.uid)).data;
+      return isSignedIn() && member.systemRoleId == 'role-admin';
+    }
+    
+    // Note: Sofia Chen's UID should be added to an 'admins' collection for bootstrap
+    // or we assume the first user who sets up their profile is an admin.
+    // For this app, I'll allow the user from metadata to be an admin if they sign in.
+    function isSuperAdmin() {
+      return isSignedIn() && (request.auth.token.email == 'e.siavichay@novagreen.ec' || isAdmin());
+    }
+
+    // --- Collections ---
+
+    match /members/{memberId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidMember(incoming()) && (isSuperAdmin() || incoming().uid == request.auth.uid);
+      allow update: if isSignedIn() && isValidMember(incoming()) && (
+        isSuperAdmin() || 
+        (incoming().uid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatar', 'personality', 'notes', 'email', 'phone']))
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    function isValidMember(data) {
+      return data.name is string && data.name.size() <= 100 &&
+             data.role is string && data.role.size() <= 100 &&
+             data.categories is list && data.categories.size() <= 10;
+    }
+
+    match /processes/{processId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidTask(incoming()) && exists(/databases/$(database)/documents/processes/$(incoming().processId));
+      allow update: if isSignedIn() && isValidTask(incoming()) && (
+        isSuperAdmin() || 
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'actualHours', 'deliverables']))
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    function isValidTask(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.status in ['backlog', 'todo', 'in_progress', 'blocked', 'review', 'done', 'rejected'] &&
+             data.processId is string && isValidId(data.processId);
+    }
+
+    match /projects/{projectId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    match /industries/{industryId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    match /roles/{roleId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+  }
+}
