@@ -34,6 +34,9 @@ export interface Role {
   name: string;
   description: string;
   permissions: string[];
+  moduleAccess?: {
+    [moduleId: string]: 'ninguno' | 'lector' | 'colaborador' | 'lider';
+  };
   createdAt: string;
 }
 
@@ -47,6 +50,10 @@ export interface TeamMember {
   name: string;
   role: string; // Basic profile job title (e.g. "Especialista en Seguridad")
   systemRoleId?: string; // Link to Role.id
+  isSystemAdmin?: boolean; // If true, has absolute full access without any restriction
+  moduleAccess?: {
+    [moduleId: string]: 'ninguno' | 'lector' | 'colaborador' | 'lider' | 'administrador';
+  };
   categories: PersonCategory[]; 
   processId?: string;
   companyAssociations: CompanyAssociation[]; // New: list of companies and roles
@@ -70,21 +77,38 @@ export interface Deliverable {
   url: string;
 }
 
+export interface TaskHistoryItem {
+  id: string;
+  timestamp: string;
+  userId: string;
+  userName: string;
+  action: 'create' | 'status_change' | 'field_update' | 'custom';
+  details: string;
+}
+
 export interface Task {
   id: string;
   title: string;
   description: string;
-  status: 'backlog' | 'todo' | 'in_progress' | 'blocked' | 'review' | 'done' | 'rejected';
+  status: 'backlog' | 'todo' | 'in_progress' | 'blocked' | 'review' | 'done' | 'rejected' | 'correction';
   memberId?: string; // Enlazada a un responsable
-  auxiliaryId?: string; // Miembro auxiliar opcional (NUEVO)
+  auxiliaryId?: string; // Miembro auxiliar opcional (MANTENIDO PARA RETROCOMPATIBILIDAD)
+  auxiliaryIds?: string[]; // Miembros auxiliares múltiples (NUEVO)
+  revisorId?: string; // Encargado de la revisión (NUEVO)
   processId: string; // Enlazada a un proceso
   projectId?: string; // Enlazada a un proyecto (NUEVO)
   deliverables?: Deliverable[]; // Nueva sección de entregables
   plannedHours?: number; // Horas planificadas
   actualHours?: number; // Horas reales
   dueDate?: string; // Fecha de entrega
+  plannedDate?: string; // Fecha planificada para realizar la actividad (NUEVO)
+  plannedEndDate?: string; // Fecha planificada para finalizar la actividad (Opcional)
+  priority?: 'baja' | 'media' | 'alta' | 'meteoric_crash'; // Nivel de prioridad
+  storyDescription?: string; // Descripción de la historia de usuario (NUEVO)
+  acceptanceCriteria?: string; // Criterios de aceptación (NUEVO)
   blockedByTaskIds?: string[]; // IDs de tareas que bloquean a esta tarea
   createdAt: string;
+  history?: TaskHistoryItem[]; // Historial de cambios
 }
 
 export interface Project {
@@ -165,3 +189,30 @@ export interface MemberDraft {
   };
   explanation: string;
 }
+
+export interface ProcessLink {
+  id: string;
+  title: string;
+  url: string;
+  processId: string;
+  createdAt: string;
+  category?: string;
+}
+
+export interface NoteShareAccess {
+  memberId: string;
+  access: 'ver' | 'editar'; // 'ver' = read-only, 'editar' = can edit
+}
+
+export interface ProcessNote {
+  id: string;
+  title: string;
+  content: string;
+  processId: string;
+  createdByMemberId: string;
+  createdAt: string;
+  updatedAt: string;
+  category?: string;
+  sharedWith?: NoteShareAccess[];
+}
+

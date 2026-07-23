@@ -25,18 +25,131 @@ service cloud.firestore {
 
     // Check if the user has the 'role-admin' system role
     function isAdmin() {
-      let member = get(/databases/$(database)/documents/members/$(request.auth.uid)).data;
-      return isSignedIn() && member.systemRoleId == 'role-admin';
+      let member = getMember();
+      return isSignedIn() && member != null && member.systemRoleId == 'role-admin';
     }
     
     // Note: Sofia Chen's UID should be added to an 'admins' collection for bootstrap
     // or we assume the first user who sets up their profile is an admin.
     // For this app, I'll allow the user from metadata to be an admin if they sign in.
     function isSuperAdmin() {
-      return isSignedIn() && (request.auth.token.email == 'e.siavichay@novagreen.ec' || isAdmin());
+      return isSignedIn() && (request.auth.token.email.lower() == 'e.siavichay@novagreen.ec' || isAdmin());
+    }
+
+    // Resolves the member document ID from the authenticated user's email mapping
+    function getMemberId() {
+      let email = request.auth.token.email.lower();
+      let mappingPath = /databases/$(database)/documents/user_mappings/$(email);
+      let existsMapping = exists(mappingPath);
+      return existsMapping ? get(mappingPath).data.memberId : null;
+    }
+
+    // Resolves the logged-in team member data securely (direct or mapped)
+    function getMember() {
+      let directMemberPath = /databases/$(database)/documents/members/$(request.auth.uid);
+      let memberId = getMemberId();
+      let mappedMemberPath = memberId != null ? /databases/$(database)/documents/members/$(memberId) : null;
+      return exists(directMemberPath) ? get(directMemberPath).data : (
+        mappedMemberPath != null && exists(mappedMemberPath) ? get(mappedMemberPath).data : null
+      );
+    }
+
+    // Check if the user is a leader for the process of the task
+    function isProcessLeader(processId) {
+      let member = getMember();
+      let hasMember = member != null;
+      let moduleAccess = hasMember && 'moduleAccess' in member && member.moduleAccess != null ? member.moduleAccess : {};
+      let systemRoleId = hasMember && 'systemRoleId' in member ? member.systemRoleId : '';
+      let isSystemAdmin = hasMember && 'isSystemAdmin' in member ? member.isSystemAdmin : false;
+      
+      let specificKey = 'tasks_' + processId;
+      let specificAccess = specificKey in moduleAccess ? moduleAccess[specificKey] : null;
+      let generalAccess = 'tasks' in moduleAccess ? moduleAccess['tasks'] : null;
+      
+      return isSignedIn() && hasMember && (
+        isSystemAdmin == true ||
+        systemRoleId == 'role-admin' ||
+        specificAccess == 'lider' ||
+        specificAccess == 'administrador' ||
+        (
+          specificAccess == null && (
+            generalAccess == 'lider' ||
+            generalAccess == 'administrador'
+          )
+        )
+      );
+    }
+
+    // Check if the user is a collaborator for the process of the task
+    function isProcessCollaborator(processId) {
+      let member = getMember();
+      let hasMember = member != null;
+      let moduleAccess = hasMember && 'moduleAccess' in member && member.moduleAccess != null ? member.moduleAccess : {};
+      
+      let specificKey = 'tasks_' + processId;
+      let specificAccess = specificKey in moduleAccess ? moduleAccess[specificKey] : null;
+      let generalAccess = 'tasks' in moduleAccess ? moduleAccess['tasks'] : null;
+      
+      return isSignedIn() && hasMember && (
+        specificAccess == 'colaborador' ||
+        (specificAccess == null && generalAccess == 'colaborador')
+      );
+    }
+
+    // Check if the user is a leader for the process of the project
+    function isProjectLeader(processId) {
+      let member = getMember();
+      let hasMember = member != null;
+      let moduleAccess = hasMember && 'moduleAccess' in member && member.moduleAccess != null ? member.moduleAccess : {};
+      let systemRoleId = hasMember && 'systemRoleId' in member ? member.systemRoleId : '';
+      let isSystemAdmin = hasMember && 'isSystemAdmin' in member ? member.isSystemAdmin : false;
+      
+      let specificKey = 'projects_' + processId;
+      let specificAccess = specificKey in moduleAccess ? moduleAccess[specificKey] : null;
+      
+      return isSignedIn() && hasMember && (
+        isSystemAdmin == true ||
+        systemRoleId == 'role-admin' ||
+        specificAccess == 'lider' ||
+        specificAccess == 'administrador'
+      );
+    }
+
+    // Check if the user is an administrator for the process of the project
+    function isProjectAdmin(processId) {
+      let member = getMember();
+      let hasMember = member != null;
+      let moduleAccess = hasMember && 'moduleAccess' in member && member.moduleAccess != null ? member.moduleAccess : {};
+      let systemRoleId = hasMember && 'systemRoleId' in member ? member.systemRoleId : '';
+      let isSystemAdmin = hasMember && 'isSystemAdmin' in member ? member.isSystemAdmin : false;
+      
+      let specificKey = 'projects_' + processId;
+      let specificAccess = specificKey in moduleAccess ? moduleAccess[specificKey] : null;
+      
+      return isSignedIn() && hasMember && (
+        isSystemAdmin == true ||
+        systemRoleId == 'role-admin' ||
+        specificAccess == 'administrador'
+      );
+    }
+
+    // Check if the user is the direct primary or auxiliary assignee (responsible) of the task
+    function isTaskAssignee(taskData) {
+      let member = getMember();
+      let memberId = member != null && 'id' in member ? member.id : '';
+      let taskMemberId = 'memberId' in taskData ? taskData.memberId : '';
+      let taskAuxId = 'auxiliaryId' in taskData ? taskData.auxiliaryId : '';
+      let taskAuxIds = 'auxiliaryIds' in taskData && taskData.auxiliaryIds is list ? taskData.auxiliaryIds : [];
+      return memberId != '' && (taskMemberId == memberId || taskAuxId == memberId || memberId in taskAuxIds);
     }
 
     // --- Collections ---
+
+    match /user_mappings/{email} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && (isSuperAdmin() || request.auth.token.email.lower() == email.lower());
+      allow delete: if isSuperAdmin();
+    }
 
     match /members/{memberId} {
       allow read: if isSignedIn();
@@ -64,20 +177,34 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidTask(incoming()) && exists(/databases/$(database)/documents/processes/$(incoming().processId));
       allow update: if isSignedIn() && isValidTask(incoming()) && (
         isSuperAdmin() || 
-        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'actualHours', 'deliverables']))
+        isProcessLeader(existing().processId) ||
+        (
+          (isTaskAssignee(existing()) || isProcessCollaborator(existing().processId)) && 
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'deliverables', 'actualHours', 'dueDate', 'history', 'status'
+          ]) && (
+            incoming().status == existing().status ||
+            incoming().status in ['in_progress', 'review']
+          )
+        )
       );
-      allow delete: if isSuperAdmin();
+      allow delete: if isSuperAdmin() || isProcessLeader(existing().processId);
     }
 
     function isValidTask(data) {
       return data.title is string && data.title.size() <= 200 &&
-             data.status in ['backlog', 'todo', 'in_progress', 'blocked', 'review', 'done', 'rejected'] &&
+             data.status in ['backlog', 'todo', 'in_progress', 'blocked', 'review', 'done', 'rejected', 'correction'] &&
              data.processId is string && isValidId(data.processId);
     }
 
     match /projects/{projectId} {
       allow read: if isSignedIn();
-      allow write: if isSuperAdmin();
+      allow create: if isSignedIn() && (isSuperAdmin() || isProjectLeader(incoming().processId));
+      allow update: if isSignedIn() && (
+        isSuperAdmin() || 
+        (isProjectLeader(existing().processId) && isProjectLeader(incoming().processId))
+      );
+      allow delete: if isSuperAdmin() || isProjectAdmin(existing().processId);
     }
 
     match /companies/{companyId} {
@@ -93,6 +220,16 @@ service cloud.firestore {
     match /roles/{roleId} {
       allow read: if isSignedIn();
       allow write: if isSuperAdmin();
+    }
+
+    match /process_links/{linkId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /process_notes/{noteId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
   }
 }

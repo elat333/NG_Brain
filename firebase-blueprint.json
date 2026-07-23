@@ -46,15 +46,22 @@
         "id": { "type": "string" },
         "title": { "type": "string" },
         "description": { "type": "string" },
-        "status": { "type": "string", "enum": ["backlog", "todo", "in_progress", "blocked", "review", "done", "rejected"] },
+        "storyDescription": { "type": "string" },
+        "acceptanceCriteria": { "type": "string" },
+        "status": { "type": "string", "enum": ["backlog", "todo", "in_progress", "blocked", "review", "done", "rejected", "correction"] },
         "memberId": { "type": "string" },
         "auxiliaryId": { "type": "string" },
+        "auxiliaryIds": { "type": "array", "items": { "type": "string" } },
+        "revisorId": { "type": "string" },
         "processId": { "type": "string" },
         "projectId": { "type": "string" },
         "deliverables": { "type": "array", "items": { "$ref": "Deliverable" } },
         "plannedHours": { "type": "number" },
         "actualHours": { "type": "number" },
         "dueDate": { "type": "string" },
+        "plannedDate": { "type": "string" },
+        "plannedEndDate": { "type": "string" },
+        "priority": { "type": "string", "enum": ["baja", "media", "alta", "meteoric_crash"] },
         "blockedByTaskIds": { "type": "array", "items": { "type": "string" } },
         "createdAt": { "type": "string" }
       },
@@ -132,9 +139,50 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "name", "description", "permissions", "createdAt"]
+    },
+    "UserMapping": {
+      "title": "User Mapping",
+      "description": "A mapping from user email to dynamic member document ID.",
+      "type": "object",
+      "properties": {
+        "memberId": { "type": "string" }
+      },
+      "required": ["memberId"]
+    },
+    "ProcessLink": {
+      "title": "Process Link",
+      "description": "A link of interest for a process.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "url": { "type": "string" },
+        "processId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "url", "processId", "createdAt"]
+    },
+    "ProcessNote": {
+      "title": "Process Note",
+      "description": "A markdown note or document for a process.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "processId": { "type": "string" },
+        "createdByMemberId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "content", "processId", "createdByMemberId", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
+    "user_mappings": {
+      "schema": "UserMapping",
+      "description": "Collection mapping verified emails to member ID."
+    },
     "members": {
       "schema": "TeamMember",
       "description": "Collection of team members."
@@ -162,6 +210,14 @@
     "roles": {
       "schema": "Role",
       "description": "Collection of system roles."
+    },
+    "process_links": {
+      "schema": "ProcessLink",
+      "description": "Collection of links of interest per process."
+    },
+    "process_notes": {
+      "schema": "ProcessNote",
+      "description": "Collection of markdown notes per process."
     }
   }
 }
