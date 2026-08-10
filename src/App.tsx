@@ -58,11 +58,19 @@ import {
   Eye,
   ShieldAlert,
   Save,
-  Bookmark
+  Bookmark,
+  Briefcase,
+  Bot,
+  BookOpen,
+  Target,
+  Sliders,
+  Package,
+  Globe,
+  UploadCloud
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { TeamMember, Process, ExtractedUpdates, Task, Project, SuggestedActivity, MemberDraft, Deliverable, Company, PersonCategory, Industry, Role, ProcessLink, ProcessNote } from './types';
-import { initialMembers, initialProcesses, initialTasks, initialCompanies, initialIndustries, initialRoles } from './lib/initialData';
+import { TeamMember, Process, ExtractedUpdates, Task, Project, SuggestedActivity, MemberDraft, Deliverable, Company, PersonCategory, Industry, Role, ProcessLink, ProcessNote, ManagementNote, ManagementStrategyData, ManagementAIGovernanceData } from './types';
+import { initialMembers, initialProcesses, initialTasks, initialCompanies, initialIndustries, initialRoles, initialManagementNotes, initialManagementStrategy, initialManagementGovernance } from './lib/initialData';
 import { analyzeTranscript, getPlanningSuggestions, processMemberInput } from './services/aiService';
 import { 
   auth, 
@@ -86,6 +94,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import companyLogo from './assets/images/ng brain ai.jpg';
 import ProcessDashboard from './components/ProcessDashboard';
 import TaskCalendarView from './components/TaskCalendarView';
+import ManagementModule from './components/ManagementModule';
+import { ImportacionesModule } from './components/ImportacionesModule';
 
 // Helper functions
 const parseLocalDate = (dateStr: string | null | undefined): Date | null => {
@@ -256,6 +266,14 @@ const getModuleAccess = (
     }
     return 'ninguno';
   }
+
+  // Handle importaciones module
+  if (moduleId === 'importaciones') {
+    if (member.moduleAccess && member.moduleAccess['importaciones'] !== undefined) {
+      return member.moduleAccess['importaciones'];
+    }
+    return 'colaborador';
+  }
   
   // If the member has an explicit moduleAccess object, that object is the absolute source of truth
   if (member.moduleAccess) {
@@ -278,12 +296,14 @@ export default function App() {
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [isInitializingData, setIsInitializingData] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'transcript' | 'tasks' | 'planner' | 'projects' | 'settings' | 'directory' | 'process_dashboard'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'transcript' | 'tasks' | 'planner' | 'projects' | 'settings' | 'directory' | 'process_dashboard' | 'gerencia' | 'importaciones'>('dashboard');
   const [lastTab, setLastTab] = useState<string | null>(null);
   const [settingsSubTab, setSettingsSubTab] = useState<'roles' | 'processes' | 'members' | 'general'>('general');
   const [showProcessPermissions, setShowProcessPermissions] = useState<boolean>(false);
   const [directorySubTab, setDirectorySubTab] = useState<'people' | 'companies' | 'industries'>('people');
   const [processSubTab, setProcessSubTab] = useState<'summary' | 'projects' | 'links' | 'notes'>('summary');
+  const [managementSubTab, setManagementSubTab] = useState<'consultant' | 'notes' | 'strategy' | 'governance'>('consultant');
+  const [importacionesSubTab, setImportacionesSubTab] = useState<'products' | 'suppliers' | 'proformas' | 'upload_proforma'>('products');
   const [selectedProcessId, setSelectedProcessId] = useState<string>('');
   const [showFicha, setShowFicha] = useState<boolean>(false);
   
@@ -292,10 +312,11 @@ export default function App() {
   const [lastInitializedMemberId, setLastInitializedMemberId] = useState<string>('');
   const [pendingExitAction, setPendingExitAction] = useState<{
     type: 'tab' | 'subtab' | 'member';
-    targetTab?: 'dashboard' | 'transcript' | 'tasks' | 'planner' | 'projects' | 'settings' | 'directory' | 'process_dashboard';
+    targetTab?: 'dashboard' | 'transcript' | 'tasks' | 'planner' | 'projects' | 'settings' | 'directory' | 'process_dashboard' | 'gerencia' | 'importaciones';
     targetSettingsSubTab?: 'roles' | 'processes' | 'members' | 'general';
     targetMemberId?: string;
   } | null>(null);
+
 
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -309,6 +330,9 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [processLinks, setProcessLinks] = useState<ProcessLink[]>([]);
   const [processNotes, setProcessNotes] = useState<ProcessNote[]>([]);
+  const [managementNotes, setManagementNotes] = useState<ManagementNote[]>(initialManagementNotes);
+  const [managementStrategy, setManagementStrategy] = useState<ManagementStrategyData>(initialManagementStrategy);
+  const [managementGovernance, setManagementGovernance] = useState<ManagementAIGovernanceData>(initialManagementGovernance);
   
   const sortedMembers = React.useMemo(() => {
     return [...members].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
@@ -358,6 +382,32 @@ export default function App() {
     return false;
   }, [currentMember, roles]);
 
+  const accessibleProcesses = React.useMemo(() => {
+    if (!currentMember) return processes;
+    const isSysAdmin = currentMember.isSystemAdmin || currentMember.systemRoleId === 'role-admin';
+    const generalProcessDashboardAccess = getModuleAccess(currentMember, roles, 'process_dashboard', members.length === 0);
+
+    if (isSysAdmin || generalProcessDashboardAccess === 'administrador') {
+      return processes;
+    }
+
+    const filtered = processes.filter(p => {
+      if (currentMember.processId === p.id) return true;
+
+      const tasksAccess = getModuleAccess(currentMember, roles, `tasks_${p.id}`);
+      const projectsAccess = getModuleAccess(currentMember, roles, `projects_${p.id}`);
+      const processAccess = getModuleAccess(currentMember, roles, `process_${p.id}`);
+
+      return tasksAccess !== 'ninguno' || projectsAccess !== 'ninguno' || processAccess !== 'ninguno';
+    });
+
+    if (filtered.length === 0 && processes.length > 0) {
+      return processes;
+    }
+
+    return filtered;
+  }, [processes, currentMember, roles, members.length]);
+
   const resolvedPermissionsMember = React.useMemo(() => {
     const filtered = sortedMembers.filter(m => (m.categories || []).includes('miembro'));
     return sortedMembers.find(m => m.id === selectedMemberId) || filtered[0];
@@ -378,14 +428,18 @@ export default function App() {
   }, [resolvedPermissionsMember, lastInitializedMemberId]);
 
   useEffect(() => {
-    if (!selectedProcessId && processes.length > 0) {
-      if (currentMember?.processId) {
-        setSelectedProcessId(currentMember.processId);
-      } else {
-        setSelectedProcessId(processes[0].id);
+    if (accessibleProcesses.length > 0) {
+      const isCurrentlyAccessible = accessibleProcesses.some(p => p.id === selectedProcessId);
+      if (!isCurrentlyAccessible || !selectedProcessId) {
+        const memberProcess = accessibleProcesses.find(p => p.id === currentMember?.processId);
+        if (memberProcess) {
+          setSelectedProcessId(memberProcess.id);
+        } else {
+          setSelectedProcessId(accessibleProcesses[0].id);
+        }
       }
     }
-  }, [processes, currentMember, selectedProcessId]);
+  }, [accessibleProcesses, selectedProcessId, currentMember]);
 
   const hasUnsavedPermissionsChanges = React.useMemo(() => {
     if (!resolvedPermissionsMember) return false;
@@ -422,7 +476,7 @@ export default function App() {
     }
   };
 
-  const handleTabClick = (tab: 'dashboard' | 'transcript' | 'tasks' | 'planner' | 'projects' | 'settings' | 'directory' | 'process_dashboard', directorySub?: 'people' | 'companies' | 'industries') => {
+  const handleTabClick = (tab: 'dashboard' | 'transcript' | 'tasks' | 'planner' | 'projects' | 'settings' | 'directory' | 'process_dashboard' | 'gerencia' | 'importaciones', directorySub?: 'people' | 'companies' | 'industries') => {
     if (activeTab === 'settings' && settingsSubTab === 'roles' && hasUnsavedPermissionsChanges) {
       setPendingExitAction({
         type: 'tab',
@@ -468,8 +522,8 @@ export default function App() {
     if (!currentMember) return;
     const access = getModuleAccess(currentMember, roles, activeTab, members.length === 0);
     if (access === 'ninguno') {
-      const tabs: ('dashboard' | 'transcript' | 'tasks' | 'planner' | 'projects' | 'settings' | 'directory')[] = [
-        'dashboard', 'tasks', 'planner', 'projects', 'directory', 'transcript', 'settings'
+      const tabs: ('dashboard' | 'transcript' | 'tasks' | 'planner' | 'projects' | 'settings' | 'directory' | 'process_dashboard' | 'gerencia')[] = [
+        'dashboard', 'gerencia', 'process_dashboard', 'tasks', 'planner', 'projects', 'directory', 'transcript', 'settings'
       ];
       const fallbackTab = tabs.find(t => getModuleAccess(currentMember, roles, t, members.length === 0) !== 'ninguno');
       if (fallbackTab) {
@@ -499,6 +553,9 @@ export default function App() {
       { name: 'roles', setState: setRoles, initial: initialRoles },
       { name: 'process_links', setState: setProcessLinks, initial: [] },
       { name: 'process_notes', setState: setProcessNotes, initial: [] },
+      { name: 'management_notes', setState: (data: any[]) => setManagementNotes(data.length > 0 ? data : initialManagementNotes), initial: initialManagementNotes },
+      { name: 'management_strategy', setState: (data: any[]) => { if (data.length > 0) setManagementStrategy(data[0]); }, initial: initialManagementStrategy },
+      { name: 'management_governance', setState: (data: any[]) => { if (data.length > 0) setManagementGovernance(data[0]); }, initial: initialManagementGovernance },
     ];
 
     const unsubscribes = collections.map(col => {
@@ -637,6 +694,9 @@ export default function App() {
         { name: 'companies', data: initialCompanies },
         { name: 'industries', data: initialIndustries },
         { name: 'roles', data: initialRoles },
+        { name: 'management_notes', data: initialManagementNotes },
+        { name: 'management_strategy', data: [initialManagementStrategy] },
+        { name: 'management_governance', data: [initialManagementGovernance] },
       ];
 
       for (const col of collectionsToBootstrap) {
@@ -649,6 +709,44 @@ export default function App() {
       handleFirestoreError(error, OperationType.WRITE, 'bootstrap');
     } finally {
       setIsInitializingData(false);
+    }
+  };
+
+  const handleUpdateManagementNotes = async (newNotes: ManagementNote[]) => {
+    setManagementNotes(newNotes);
+    if (!user) return;
+    try {
+      const existingIds = new Set(newNotes.map(n => n.id));
+      for (const oldNote of managementNotes) {
+        if (!existingIds.has(oldNote.id)) {
+          await deleteDoc(doc(db, 'management_notes', oldNote.id));
+        }
+      }
+      for (const note of newNotes) {
+        await setDoc(doc(db, 'management_notes', note.id), note);
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'management_notes');
+    }
+  };
+
+  const handleUpdateManagementStrategy = async (newStrategy: ManagementStrategyData) => {
+    setManagementStrategy(newStrategy);
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'management_strategy', newStrategy.id || 'strat-main'), newStrategy);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'management_strategy');
+    }
+  };
+
+  const handleUpdateManagementGovernance = async (newGovernance: ManagementAIGovernanceData) => {
+    setManagementGovernance(newGovernance);
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'management_governance', newGovernance.id || 'gov-main'), newGovernance);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'management_governance');
     }
   };
 
@@ -1941,6 +2039,63 @@ export default function App() {
                 onClick={() => handleTabClick('dashboard')} 
               />
             )}
+            {getModuleAccess(currentMember, roles, 'gerencia') !== 'ninguno' && (
+              <>
+                <NavButton 
+                  active={activeTab === 'gerencia'} 
+                  icon={<Briefcase size={20} />} 
+                  label="Gerencia" 
+                  onClick={() => handleTabClick('gerencia')} 
+                />
+                <AnimatePresence>
+                  {activeTab === 'gerencia' && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="ml-8 mt-1 space-y-1 overflow-hidden"
+                    >
+                      <SubNavButton 
+                        active={managementSubTab === 'consultant'} 
+                        label="Asistente IA" 
+                        icon={<Bot size={14} />}
+                        onClick={() => {
+                          handleTabClick('gerencia');
+                          setManagementSubTab('consultant');
+                        }} 
+                      />
+                      <SubNavButton 
+                        active={managementSubTab === 'notes'} 
+                        label="Bitácora" 
+                        icon={<BookOpen size={14} />}
+                        onClick={() => {
+                          handleTabClick('gerencia');
+                          setManagementSubTab('notes');
+                        }} 
+                      />
+                      <SubNavButton 
+                        active={managementSubTab === 'strategy'} 
+                        label="Estrategia & OKRs" 
+                        icon={<Target size={14} />}
+                        onClick={() => {
+                          handleTabClick('gerencia');
+                          setManagementSubTab('strategy');
+                        }} 
+                      />
+                      <SubNavButton 
+                        active={managementSubTab === 'governance'} 
+                        label="Gobernanza IA" 
+                        icon={<Sliders size={14} />}
+                        onClick={() => {
+                          handleTabClick('gerencia');
+                          setManagementSubTab('governance');
+                        }} 
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
+            )}
             {getModuleAccess(currentMember, roles, 'tasks') !== 'ninguno' && (
               <NavButton 
                 active={activeTab === 'tasks'} 
@@ -2015,6 +2170,63 @@ export default function App() {
                         onClick={() => {
                           handleTabClick('process_dashboard');
                           setProcessSubTab('notes');
+                        }} 
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
+            )}
+            {getModuleAccess(currentMember, roles, 'importaciones') !== 'ninguno' && (
+              <>
+                <NavButton 
+                  active={activeTab === 'importaciones'} 
+                  icon={<Package size={20} />} 
+                  label="Importaciones" 
+                  onClick={() => handleTabClick('importaciones')} 
+                />
+                <AnimatePresence>
+                  {activeTab === 'importaciones' && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="ml-8 mt-1 space-y-1 overflow-hidden"
+                    >
+                      <SubNavButton 
+                        active={importacionesSubTab === 'products'} 
+                        label="Base de Productos" 
+                        icon={<Package size={14} />}
+                        onClick={() => {
+                          handleTabClick('importaciones');
+                          setImportacionesSubTab('products');
+                        }} 
+                      />
+                      <SubNavButton 
+                        active={importacionesSubTab === 'suppliers'} 
+                        label="Proveedores Internacionales" 
+                        icon={<Globe size={14} />}
+                        onClick={() => {
+                          handleTabClick('importaciones');
+                          setImportacionesSubTab('suppliers');
+                        }} 
+                      />
+                      <SubNavButton 
+                        active={importacionesSubTab === 'proformas'} 
+                        label="Proformas / Órdenes" 
+                        icon={<FileText size={14} />}
+                        onClick={() => {
+                          handleTabClick('importaciones');
+                          setImportacionesSubTab('proformas');
+                        }} 
+                      />
+                      <SubNavButton 
+                        active={importacionesSubTab === 'upload_proforma'} 
+                        label="Cargar y Validar" 
+                        icon={<UploadCloud size={14} />}
+                        onClick={() => {
+                          handleTabClick('importaciones');
+                          setImportacionesSubTab('upload_proforma');
                         }} 
                       />
                     </motion.div>
@@ -2171,7 +2383,9 @@ export default function App() {
           <div>
             <h1 className="text-2xl font-black tracking-tight">
               {activeTab === 'dashboard' && 'Panel de Control'}
+              {activeTab === 'gerencia' && 'Módulo de Gerencia & Dirección'}
               {activeTab === 'process_dashboard' && 'Gestión de Procesos'}
+              {activeTab === 'importaciones' && 'Módulo de Importaciones'}
               {activeTab === 'transcript' && 'Análisis de Transcripciones'}
               {activeTab === 'projects' && 'Gestión de Proyectos'}
               {activeTab === 'tasks' && 'Seguimiento de Tareas'}
@@ -2206,7 +2420,7 @@ export default function App() {
                     }}
                     className="appearance-none bg-white border border-slate-200 hover:border-slate-300 text-slate-800 text-xs font-black py-2 px-3.5 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 transition-all cursor-pointer min-w-[140px]"
                   >
-                    {processes.map(p => (
+                    {accessibleProcesses.map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
@@ -2950,6 +3164,7 @@ export default function App() {
                       <div className="text-slate-400 text-left">Módulo:</div>
                       <div className="font-extrabold text-slate-700 capitalize text-left">
                         {activeTab === 'dashboard' ? 'Resumen' :
+                         activeTab === 'gerencia' ? 'Gerencia' :
                          activeTab === 'tasks' ? 'Tareas' :
                          activeTab === 'planner' ? 'Planificador IA' :
                          activeTab === 'projects' ? 'Proyectos' :
@@ -2967,6 +3182,30 @@ export default function App() {
               </motion.div>
             ) : (
               <>
+                {activeTab === 'gerencia' && (
+                  <motion.div
+                    key="gerencia"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="max-w-7xl mx-auto w-full"
+                  >
+                    <ManagementModule
+                      currentMember={currentMember}
+                      members={members}
+                      processes={processes}
+                      notes={managementNotes}
+                      strategy={managementStrategy}
+                      governance={managementGovernance}
+                      onUpdateNotes={handleUpdateManagementNotes}
+                      onUpdateStrategy={handleUpdateManagementStrategy}
+                      onUpdateGovernance={handleUpdateManagementGovernance}
+                      accessLevel={getModuleAccess(currentMember, roles, 'gerencia')}
+                      activeSubTab={managementSubTab}
+                      setActiveSubTab={setManagementSubTab}
+                    />
+                  </motion.div>
+                )}
                 {activeTab === 'process_dashboard' && (
                   <motion.div
                     key="process_dashboard"
@@ -2990,6 +3229,24 @@ export default function App() {
                       setSelectedProcessId={setSelectedProcessId}
                       showFicha={showFicha}
                       setShowFicha={setShowFicha}
+                      onOpenTask={(task) => setEditingTask(task)}
+                    />
+                  </motion.div>
+                )}
+                {activeTab === 'importaciones' && (
+                  <motion.div
+                    key="importaciones"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="max-w-7xl mx-auto w-full"
+                  >
+                    <ImportacionesModule
+                      companies={companies}
+                      currentMember={currentMember}
+                      accessLevel={getModuleAccess(currentMember, roles, 'importaciones')}
+                      activeSubTab={importacionesSubTab}
+                      onSubTabChange={(tab) => setImportacionesSubTab(tab)}
                     />
                   </motion.div>
                 )}
@@ -4661,6 +4918,7 @@ export default function App() {
 
                                 {[
                                   { id: 'dashboard', name: 'Resumen o Dashboard', desc: 'Panel de control con métricas generales del equipo.', icon: <TrendingUp size={16} /> },
+                                  { id: 'gerencia', name: 'Módulo de Gerencia', desc: 'Asistente IA consultor, bitácora directiva, planificación estratégica (FODA/OKRs) y gobernanza de IA.', icon: <Briefcase size={16} /> },
                                   { id: 'tasks', name: 'Seguimiento de Tareas', desc: 'Permisos de tareas gestionados individualmente para cada proceso específico.', icon: <CheckCircle2 size={16} />, isTasksParent: true },
                                   { id: 'planner', name: 'Planificador Inteligente IA', desc: 'Planificación inteligente asistida por modelos Gemini.', icon: <Calendar size={16} /> },
                                   { id: 'projects', name: 'Gestión de Proyectos', desc: 'Administración de campañas y portafolio de proyectos.', icon: <FolderKanban size={16} />, isProjectsParent: true },

@@ -6,7 +6,14 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+const ai = new GoogleGenAI({ 
+  apiKey: process.env.GEMINI_API_KEY as string,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build'
+    }
+  }
+});
 
 async function startServer() {
   const app = express();
@@ -41,7 +48,7 @@ async function startServer() {
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash", // Using stable model
+        model: "gemini-2.5-flash", // Using standard recommended alias
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -115,7 +122,7 @@ async function startServer() {
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -187,7 +194,7 @@ async function startServer() {
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -220,6 +227,120 @@ async function startServer() {
     } catch (error) {
       console.error("AI Error:", error);
       res.status(500).json({ error: "Failed to get planning suggestions" });
+    }
+  });
+
+  app.post("/api/ai/management-chat", async (req, res) => {
+    try {
+      const { userQuery, messages, notes, strategy, governance, members, processes } = req.body;
+
+      // Extract governance config
+      const tone = governance?.tone || 'ejecutivo_analitico';
+      const systemDirectives = governance?.systemDirectives || '';
+      const enabledGuardrails = (governance?.guardrails || []).filter((g: any) => g.isEnabled);
+      const calibrationHistory = governance?.calibrationHistory || [];
+
+      // Construct System Instruction dynamically
+      let systemInstruction = `Eres un Consultor y Asistente Ejecutivo de Gerencia de Novagreen.
+Tu función es brindar asesoramiento estratégico, análisis de gestión integrada (ISO), supervisión de OKRs, gestión de riesgos y síntesis directiva.
+
+CONFIGURACIÓN DE TONO Y ESTILO:
+- Tono Seleccionado: ${tone}
+`;
+
+      if (tone === 'ejecutivo_analitico') {
+        systemInstruction += `- Enfócate en datos cuantitativos, ROI, estructura clara con viñetas, brevedad ejecutiva y recomendaciones basadas en hechos.\n`;
+      } else if (tone === 'consultor_iso') {
+        systemInstruction += `- Enmarca cada análisis bajo los principios de la Gestión Integrada de Calidad, Medio Ambiente y Seguridad (ISO 9001/14001/45001), trazabilidad, evidencia auditable y mejora continua.\n`;
+      } else if (tone === 'estratega_conservador') {
+        systemInstruction += `- Prioriza la gestión de riesgos, protección de margen, resiliencia financiera y cautela en la asignación de recursos.\n`;
+      } else if (tone === 'mentor_innovador') {
+        systemInstruction += `- Promueve la transformación digital, agilidad organizacional, soluciones creativas tecnológicas y escalabilidad.\n`;
+      }
+
+      if (systemDirectives) {
+        systemInstruction += `\nDIRECTIVAS MAESTRAS DE LA DIRECCIÓN:\n${systemDirectives}\n`;
+      }
+
+      if (enabledGuardrails.length > 0) {
+        systemInstruction += `\nREGLAS DE SEGURIDAD Y GUARDRAILS ANTI-ALUCINACIÓN (CUMPLIMIENTO OBLIGATORIO):\n`;
+        enabledGuardrails.forEach((g: any) => {
+          systemInstruction += `- [${g.title}]: ${g.ruleDescription}\n`;
+        });
+      }
+
+      if (calibrationHistory.length > 0) {
+        systemInstruction += `\nRETROALIMENTACIÓN Y CORRECCIONES PREVIAS DEL GERENTE (APRENDIZAJE EN TIEMPO REAL):\n`;
+        calibrationHistory.slice(-5).forEach((c: any) => {
+          systemInstruction += `- TEMA: ${c.promptOrTopic} | CORRECCIÓN DEL GERENTE: ${c.managerCorrection}\n`;
+        });
+      }
+
+      systemInstruction += `\nSISTEMA Y DATOS DISPONIBLES DE LA EMPRESA:
+BITÁCORA Y NOTAS DE GERENCIA:
+${JSON.stringify(notes || [], null, 2)}
+
+MATRIZ ESTRATÉGICA (FODA, OKRs Y RIESGOS):
+${JSON.stringify(strategy || {}, null, 2)}
+
+PROCESOS CORPORATIVOS:
+${JSON.stringify((processes || []).map((p: any) => ({ id: p.id, name: p.name, description: p.description, goals: p.goals })), null, 2)}
+
+MIEMBROS DEL EQUIPO Y ROLES:
+${JSON.stringify((members || []).map((m: any) => ({ name: m.name, role: m.role, skills: m.skills, responsibilities: m.responsibilities })), null, 2)}
+
+INSTRUCCIONES DE RESPUESTA:
+1. Responde de forma altamente profesional en ESPAÑOL.
+2. Si el gerente solicita crear o sintetizar una nota/acuerdo/decisión en la bitácora, incluye un objeto "suggestedNote" con { title, content, category }.
+3. Si el gerente te pide ajustar FODA, OKRs o Riesgos, incluye "suggestedAction" con { type: ('add_swot' | 'add_okr' | 'add_risk'), data: ... }.
+`;
+
+      const selectedModel = governance?.selectedModel || 'gemini-2.5-flash';
+
+      const response = await ai.models.generateContent({
+        model: selectedModel,
+        contents: [
+          ...((messages || []).map((m: any) => `${m.sender === 'user' ? 'Gerente' : 'Asistente'}: ${m.text}`)),
+          `Gerente: ${userQuery}`
+        ].join('\n'),
+        config: {
+          systemInstruction,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              text: { type: Type.STRING, description: "La respuesta analítica y ejecutiva del asistente" },
+              suggestedNote: {
+                type: Type.OBJECT,
+                nullable: true,
+                properties: {
+                  title: { type: Type.STRING },
+                  content: { type: Type.STRING },
+                  category: { type: Type.STRING, enum: ['decisión', 'estrategia', 'reunión', 'análisis', 'acuerdo', 'general'] }
+                },
+                required: ["title", "content", "category"]
+              },
+              suggestedAction: {
+                type: Type.OBJECT,
+                nullable: true,
+                properties: {
+                  type: { type: Type.STRING, enum: ['add_swot', 'add_okr', 'add_risk'] },
+                  data: { type: Type.OBJECT }
+                },
+                required: ["type", "data"]
+              }
+            },
+            required: ["text"]
+          }
+        }
+      });
+
+      const rawText = response.text;
+      if (!rawText) return res.status(500).json({ error: "No text returned from Gemini" });
+      res.json(JSON.parse(rawText));
+    } catch (error) {
+      console.error("Management AI Error:", error);
+      res.status(500).json({ error: "Failed to query management AI" });
     }
   });
 

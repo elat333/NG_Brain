@@ -50,3 +50,25 @@ export async function getPlanningSuggestions(
   const data = await response.json();
   return data.activities || [];
 }
+
+export async function sendManagementChatMessage(payload: {
+  userQuery: string;
+  messages: any[];
+  notes: any[];
+  strategy: any;
+  governance: any;
+  members: TeamMember[];
+  processes: Process[];
+}): Promise<{ text: string; suggestedNote?: any; suggestedAction?: any }> {
+  const response = await fetch("/api/ai/management-chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo obtener respuesta del Asistente de Gerencia.");
+  }
+  return await response.json();
+}
+

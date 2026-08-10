@@ -231,5 +231,35 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
+
+    match /management_notes/{noteId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /management_strategy/{stratId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /management_governance/{govId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /importation_products/{prodId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /importation_suppliers/{supId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /importation_proformas/{profId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
   }
 }

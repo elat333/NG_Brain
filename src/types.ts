@@ -195,8 +195,12 @@ export interface ProcessLink {
   title: string;
   url: string;
   processId: string;
+  createdByMemberId?: string;
   createdAt: string;
   category?: string;
+  code?: string;
+  description?: string;
+  sharedWith?: NoteShareAccess[];
 }
 
 export interface NoteShareAccess {
@@ -215,4 +219,178 @@ export interface ProcessNote {
   category?: string;
   sharedWith?: NoteShareAccess[];
 }
+
+// --- Módulo de Gerencia Types ---
+
+export interface ManagementNote {
+  id: string;
+  title: string;
+  content: string;
+  category: 'decisión' | 'estrategia' | 'reunión' | 'análisis' | 'acuerdo' | 'general';
+  tags?: string[];
+  authorMemberId: string;
+  authorName: string;
+  isAiGenerated?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SwotItem {
+  id: string;
+  category: 'fortaleza' | 'oportunidad' | 'debilidad' | 'amenaza';
+  text: string;
+  impactLevel: 'alto' | 'medio' | 'bajo';
+  strategy?: string;
+}
+
+export interface OKRGoal {
+  id: string;
+  title: string;
+  description: string;
+  objectiveArea: string;
+  progress: number; // 0-100
+  targetValue: string;
+  currentValue: string;
+  ownerId?: string;
+  status: 'en_camino' | 'en_riesgo' | 'atrasado' | 'logrado';
+  quarter: string;
+  keyResults: { id: string; description: string; achieved: boolean }[];
+}
+
+export interface StrategicRisk {
+  id: string;
+  title: string;
+  description: string;
+  probability: 'alta' | 'media' | 'baja';
+  impact: 'critico' | 'alto' | 'medio' | 'bajo';
+  mitigationPlan: string;
+  responsibleMemberId?: string;
+  status: 'identificado' | 'mitigando' | 'controlado' | 'materializado';
+}
+
+export interface ManagementStrategyData {
+  id: string;
+  mission?: string;
+  vision?: string;
+  swotItems: SwotItem[];
+  okrGoals: OKRGoal[];
+  strategicRisks: StrategicRisk[];
+  lastUpdated: string;
+}
+
+export interface AIGuardrail {
+  id: string;
+  title: string;
+  ruleDescription: string;
+  isEnabled: boolean;
+  category: 'anti_alucinacion' | 'tono_estilo' | 'cumplimiento_iso' | 'confidencialidad';
+}
+
+export interface AICalibrationRecord {
+  id: string;
+  timestamp: string;
+  promptOrTopic: string;
+  aiResponseSnippet: string;
+  rating: 'correct' | 'needs_tuning' | 'hallucination';
+  managerCorrection: string;
+  appliedRuleTitle?: string;
+}
+
+export interface ManagementAIGovernanceData {
+  id: string;
+  tone: 'ejecutivo_analitico' | 'consultor_iso' | 'estratega_conservador' | 'mentor_innovador';
+  selectedModel?: string; // 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-1.5-flash'
+  systemDirectives: string;
+  guardrails: AIGuardrail[];
+  calibrationHistory: AICalibrationRecord[];
+  updatedAt: string;
+}
+
+export interface ManagementChatMessage {
+  id: string;
+  sender: 'user' | 'assistant';
+  text: string;
+  timestamp: string;
+  suggestedNote?: {
+    title: string;
+    content: string;
+    category: ManagementNote['category'];
+  };
+  suggestedAction?: {
+    type: 'add_swot' | 'add_okr' | 'add_risk';
+    data: any;
+  };
+}
+
+export interface ImportProduct {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  supplierId: string;
+  supplierName: string;
+  unit: string;
+  unitPrice: number;
+  currency: string;
+  minOrderQuantity?: number;
+  hsCode?: string;
+  originCountry?: string;
+  specifications?: Record<string, string>;
+  status: 'activo' | 'inactivo' | 'en_revision';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ImportSupplier {
+  id: string;
+  companyId: string; // Linked to Company.id
+  companyName: string;
+  code: string;
+  contactPerson: string;
+  contactEmail: string;
+  contactPhone: string;
+  country: string;
+  city?: string;
+  paymentTerms?: string;
+  rating?: number; // 1 to 5
+  notes?: string;
+  createdAt: string;
+}
+
+export interface ImportProformaItem {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  unit: string;
+  hsCode?: string;
+  isValidated?: boolean;
+}
+
+export interface ImportProforma {
+  id: string;
+  proformaNumber: string;
+  supplierId: string;
+  supplierName: string;
+  issueDate: string;
+  expirationDate: string;
+  currency: string;
+  subtotal: number;
+  shippingCost: number;
+  taxes: number;
+  totalAmount: number;
+  incoterm: 'FOB' | 'CIF' | 'EXW' | 'DDP' | 'CFR' | 'otro';
+  status: 'pendiente' | 'validada' | 'aprobada' | 'rechazada';
+  fileUrl?: string;
+  items: ImportProformaItem[];
+  notes?: string;
+  createdAt: string;
+}
+
+
 

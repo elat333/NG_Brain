@@ -202,3 +202,91 @@ export const initialTasks: Task[] = [
     createdAt: new Date().toISOString()
   }
 ];
+
+export const initialManagementNotes = [
+  {
+    id: "note-init-1",
+    title: "Plan de Sostenibilidad y Sistemas Integrados 2026",
+    content: "Se acuerda priorizar la auditoría interna ISO 9001/14001 para el segundo semestre, integrando la gestión de riesgos en todos los procesos clave de Novagreen.",
+    category: "estrategia" as const,
+    tags: ["ISO", "Estrategia", "2026"],
+    authorMemberId: "mem-3",
+    authorName: "Sofia Chen",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
+
+export const initialManagementStrategy = {
+  id: "strat-main",
+  mission: "Liderar la transformación sostenible de Novagreen optimizando la excelencia operativa mediante automatización e Inteligencia Artificial.",
+  vision: "Convertirnos en el referente regional en eficiencia operacional y gestión integrada con tecnología de vanguardia.",
+  swotItems: [
+    { id: "s1", category: "fortaleza" as const, text: "Equipo altamente calificado en desarrollo y gestión de proyectos", impactLevel: "alto" as const, strategy: "Liderar iniciativas complejas de innovación" },
+    { id: "o1", category: "oportunidad" as const, text: "Demanda creciente de soluciones automatizadas e integración ISO", impactLevel: "alto" as const, strategy: "Escalar productos de software corporativo" },
+    { id: "d1", category: "debilidad" as const, text: "Documentación de procesos legacy en fase de estandarización", impactLevel: "medio" as const, strategy: "Acelerar digitalización con asistencia IA" },
+    { id: "a1", category: "amenaza" as const, text: "Volatilidad regulatoria e incertidumbre económica global", impactLevel: "medio" as const, strategy: "Mantener reservas de contingencia y flexibilidad operativa" }
+  ],
+  okrGoals: [
+    {
+      id: "okr-1",
+      title: "Optimización de Infraestructura Cloud y Tiempos de Respuesta",
+      description: "Migrar todos los procesos críticos y lograr 99.9% de uptime con baja latencia",
+      objectiveArea: "Tecnología & Operaciones",
+      progress: 65,
+      targetValue: "99.9%",
+      currentValue: "98.5%",
+      status: "en_camino" as const,
+      quarter: "2026-Q3",
+      keyResults: [
+        { id: "kr1", description: "Completar migración a Cloud Run", achieved: true },
+        { id: "kr2", description: "Implementar monitoreo en tiempo real", achieved: false }
+      ]
+    }
+  ],
+  strategicRisks: [
+    {
+      id: "risk-1",
+      title: "Riesgo de Seguridad e Interrupción Operativa",
+      description: "Posibles vulnerabilidades en integraciones de terceros o indisponibilidad de servidor",
+      probability: "baja" as const,
+      impact: "alto" as const,
+      mitigationPlan: "Arquitectura redundante Cloud Run, respaldos automáticos y auditoría de seguridad",
+      status: "controlado" as const
+    }
+  ],
+  lastUpdated: new Date().toISOString()
+};
+
+export const initialManagementGovernance = {
+  id: "gov-main",
+  tone: "ejecutivo_analitico" as const,
+  selectedModel: "gemini-2.5-flash",
+  systemDirectives: "Alinear todas las recomendaciones con los estándares corporativos de Novagreen. Priorizar la sostenibilidad financiera, el cumplimiento de metas trimestrales y las normativas ISO de Sistemas Integrados de Gestión.",
+  guardrails: [
+    {
+      id: "g1",
+      title: "Transparencia y Causalidad de Datos",
+      ruleDescription: "Indicar explícitamente el level de certeza (Alto, Medio, Bajo) al brindar estimaciones u opiniones técnicas.",
+      isEnabled: true,
+      category: "anti_alucinacion" as const
+    },
+    {
+      id: "g2",
+      title: "Verificación de Trazabilidad Interna",
+      ruleDescription: "Fundamentar análisis en las notas de bitácora y matriz de estrategia sin inventar regulaciones ni acuerdos no registrados.",
+      isEnabled: true,
+      category: "anti_alucinacion" as const
+    },
+    {
+      id: "g3",
+      title: "Evaluación Obligatoria de Riesgos ISO",
+      ruleDescription: "Al sugerir cambios operacionales, incluir un análisis breve de impacto en calidad, costo y seguridad.",
+      isEnabled: true,
+      category: "cumplimiento_iso" as const
+    }
+  ],
+  calibrationHistory: [],
+  updatedAt: new Date().toISOString()
+};
+

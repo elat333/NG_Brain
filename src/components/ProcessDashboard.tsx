@@ -21,6 +21,7 @@ import {
   Lock,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Folder,
   FolderOpen,
   TrendingUp,
@@ -35,7 +36,8 @@ import {
   UserPlus,
   Eye,
   Pencil,
-  ShieldCheck
+  ShieldCheck,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TeamMember, Process, Task, Project, Role, ProcessLink, ProcessNote, NoteShareAccess } from '../types';
@@ -45,6 +47,7 @@ import {
   doc, 
   setDoc, 
   deleteDoc, 
+  updateDoc,
   OperationType, 
   handleFirestoreError 
 } from '../lib/firebase';
@@ -150,6 +153,7 @@ interface ProcessDashboardProps {
   setSelectedProcessId?: (id: string) => void;
   showFicha?: boolean;
   setShowFicha?: (show: boolean) => void;
+  onOpenTask?: (task: Task) => void;
 }
 
 export default function ProcessDashboard({
@@ -166,19 +170,31 @@ export default function ProcessDashboard({
   selectedProcessId: externalSelectedProcessId,
   setSelectedProcessId: externalSetSelectedProcessId,
   showFicha: externalShowFicha,
-  setShowFicha: externalSetShowFicha
+  setShowFicha: externalSetShowFicha,
+  onOpenTask
 }: ProcessDashboardProps) {
   // Determine list of accessible processes for the current member
   const isSystemAdmin = currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin';
   
   // Available processes to view
   const accessibleProcesses = useMemo(() => {
-    if (isSystemAdmin) return processes;
-    
-    // Show all but default or highlights can be done. 
-    // To promote collaboration, let's allow viewing all processes, but control edit actions!
-    return processes;
-  }, [processes, isSystemAdmin]);
+    if (!currentMember) return processes;
+    if (isSystemAdmin || getModuleAccess(currentMember, roles, 'process_dashboard') === 'administrador') {
+      return processes;
+    }
+
+    const filtered = processes.filter(p => {
+      if (currentMember.processId === p.id) return true;
+
+      const tasksAccess = getModuleAccess(currentMember, roles, `tasks_${p.id}`);
+      const projectsAccess = getModuleAccess(currentMember, roles, `projects_${p.id}`);
+      const processAccess = getModuleAccess(currentMember, roles, `process_${p.id}`);
+
+      return tasksAccess !== 'ninguno' || projectsAccess !== 'ninguno' || processAccess !== 'ninguno';
+    });
+
+    return filtered.length > 0 ? filtered : processes;
+  }, [processes, currentMember, roles, isSystemAdmin]);
 
   // Selected Process State
   const [localSelectedProcessId, setLocalSelectedProcessId] = useState<string>(() => {
@@ -245,6 +261,21 @@ export default function ProcessDashboard({
   const [selectedShareMemberId, setSelectedShareMemberId] = useState('');
   const [selectedShareAccess, setSelectedShareAccess] = useState<'ver' | 'editar'>('ver');
 
+  // Links Share & Category Editing States
+  const [expandedLinkCategories, setExpandedLinkCategories] = useState<Record<string, boolean>>({});
+  const [editingLinkCategory, setEditingLinkCategory] = useState<string | null>(null);
+  const [newCategoryNameInput, setNewCategoryNameInput] = useState<string>('');
+
+  const [isLinkShareModalOpen, setIsLinkShareModalOpen] = useState(false);
+  const [linkToShare, setLinkToShare] = useState<ProcessLink | null>(null);
+  const [selectedLinkShareMemberId, setSelectedLinkShareMemberId] = useState('');
+  const [selectedLinkShareAccess, setSelectedLinkShareAccess] = useState<'ver' | 'editar'>('ver');
+
+  const [isCategoryShareModalOpen, setIsCategoryShareModalOpen] = useState(false);
+  const [categoryToShare, setCategoryToShare] = useState<{ name: string; links: ProcessLink[] } | null>(null);
+  const [selectedCategoryShareMemberId, setSelectedCategoryShareMemberId] = useState('');
+  const [selectedCategoryShareAccess, setSelectedCategoryShareAccess] = useState<'ver' | 'editar'>('ver');
+
   // Keep noteToShare in sync with real-time updates
   useEffect(() => {
     if (noteToShare) {
@@ -255,6 +286,16 @@ export default function ProcessDashboard({
     }
   }, [processNotes]);
 
+  // Keep linkToShare in sync with real-time updates
+  useEffect(() => {
+    if (linkToShare) {
+      const updated = processLinks.find(l => l.id === linkToShare.id);
+      if (updated) {
+        setLinkToShare(updated);
+      }
+    }
+  }, [processLinks]);
+
   // Clear sub-details when selectedProcessId changes
   useEffect(() => {
     setViewingMemberId(null);
@@ -262,6 +303,8 @@ export default function ProcessDashboard({
     setIsEditingNote(false);
     setNoteCategory('');
     setCustomNoteCategory('');
+    setEditingLinkCategory(null);
+    setNewCategoryNameInput('');
   }, [selectedProcessId]);
 
   // Filters tasks for the selected process
@@ -279,11 +322,28 @@ export default function ProcessDashboard({
     return members.filter(m => m.processId === selectedProcessId);
   }, [members, selectedProcessId]);
 
-  // Filters links for the selected process
+  // Filters links for the selected process OR shared with current member
   const filteredLinks = useMemo(() => {
-    return processLinks.filter(l => l.processId === selectedProcessId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [processLinks, selectedProcessId]);
+    return processLinks.filter(l => {
+      const isThisProcess = l.processId === selectedProcessId;
+      const isSharedWithMe = l.sharedWith?.some(s => s.memberId === currentMember?.id);
+      return isThisProcess || isSharedWithMe;
+    }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [processLinks, selectedProcessId, currentMember]);
+
+  // Keep categoryToShare in sync with real-time updates
+  useEffect(() => {
+    if (categoryToShare) {
+      const currentCategoryLinks = filteredLinks.filter(l => {
+        const isSharedFromOtherProcess = l.processId !== selectedProcessId && l.sharedWith?.some(s => s.memberId === currentMember?.id);
+        const cat = isSharedFromOtherProcess 
+          ? 'Compartidos Conmigo' 
+          : (l.category && l.category.trim() ? l.category.trim() : 'General');
+        return cat === categoryToShare.name;
+      });
+      setCategoryToShare(prev => prev ? { name: prev.name, links: currentCategoryLinks } : null);
+    }
+  }, [filteredLinks, selectedProcessId, currentMember]);
 
   // Filters notes for the selected process OR shared with current member
   const filteredNotes = useMemo(() => {
@@ -348,15 +408,31 @@ export default function ProcessDashboard({
     
     return Object.entries(groups)
       .map(([key, data]) => ({ key, ...data }))
-      .sort((a, b) => a.key.localeCompare(b.key));
+      .sort((a, b) => {
+        if (a.key === '9999-99-99') return 1;
+        if (b.key === '9999-99-99') return -1;
+        return b.key.localeCompare(a.key);
+      });
   }, [viewingMemberDetail]);
 
   // --- Links Management ---
   const [showAddLink, setShowAddLink] = useState(false);
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
+  const [newLinkCode, setNewLinkCode] = useState('');
+  const [newLinkDescription, setNewLinkDescription] = useState('');
   const [newLinkCategory, setNewLinkCategory] = useState('');
   const [customLinkCategory, setCustomLinkCategory] = useState('');
+
+  // Edit Link Modal State
+  const [isEditLinkModalOpen, setIsEditLinkModalOpen] = useState(false);
+  const [editingLink, setEditingLink] = useState<ProcessLink | null>(null);
+  const [editLinkTitle, setEditLinkTitle] = useState('');
+  const [editLinkUrl, setEditLinkUrl] = useState('');
+  const [editLinkCode, setEditLinkCode] = useState('');
+  const [editLinkDescription, setEditLinkDescription] = useState('');
+  const [editLinkCategory, setEditLinkCategory] = useState('');
+  const [editCustomLinkCategory, setEditCustomLinkCategory] = useState('');
 
   const linkCategories = useMemo(() => {
     const cats = new Set<string>();
@@ -371,16 +447,22 @@ export default function ProcessDashboard({
   const groupedLinks = useMemo<Record<string, ProcessLink[]>>(() => {
     const groups: Record<string, ProcessLink[]> = {};
     filteredLinks.forEach(link => {
-      const cat = link.category && link.category.trim() ? link.category.trim() : 'General';
+      const isSharedFromOtherProcess = link.processId !== selectedProcessId && link.sharedWith?.some(s => s.memberId === currentMember?.id);
+      const cat = isSharedFromOtherProcess 
+        ? 'Compartidos Conmigo' 
+        : (link.category && link.category.trim() ? link.category.trim() : 'General');
+
       if (!groups[cat]) {
         groups[cat] = [];
       }
       groups[cat].push(link);
     });
-    // Sort keys so General is first, then alphabetical
+    // Sort keys so General is first, Compartidos Conmigo is second, then alphabetical
     const sortedKeys = Object.keys(groups).sort((a, b) => {
       if (a === 'General') return -1;
       if (b === 'General') return 1;
+      if (a === 'Compartidos Conmigo') return -1;
+      if (b === 'Compartidos Conmigo') return 1;
       return a.localeCompare(b);
     });
     const sortedGroups: Record<string, ProcessLink[]> = {};
@@ -388,7 +470,7 @@ export default function ProcessDashboard({
       sortedGroups[k] = groups[k];
     });
     return sortedGroups;
-  }, [filteredLinks]);
+  }, [filteredLinks, selectedProcessId, currentMember]);
 
   const handleAddLink = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -408,17 +490,67 @@ export default function ProcessDashboard({
         id,
         title: newLinkTitle.trim(),
         url: formattedUrl,
+        code: newLinkCode.trim() || undefined,
+        description: newLinkDescription.trim() || undefined,
         processId: selectedProcessId,
+        createdByMemberId: currentMember?.id || 'unknown',
         createdAt: new Date().toISOString(),
-        category: finalCategory || 'General'
+        category: finalCategory || 'General',
+        sharedWith: []
       };
       
       await setDoc(doc(db, 'process_links', id), newLink);
       setNewLinkTitle('');
       setNewLinkUrl('');
+      setNewLinkCode('');
+      setNewLinkDescription('');
       setNewLinkCategory('');
       setCustomLinkCategory('');
       setShowAddLink(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'process_links');
+    }
+  };
+
+  const handleOpenEditLink = (link: ProcessLink) => {
+    setEditingLink(link);
+    setEditLinkTitle(link.title || '');
+    setEditLinkUrl(link.url || '');
+    setEditLinkCode(link.code || '');
+    setEditLinkDescription(link.description || '');
+    
+    const existingCat = link.category && link.category.trim() ? link.category.trim() : 'General';
+    if (linkCategories.includes(existingCat) || existingCat === 'General') {
+      setEditLinkCategory(existingCat === 'General' ? '' : existingCat);
+      setEditCustomLinkCategory('');
+    } else {
+      setEditLinkCategory('custom');
+      setEditCustomLinkCategory(existingCat);
+    }
+    setIsEditLinkModalOpen(true);
+  };
+
+  const handleSaveEditLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLink || !editLinkTitle.trim() || !editLinkUrl.trim()) return;
+
+    let formattedUrl = editLinkUrl.trim();
+    if (!/^https?:\/\//i.test(formattedUrl)) {
+      formattedUrl = 'https://' + formattedUrl;
+    }
+
+    const finalCategory = editLinkCategory === 'custom' ? editCustomLinkCategory.trim() : editLinkCategory.trim();
+
+    try {
+      await updateDoc(doc(db, 'process_links', editingLink.id), {
+        title: editLinkTitle.trim(),
+        url: formattedUrl,
+        code: editLinkCode.trim() || '',
+        description: editLinkDescription.trim() || '',
+        category: finalCategory || 'General'
+      });
+      setIsEditLinkModalOpen(false);
+      setEditingLink(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'process_links');
     }
@@ -430,6 +562,118 @@ export default function ProcessDashboard({
       await deleteDoc(doc(db, 'process_links', id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'process_links');
+    }
+  };
+
+  // --- Category Renaming (for Process Leaders and System Admins) ---
+  const handleRenameLinkCategory = async (oldCategoryName: string, newCategoryName: string) => {
+    const trimmedNew = newCategoryName.trim();
+    if (!trimmedNew || oldCategoryName === trimmedNew) {
+      setEditingLinkCategory(null);
+      setNewCategoryNameInput('');
+      return;
+    }
+
+    const canRename = isSystemAdmin || processAccessLevel === 'administrador' || processAccessLevel === 'lider';
+    if (!canRename) {
+      alert('Solo el Líder de Proceso o los Administradores pueden cambiar el nombre de las categorías.');
+      setEditingLinkCategory(null);
+      return;
+    }
+
+    const linksToUpdate = processLinks.filter(
+      l => l.processId === selectedProcessId && ((l.category && l.category.trim()) || 'General') === oldCategoryName
+    );
+
+    try {
+      for (const link of linksToUpdate) {
+        await updateDoc(doc(db, 'process_links', link.id), {
+          category: trimmedNew
+        });
+      }
+      setEditingLinkCategory(null);
+      setNewCategoryNameInput('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'process_links');
+    }
+  };
+
+  // --- Individual Link Share Handlers ---
+  const handleAddShareLinkMember = async () => {
+    if (!linkToShare || !selectedLinkShareMemberId) return;
+
+    const currentShared = linkToShare.sharedWith || [];
+    if (currentShared.some(s => s.memberId === selectedLinkShareMemberId)) return;
+
+    const updatedShared: NoteShareAccess[] = [
+      ...currentShared,
+      { memberId: selectedLinkShareMemberId, access: selectedLinkShareAccess }
+    ];
+
+    try {
+      await updateDoc(doc(db, 'process_links', linkToShare.id), {
+        sharedWith: updatedShared
+      });
+      setSelectedLinkShareMemberId('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'process_links');
+    }
+  };
+
+  const handleRemoveShareLinkMember = async (memberId: string) => {
+    if (!linkToShare) return;
+
+    const currentShared = linkToShare.sharedWith || [];
+    const updatedShared = currentShared.filter(s => s.memberId !== memberId);
+
+    try {
+      await updateDoc(doc(db, 'process_links', linkToShare.id), {
+        sharedWith: updatedShared
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'process_links');
+    }
+  };
+
+  const handleUpdateShareLinkAccess = async (memberId: string, newAccess: 'ver' | 'editar') => {
+    if (!linkToShare) return;
+
+    const currentShared = linkToShare.sharedWith || [];
+    const updatedShared = currentShared.map(s => s.memberId === memberId ? { ...s, access: newAccess } : s);
+
+    try {
+      await updateDoc(doc(db, 'process_links', linkToShare.id), {
+        sharedWith: updatedShared
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'process_links');
+    }
+  };
+
+  // --- Category Share Handler (Share ALL links in category) ---
+  const handleAddShareCategoryMember = async () => {
+    if (!categoryToShare || !selectedCategoryShareMemberId) return;
+
+    try {
+      for (const link of categoryToShare.links) {
+        const currentShared = link.sharedWith || [];
+        const existingIdx = currentShared.findIndex(s => s.memberId === selectedCategoryShareMemberId);
+        let updatedShared: NoteShareAccess[];
+        if (existingIdx !== -1) {
+          updatedShared = currentShared.map((s, idx) => 
+            idx === existingIdx ? { ...s, access: selectedCategoryShareAccess } : s
+          );
+        } else {
+          updatedShared = [...currentShared, { memberId: selectedCategoryShareMemberId, access: selectedCategoryShareAccess }];
+        }
+        await updateDoc(doc(db, 'process_links', link.id), {
+          sharedWith: updatedShared
+        });
+      }
+      setSelectedCategoryShareMemberId('');
+      alert(`Se compartieron ${categoryToShare.links.length} enlace(s) de la categoría "${categoryToShare.name}" correctamente.`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'process_links');
     }
   };
 
@@ -857,38 +1101,39 @@ export default function ProcessDashboard({
       <div className="space-y-6">
         {/* SUBTAB 1: HORAS Y TAREAS */}
         {activeSubTab === 'summary' && (
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-            {/* Tabla / Grid de Miembros */}
-            <div className="xl:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-black text-slate-900">Resumen por Integrante</h3>
-                  <p className="text-xs font-bold text-slate-400">Total de horas planificadas y trabajadas</p>
-                </div>
-                <div className="text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
-                  {processMembers.length} integrantes
-                </div>
+          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black text-slate-900">Resumen por Integrante</h3>
+                <p className="text-xs font-bold text-slate-400">
+                  Haz clic en cualquier integrante para desplegar sus horas y tareas en pantalla completa
+                </p>
               </div>
+              <div className="text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+                {processMembers.length} integrantes
+              </div>
+            </div>
 
-              {processMembers.length === 0 ? (
-                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <Users size={32} className="mx-auto text-slate-300 mb-2" />
-                  <p className="text-sm font-bold text-slate-400">No hay integrantes asignados directamente a este proceso.</p>
-                  <p className="text-xs text-slate-400 mt-1">Los integrantes que realicen tareas en este proceso aparecerán con su resumen de horas.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {memberMetrics.map(({ member, totalTasks, completedTasks, plannedHours, actualHours }) => {
-                    const ratio = plannedHours > 0 ? (actualHours / plannedHours) * 100 : 0;
-                    const isOver = actualHours > plannedHours && plannedHours > 0;
-                    
-                    return (
+            {processMembers.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <Users size={32} className="mx-auto text-slate-300 mb-2" />
+                <p className="text-sm font-bold text-slate-400">No hay integrantes asignados directamente a este proceso.</p>
+                <p className="text-xs text-slate-400 mt-1">Los integrantes que realicen tareas en este proceso aparecerán con su resumen de horas.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {memberMetrics.map(({ member, totalTasks, completedTasks, plannedHours, actualHours }) => {
+                  const ratio = plannedHours > 0 ? (actualHours / plannedHours) * 100 : 0;
+                  const isOver = actualHours > plannedHours && plannedHours > 0;
+                  const isSelected = viewingMemberId === member.id;
+                  
+                  return (
+                    <div key={member.id} className="space-y-3">
                       <div 
-                        key={member.id} 
-                        onClick={() => setViewingMemberId(member.id)}
+                        onClick={() => setViewingMemberId(isSelected ? null : member.id)}
                         className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-                          viewingMemberId === member.id 
-                            ? 'bg-slate-50 border-slate-300 ring-2 ring-slate-900/5' 
+                          isSelected 
+                            ? 'bg-blue-50/70 border-blue-300 ring-2 ring-blue-500/10' 
                             : 'bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50/50'
                         }`}
                       >
@@ -901,12 +1146,19 @@ export default function ProcessDashboard({
                             </div>
                           )}
                           <div>
-                            <h4 className="text-sm font-bold text-slate-900">{member.name}</h4>
+                            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                              <span>{member.name}</span>
+                              {isSelected && (
+                                <span className="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-extrabold rounded-full uppercase tracking-wider">
+                                  Desplegado
+                                </span>
+                              )}
+                            </h4>
                             <p className="text-xs text-slate-400 font-semibold">{member.role}</p>
                           </div>
                         </div>
 
-                        {/* Tareas */}
+                        {/* Tareas y Horas */}
                         <div className="flex items-center gap-4 shrink-0">
                           <div className="text-left md:text-right">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Tareas</span>
@@ -938,139 +1190,171 @@ export default function ProcessDashboard({
                             </span>
                           </div>
 
-                          <ChevronRight size={16} className="text-slate-300 hidden md:block" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Panel de Detalle del Miembro Seleccionado */}
-            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6">
-              {viewingMemberDetail ? (
-                <div className="space-y-6">
-                  <div className="flex items-start justify-between border-b border-slate-100 pb-4">
-                    <div className="flex items-center gap-3">
-                      {viewingMemberDetail.member.avatar ? (
-                        <img src={viewingMemberDetail.member.avatar} alt={viewingMemberDetail.member.name} className="w-12 h-12 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-base shrink-0">
-                          {viewingMemberDetail.member.name.substring(0, 2).toUpperCase()}
-                        </div>
-                      )}
-                      <div>
-                        <h4 className="text-sm font-black text-slate-900 leading-tight">{viewingMemberDetail.member.name}</h4>
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">{viewingMemberDetail.member.role}</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => setViewingMemberId(null)}
-                      className="p-1 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-lg transition-all"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-
-                  {/* Resumen numérico */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Completado</span>
-                      <span className="text-xl font-black text-slate-900 mt-1 block">
-                        {viewingMemberDetail.completedTasks} <span className="text-xs text-slate-400">/ {viewingMemberDetail.totalTasks}</span>
-                      </span>
-                    </div>
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Horas Reales</span>
-                      <span className="text-xl font-black text-emerald-600 mt-1 block">
-                        {viewingMemberDetail.actualHours} <span className="text-xs text-slate-400">/ {viewingMemberDetail.plannedHours}h</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Desglose de Horas por Semana (Lunes a Domingo) */}
-                  <div className="space-y-3 border-t border-b border-slate-100 py-4 my-4">
-                    <h5 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                      <Calendar size={14} className="text-blue-500" /> Desglose de Horas por Semana:
-                    </h5>
-                    {weeklyHours.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">No hay registros de horas esta semana.</p>
-                    ) : (
-                      <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                        {weeklyHours.map(week => {
-                          const isOver = week.actual > week.planned && week.planned > 0;
-                          const ratio = week.planned > 0 ? (week.actual / week.planned) * 100 : 0;
-                          return (
-                            <div key={week.key} className="p-3 bg-slate-50 border border-slate-100 rounded-2xl text-xs space-y-2 transition-all">
-                              <div className="flex items-center justify-between font-bold text-slate-700">
-                                <span className="text-slate-800 font-bold">{week.label}</span>
-                                <span className="font-black">
-                                  {week.planned}h <span className="text-slate-300">/</span> <span className={isOver ? 'text-amber-600' : 'text-emerald-600'}>{week.actual}h</span>
-                                </span>
-                              </div>
-                              
-                              {/* mini progress bar */}
-                              <div className="h-1 bg-slate-200/60 rounded-full overflow-hidden">
-                                <div 
-                                  className={`h-full rounded-full transition-all duration-300 ${
-                                    isOver ? 'bg-amber-500' : 'bg-emerald-500'
-                                  }`}
-                                  style={{ width: `${Math.min(ratio, 100)}%` }}
-                                />
-                              </div>
-                              <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold">
-                                <span>{week.tasksCount} {week.tasksCount === 1 ? 'tarea' : 'tareas'}</span>
-                                <span>{ratio.toFixed(0)}% de plan.</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Listado de tareas */}
-                  <div className="space-y-3">
-                    <h5 className="text-xs font-black text-slate-400 uppercase tracking-wider">Tareas en el Proceso:</h5>
-                    
-                    {viewingMemberDetail.tasks.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">No tiene tareas cargadas en este proceso.</p>
-                    ) : (
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                        {viewingMemberDetail.tasks.map(t => (
-                          <div key={t.id} className="p-3 bg-slate-50 hover:bg-slate-100/50 rounded-xl border border-slate-100 text-xs space-y-2 transition-all">
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="font-bold text-slate-800 line-clamp-2">{t.title}</span>
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shrink-0 ${
-                                t.status === 'done' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                t.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                                t.status === 'blocked' ? 'bg-red-50 text-red-600 border border-red-100' :
-                                'bg-slate-100 text-slate-600'
-                              }`}>
-                                {t.status}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold">
-                              <span>Pl: {t.plannedHours || 0}h | Rl: {t.actualHours || 0}h</span>
-                              {t.dueDate && <span>{t.dueDate}</span>}
-                            </div>
+                          <div className="p-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-700 transition-colors">
+                            {isSelected ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                           </div>
-                        ))}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-slate-50 border border-slate-100 rounded-3xl">
-                  <Users size={36} className="text-slate-300 mb-2" />
-                  <p className="text-sm font-bold text-slate-500">Detalles de Tareas</p>
-                  <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
-                    Haz clic en un integrante de la lista de la izquierda para ver su desglose individual de horas y sus tareas activas en este proceso.
-                  </p>
-                </div>
-              )}
-            </div>
+
+                      {/* DESPLEGABLE HACIA ABAJO (FULL WIDTH) */}
+                      <AnimatePresence>
+                        {isSelected && viewingMemberDetail && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="p-6 bg-slate-50/90 rounded-2xl border border-slate-200/80 space-y-6">
+                              {/* Header del detalle */}
+                              <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
+                                <div className="flex items-center gap-3">
+                                  {member.avatar ? (
+                                    <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-xs shrink-0">
+                                      {member.name.substring(0, 2).toUpperCase()}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <h4 className="text-sm font-black text-slate-900">
+                                      Detalle Completo de Horas y Tareas: {member.name}
+                                    </h4>
+                                    <p className="text-xs text-slate-500 font-medium">{member.role}</p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewingMemberId(null);
+                                  }}
+                                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-1"
+                                >
+                                  <span>Ocultar Detalle</span>
+                                  <ChevronUp size={16} />
+                                </button>
+                              </div>
+
+                              {/* Resumen en 3 tarjetas superiores */}
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                                  <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">Completado</span>
+                                  <span className="text-xl font-black text-slate-900 mt-1 block">
+                                    {completedTasks} <span className="text-xs text-slate-400 font-bold">/ {totalTasks} ({totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(0) : 0}%)</span>
+                                  </span>
+                                </div>
+                                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                                  <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">Horas Planificadas</span>
+                                  <span className="text-xl font-black text-blue-600 mt-1 block">
+                                    {plannedHours}h
+                                  </span>
+                                </div>
+                                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                                  <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">Horas Reales Trabajadas</span>
+                                  <span className={`text-xl font-black mt-1 block ${actualHours > plannedHours && plannedHours > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                    {actualHours}h
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Sección en 2 Columnas para Desglose Semanal y Lista de Tareas */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Desglose de Horas por Semana (Recientes primero) */}
+                                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+                                  <h5 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                    <Calendar size={15} className="text-blue-500" /> Desglose de Horas por Semana (Recientes primero):
+                                  </h5>
+                                  {weeklyHours.length === 0 ? (
+                                    <p className="text-xs text-slate-400 italic">No hay registros de horas asignados a semanas.</p>
+                                  ) : (
+                                    <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                                      {weeklyHours.map(week => {
+                                        const weekOver = week.actual > week.planned && week.planned > 0;
+                                        const weekRatio = week.planned > 0 ? (week.actual / week.planned) * 100 : 0;
+                                        return (
+                                          <div key={week.key} className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-2">
+                                            <div className="flex items-center justify-between font-bold text-slate-800">
+                                              <span>{week.label}</span>
+                                              <span className="font-black">
+                                                {week.planned}h <span className="text-slate-300">/</span> <span className={weekOver ? 'text-amber-600' : 'text-emerald-600'}>{week.actual}h</span>
+                                              </span>
+                                            </div>
+                                            
+                                            <div className="h-1.5 bg-slate-200/60 rounded-full overflow-hidden">
+                                              <div 
+                                                className={`h-full rounded-full transition-all duration-300 ${
+                                                  weekOver ? 'bg-amber-500' : 'bg-emerald-500'
+                                                }`}
+                                                style={{ width: `${Math.min(weekRatio, 100)}%` }}
+                                              />
+                                            </div>
+                                            <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold">
+                                              <span>{week.tasksCount} {week.tasksCount === 1 ? 'tarea' : 'tareas'}</span>
+                                              <span>{weekRatio.toFixed(0)}% de plan.</span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Listado de Tareas en el Proceso (Click para ver ficha) */}
+                                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+                                  <h5 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                                    <span className="flex items-center gap-2">
+                                      <CheckCircle2 size={15} className="text-emerald-500" /> Tareas en el Proceso:
+                                    </span>
+                                    <span className="text-[10px] font-bold text-slate-400 lowercase">clic para abrir ficha</span>
+                                  </h5>
+                                  
+                                  {viewingMemberDetail.tasks.length === 0 ? (
+                                    <p className="text-xs text-slate-400 italic">No tiene tareas asignadas a este proceso.</p>
+                                  ) : (
+                                    <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                                      {viewingMemberDetail.tasks.map(t => (
+                                        <div 
+                                          key={t.id} 
+                                          onClick={() => onOpenTask && onOpenTask(t)}
+                                          className="p-3.5 bg-slate-50 hover:bg-blue-50/70 hover:border-blue-200 rounded-xl border border-slate-100 text-xs space-y-2 transition-all cursor-pointer group"
+                                          title="Haga clic para ver los detalles completos de la tarea"
+                                        >
+                                          <div className="flex items-start justify-between gap-2">
+                                            <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2">
+                                              {t.title}
+                                            </span>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                t.status === 'done' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                t.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                                                t.status === 'blocked' ? 'bg-red-50 text-red-600 border border-red-100' :
+                                                'bg-slate-100 text-slate-600'
+                                              }`}>
+                                                {t.status}
+                                              </span>
+                                              <Eye size={14} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold">
+                                            <span>Pl: {t.plannedHours || 0}h | Rl: {t.actualHours || 0}h</span>
+                                            {t.dueDate && <span>Vence: {t.dueDate}</span>}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -1201,8 +1485,19 @@ export default function ProcessDashboard({
                     className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4 overflow-hidden text-left"
                   >
                     <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Nuevo Enlace de Interés</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div className="space-y-1">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                      <div className="md:col-span-3 space-y-1">
+                        <label htmlFor="link-code-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Código (Opcional)</label>
+                        <input 
+                          id="link-code-input"
+                          type="text" 
+                          placeholder="Ej: COD-001"
+                          value={newLinkCode}
+                          onChange={(e) => setNewLinkCode(e.target.value)}
+                          className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime"
+                        />
+                      </div>
+                      <div className="md:col-span-9 space-y-1">
                         <label htmlFor="link-title-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Nombre del Enlace</label>
                         <input 
                           id="link-title-input"
@@ -1214,6 +1509,9 @@ export default function ProcessDashboard({
                           className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime"
                         />
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label htmlFor="link-url-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">URL / Enlace</label>
                         <input 
@@ -1258,6 +1556,18 @@ export default function ProcessDashboard({
                       </div>
                     )}
 
+                    <div className="space-y-1">
+                      <label htmlFor="link-description-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Descripción (Opcional)</label>
+                      <input 
+                        id="link-description-input"
+                        type="text" 
+                        placeholder="Ej: Instrucciones o contenido de esta carpeta..."
+                        value={newLinkDescription}
+                        onChange={(e) => setNewLinkDescription(e.target.value)}
+                        className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime"
+                      />
+                    </div>
+
                     <div className="flex items-center justify-end gap-2 pt-1">
                       <button
                         type="button"
@@ -1287,56 +1597,221 @@ export default function ProcessDashboard({
               ) : (
                 <div className="space-y-6 text-left">
                   {Object.entries(groupedLinks).map(([categoryName, links]) => {
+                    const isExpanded = expandedLinkCategories[categoryName] !== false;
                     const linksArray = links as ProcessLink[];
-                    return (
-                      <div key={categoryName} className="space-y-3">
-                        {/* Category Header */}
-                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                          <Folder size={14} className="text-amber-500 fill-amber-100/50" />
-                          <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-wider">{categoryName}</h4>
-                          <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-full">{linksArray.length}</span>
-                        </div>
+                    const isEditingThisCategory = editingLinkCategory === categoryName;
+                    const isLeaderOrAdmin = isSystemAdmin || processAccessLevel === 'administrador' || processAccessLevel === 'lider';
+                    const canRenameThisCategory = isLeaderOrAdmin && categoryName !== 'Compartidos Conmigo';
 
-                        {/* Cards for Links in this category */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          {linksArray.map(link => (
-                          <div 
-                            key={link.id} 
-                            className="p-4 bg-slate-50 hover:bg-slate-100/50 border border-slate-100 hover:border-slate-200 rounded-2xl flex items-center justify-between gap-4 transition-all"
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="p-2.5 bg-white border border-slate-100 text-slate-500 rounded-xl shrink-0 shadow-inner">
-                                <LinkIcon size={14} />
-                              </div>
-                              <div className="min-w-0 space-y-0.5">
-                                <h4 className="text-xs font-extrabold text-slate-800 truncate">{link.title}</h4>
-                                <a 
-                                  href={link.url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="text-[10px] text-emerald-600 hover:text-emerald-800 hover:underline font-bold truncate flex items-center gap-1"
+                    return (
+                      <div key={categoryName} className="space-y-3 bg-slate-50/50 p-3.5 rounded-2xl border border-slate-100">
+                        {/* Category Header */}
+                        <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5 flex-wrap">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedLinkCategories(prev => ({
+                                  ...prev,
+                                  [categoryName]: !isExpanded
+                                }));
+                              }}
+                              className="flex items-center gap-1.5 hover:text-slate-900 transition-all font-bold text-slate-700 text-left cursor-pointer select-none"
+                            >
+                              {isExpanded ? <ChevronDown size={14} className="text-slate-400 shrink-0" /> : <ChevronRight size={14} className="text-slate-400 shrink-0" />}
+                              {isExpanded ? <FolderOpen size={15} className="text-amber-500 fill-amber-100/50 shrink-0" /> : <Folder size={15} className="text-amber-500 fill-amber-100/50 shrink-0" />}
+                            </button>
+
+                            {isEditingThisCategory ? (
+                              <div className="flex items-center gap-1.5 flex-1 max-w-xs">
+                                <input
+                                  type="text"
+                                  value={newCategoryNameInput}
+                                  onChange={(e) => setNewCategoryNameInput(e.target.value)}
+                                  className="bg-white border border-slate-300 px-2 py-1 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-ng-lime/30 w-full"
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleRenameLinkCategory(categoryName, newCategoryNameInput)}
+                                  className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all"
+                                  title="Guardar nombre"
                                 >
-                                  Visitar enlace
-                                  <ExternalLink size={10} className="shrink-0" />
-                                </a>
+                                  <Check size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingLinkCategory(null);
+                                    setNewCategoryNameInput('');
+                                  }}
+                                  className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-lg transition-all"
+                                  title="Cancelar"
+                                >
+                                  <X size={12} />
+                                </button>
                               </div>
-                            </div>
-                            
-                            {canEditLinks && (
-                              <button 
-                                onClick={() => handleDeleteLink(link.id)}
-                                className="p-1.5 hover:bg-white hover:text-red-500 text-slate-400 rounded-lg border border-transparent hover:border-slate-100 transition-all shrink-0"
-                                title="Eliminar enlace"
-                              >
-                                <Trash size={12} />
-                              </button>
+                            ) : (
+                              <div className="flex items-center gap-2 min-w-0">
+                                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider truncate">{categoryName}</h4>
+                                <span className="text-[9px] bg-slate-200/80 text-slate-600 font-bold px-2 py-0.5 rounded-full shrink-0">
+                                  {linksArray.length}
+                                </span>
+
+                                {canRenameThisCategory && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingLinkCategory(categoryName);
+                                      setNewCategoryNameInput(categoryName);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg transition-all text-[10px] flex items-center gap-1 font-bold"
+                                    title="Editar nombre de categoría (Líder/Admin)"
+                                  >
+                                    <Pencil size={11} />
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
-                        ))}
+
+                          {/* Action on Category Header: Compartir Categoría */}
+                          {categoryName !== 'Compartidos Conmigo' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCategoryToShare({ name: categoryName, links: linksArray });
+                                setIsCategoryShareModalOpen(true);
+                              }}
+                              className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/60 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-2xs shrink-0 cursor-pointer"
+                              title="Compartir todos los enlaces de esta categoría"
+                            >
+                              <Share2 size={11} />
+                              Compartir Categoría
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Indented Link Cards */}
+                        {isExpanded && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            {linksArray.map(link => {
+                              const author = members.find(m => m.id === link.createdByMemberId);
+                              const sharedCount = link.sharedWith?.length || 0;
+                              const myShare = link.sharedWith?.find(s => s.memberId === currentMember?.id);
+                              const isSharedWithMe = link.createdByMemberId !== currentMember?.id && !!myShare;
+                              const isFromOtherProc = link.processId !== selectedProcessId;
+                              const linkProc = processes.find(p => p.id === link.processId);
+
+                              const canEditThisLink = isLeaderOrAdmin || link.createdByMemberId === currentMember?.id || myShare?.access === 'editar';
+                              const canDeleteThisLink = isLeaderOrAdmin || link.createdByMemberId === currentMember?.id || myShare?.access === 'editar';
+                              const canShareThisLink = isLeaderOrAdmin || link.createdByMemberId === currentMember?.id || myShare?.access === 'editar';
+
+                              return (
+                                <div 
+                                  key={link.id} 
+                                  className="p-3.5 bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl flex flex-col justify-between gap-3 transition-all shadow-2xs"
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-start gap-2.5 min-w-0">
+                                      <div className="p-2 bg-slate-100 text-slate-600 rounded-lg shrink-0 mt-0.5">
+                                        <LinkIcon size={14} />
+                                      </div>
+                                      <div className="min-w-0 space-y-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          {link.code && (
+                                            <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 font-mono text-[9px] font-black rounded shrink-0">
+                                              {link.code}
+                                            </span>
+                                          )}
+                                          <h4 className="text-xs font-bold text-slate-900 truncate">{link.title}</h4>
+                                        </div>
+
+                                        {link.description && (
+                                          <p className="text-[11px] text-slate-500 font-medium line-clamp-2 leading-snug">
+                                            {link.description}
+                                          </p>
+                                        )}
+
+                                        <a 
+                                          href={link.url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer" 
+                                          className="text-[10px] text-emerald-600 hover:text-emerald-800 hover:underline font-bold truncate inline-flex items-center gap-1 pt-0.5"
+                                        >
+                                          Visitar enlace
+                                          <ExternalLink size={10} className="shrink-0" />
+                                        </a>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Metadata and Actions footer */}
+                                  <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[9px] text-slate-400 font-bold uppercase tracking-wider flex-wrap gap-1">
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                      <span className="truncate">Por: {author?.name || 'Sistema'}</span>
+                                      {isFromOtherProc && linkProc && (
+                                        <span className="text-[7px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded font-black truncate">
+                                          {linkProc.name}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      {isSharedWithMe && (
+                                        <span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase ${
+                                          myShare?.access === 'editar' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
+                                        }`}>
+                                          {myShare?.access === 'editar' ? 'Compartido (Editar)' : 'Compartido (Ver)'}
+                                        </span>
+                                      )}
+
+                                      {canShareThisLink && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setLinkToShare(link);
+                                            setIsLinkShareModalOpen(true);
+                                          }}
+                                          className="p-1 text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-0.5 text-[8px] font-black cursor-pointer"
+                                          title="Compartir enlace individual"
+                                        >
+                                          <Share2 size={11} />
+                                          {sharedCount > 0 && <span>{sharedCount}</span>}
+                                        </button>
+                                      )}
+
+                                      {canEditThisLink && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenEditLink(link)}
+                                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                                          title="Editar enlace (Código, Nombre, URL, Descripción)"
+                                        >
+                                          <Pencil size={11} />
+                                        </button>
+                                      )}
+
+                                      {canDeleteThisLink && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteLink(link.id)}
+                                          className="p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                                          title="Eliminar enlace"
+                                        >
+                                          <Trash size={11} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1871,6 +2346,423 @@ export default function ProcessDashboard({
                   Los integrantes asignados podrán acceder a esta nota desde su panel de Gestión XD, ya sea de su propio proceso o mediante la carpeta de <strong>Notas Compartidas</strong>.
                 </span>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* SHARE INDIVIDUAL LINK MODAL */}
+      <AnimatePresence>
+        {isLinkShareModalOpen && linkToShare && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-5 text-left relative overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-2.5 min-w-0 pr-4">
+                  <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl shrink-0">
+                    <Share2 size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-black text-slate-900 truncate">Compartir Enlace</h3>
+                    <p className="text-xs text-slate-400 font-bold truncate mt-0.5">{linkToShare.title}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsLinkShareModalOpen(false);
+                    setLinkToShare(null);
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Section 1: Add member */}
+              <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                  Añadir Integrante del Equipo
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                  <div className="sm:col-span-7">
+                    <select
+                      value={selectedLinkShareMemberId}
+                      onChange={(e) => setSelectedLinkShareMemberId(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs font-bold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
+                    >
+                      <option value="">-- Selecciona un integrante --</option>
+                      {members
+                        .filter(m => m.id !== linkToShare.createdByMemberId && !(linkToShare.sharedWith || []).some(s => s.memberId === m.id))
+                        .map(m => {
+                          const memberProc = processes.find(p => p.id === m.processId);
+                          const isSameProc = m.processId === linkToShare.processId;
+                          return (
+                            <option key={m.id} value={m.id}>
+                              {m.name} ({isSameProc ? 'Mismo Proceso' : memberProc ? `Proceso: ${memberProc.name}` : 'Sin proceso'})
+                            </option>
+                          );
+                        })}
+                    </select>
+                  </div>
+                  <div className="sm:col-span-3">
+                    <select
+                      value={selectedLinkShareAccess}
+                      onChange={(e) => setSelectedLinkShareAccess(e.target.value as 'ver' | 'editar')}
+                      className="w-full bg-white border border-slate-200 text-xs font-bold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
+                    >
+                      <option value="ver">Solo Ver</option>
+                      <option value="editar">Puede Editar</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <button
+                      type="button"
+                      onClick={handleAddShareLinkMember}
+                      disabled={!selectedLinkShareMemberId}
+                      className="w-full h-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1 shadow-sm"
+                    >
+                      <UserPlus size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Shared Members List */}
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">Acceso Configurado</h4>
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {/* Owner Row */}
+                  {(() => {
+                    const owner = members.find(m => m.id === linkToShare.createdByMemberId);
+                    const ownerProc = processes.find(p => p.id === linkToShare.processId);
+                    return (
+                      <div className="flex items-center justify-between p-3 bg-slate-50/80 rounded-2xl border border-slate-100">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-black">
+                            {owner?.name ? owner.name.substring(0, 2).toUpperCase() : 'OW'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 truncate">{owner?.name || 'Creador del Enlace'}</p>
+                            <p className="text-[9px] text-slate-400 font-semibold truncate">{ownerProc?.name || 'Proceso Origen'}</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-1 bg-slate-200/60 text-slate-600 text-[9px] font-black uppercase rounded-lg">Propietario</span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Shared Members Rows */}
+                  {(!linkToShare.sharedWith || linkToShare.sharedWith.length === 0) ? (
+                    <p className="text-center text-xs text-slate-400 font-medium py-3 italic">
+                      Este enlace no ha sido compartido con ningún integrante individual aún.
+                    </p>
+                  ) : (
+                    linkToShare.sharedWith.map(s => {
+                      const member = members.find(m => m.id === s.memberId);
+                      const memberProc = processes.find(p => p.id === member?.processId);
+                      const isSameProc = member?.processId === linkToShare.processId;
+
+                      return (
+                        <div key={s.memberId} className="flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-200/80 hover:border-slate-300 transition-all shadow-sm">
+                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                            <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-black shrink-0">
+                              {member?.name ? member.name.substring(0, 2).toUpperCase() : 'MB'}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-800 truncate">{member?.name || 'Integrante'}</p>
+                              <p className="text-[9px] text-slate-400 font-semibold truncate">
+                                {isSameProc ? 'Mismo proceso' : memberProc ? `Proceso: ${memberProc.name}` : 'Otro proceso'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <select
+                              value={s.access}
+                              onChange={(e) => handleUpdateShareLinkAccess(s.memberId, e.target.value as 'ver' | 'editar')}
+                              className={`text-[10px] font-black uppercase tracking-wider py-1 px-2 rounded-xl border cursor-pointer focus:outline-none ${
+                                s.access === 'editar'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}
+                            >
+                              <option value="ver">Solo Ver</option>
+                              <option value="editar">Puede Editar</option>
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveShareLinkMember(s.memberId)}
+                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                              title="Quitar acceso"
+                            >
+                              <Trash size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer info */}
+              <div className="text-[10px] text-slate-400 font-medium bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-start gap-2">
+                <Info size={14} className="text-blue-500 shrink-0 mt-0.5" />
+                <span>
+                  Los integrantes seleccionados podrán acceder a este enlace directamente desde la categoría <strong>Compartidos Conmigo</strong> en sus propios paneles de proceso.
+                </span>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* SHARE WHOLE CATEGORY MODAL */}
+      <AnimatePresence>
+        {isCategoryShareModalOpen && categoryToShare && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-5 text-left relative overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-2.5 min-w-0 pr-4">
+                  <div className="p-2.5 bg-amber-50 text-amber-600 rounded-2xl shrink-0">
+                    <Folder size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-black text-slate-900 truncate">Compartir Categoría Completa</h3>
+                    <p className="text-xs text-slate-400 font-bold truncate mt-0.5">
+                      Categoría: <span className="text-slate-800">{categoryToShare.name}</span> ({categoryToShare.links.length} enlaces)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsCategoryShareModalOpen(false);
+                    setCategoryToShare(null);
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Form to Share Category */}
+              <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                  Seleccionar Integrante a Quien Compartir Toda la Categoría
+                </label>
+                
+                <div className="space-y-3">
+                  <select
+                    value={selectedCategoryShareMemberId}
+                    onChange={(e) => setSelectedCategoryShareMemberId(e.target.value)}
+                    className="w-full bg-white border border-slate-200 text-xs font-bold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
+                  >
+                    <option value="">-- Selecciona un integrante --</option>
+                    {members
+                      .filter(m => m.id !== currentMember?.id)
+                      .map(m => {
+                        const memberProc = processes.find(p => p.id === m.processId);
+                        const isSameProc = m.processId === selectedProcessId;
+                        return (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({isSameProc ? 'Mismo Proceso' : memberProc ? `Proceso: ${memberProc.name}` : 'Sin proceso'})
+                          </option>
+                        );
+                      })}
+                  </select>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <select
+                        value={selectedCategoryShareAccess}
+                        onChange={(e) => setSelectedCategoryShareAccess(e.target.value as 'ver' | 'editar')}
+                        className="w-full bg-white border border-slate-200 text-xs font-bold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
+                      >
+                        <option value="ver">Permiso: Solo Ver</option>
+                        <option value="editar">Permiso: Puede Editar</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddShareCategoryMember}
+                      disabled={!selectedCategoryShareMemberId}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 text-white text-xs font-black rounded-xl transition-all flex items-center gap-1.5 shadow-sm shrink-0 cursor-pointer"
+                    >
+                      <Share2 size={14} />
+                      Compartir Todo
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* List of links included in category */}
+              <div className="space-y-2">
+                <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Enlaces que se compartirán ({categoryToShare.links.length})
+                </h4>
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                  {categoryToShare.links.map(link => (
+                    <div key={link.id} className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between gap-2 text-xs font-bold text-slate-700">
+                      <span className="truncate">{link.title}</span>
+                      <span className="text-[9px] text-emerald-600 font-mono truncate">{link.url}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Info footer */}
+              <div className="text-[10px] text-slate-400 font-medium bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 flex items-start gap-2">
+                <Info size={14} className="text-blue-500 shrink-0 mt-0.5" />
+                <span>
+                  Al compartir la categoría completa, los <strong>{categoryToShare.links.length} enlaces</strong> contenidos se agregarán al acceso del integrante seleccionado.
+                </span>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* EDIT LINK MODAL */}
+      <AnimatePresence>
+        {isEditLinkModalOpen && editingLink && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-5 text-left relative overflow-hidden"
+            >
+              <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-2.5 min-w-0 pr-4">
+                  <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl shrink-0">
+                    <Pencil size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-black text-slate-900 truncate">Editar Enlace de Interés</h3>
+                    <p className="text-xs text-slate-400 font-bold truncate mt-0.5">Modifica los detalles, código y descripción</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsEditLinkModalOpen(false);
+                    setEditingLink(null);
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditLink} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-4 space-y-1">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Código (Opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: COD-001"
+                      value={editLinkCode}
+                      onChange={(e) => setEditLinkCode(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="sm:col-span-8 space-y-1">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Nombre del Enlace</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: Carpeta de Diseños"
+                      value={editLinkTitle}
+                      onChange={(e) => setEditLinkTitle(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">URL / Enlace</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: drive.google.com/..."
+                      value={editLinkUrl}
+                      onChange={(e) => setEditLinkUrl(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Categoría</label>
+                    <select
+                      value={editLinkCategory}
+                      onChange={(e) => setEditLinkCategory(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
+                    >
+                      <option value="">General</option>
+                      {linkCategories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                      <option value="custom">+ Crear nueva...</option>
+                    </select>
+                  </div>
+                </div>
+
+                {editLinkCategory === 'custom' && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Nombre de la Nueva Categoría</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: Manuales, Diseños..."
+                      value={editCustomLinkCategory}
+                      onChange={(e) => setEditCustomLinkCategory(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Descripción (Opcional)</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Ej: Detalles de acceso, contenido de la carpeta o propósito..."
+                    value={editLinkDescription}
+                    onChange={(e) => setEditLinkDescription(e.target.value)}
+                    className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditLinkModalOpen(false);
+                      setEditingLink(null);
+                    }}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm"
+                  >
+                    Guardar Cambios
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}
