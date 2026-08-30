@@ -96,7 +96,7 @@ export interface Task {
   id: string;
   title: string;
   description: string;
-  status: 'backlog' | 'todo' | 'in_progress' | 'blocked' | 'review' | 'done' | 'rejected' | 'correction';
+  status: 'backlog' | 'todo' | 'in_progress' | 'review' | 'correction' | 'done' | 'blocked' | 'rejected';
   memberId?: string; // Enlazada a un responsable
   auxiliaryId?: string; // Miembro auxiliar opcional (MANTENIDO PARA RETROCOMPATIBILIDAD)
   auxiliaryIds?: string[]; // Miembros auxiliares múltiples (NUEVO)

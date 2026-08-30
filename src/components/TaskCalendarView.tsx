@@ -35,11 +35,10 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; b
   backlog: { label: 'Product Backlog', bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200/60', dot: 'bg-slate-400' },
   todo: { label: 'Por Hacer', bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200/60', dot: 'bg-gray-500' },
   in_progress: { label: 'En Progreso', bg: 'bg-blue-50/70', text: 'text-blue-700', border: 'border-blue-100', dot: 'bg-blue-500' },
-  blocked: { label: 'Bloqueada', bg: 'bg-red-50/70', text: 'text-red-700', border: 'border-red-100', dot: 'bg-red-500' },
   review: { label: 'En Revisión', bg: 'bg-purple-50/70', text: 'text-purple-700', border: 'border-purple-100', dot: 'bg-purple-500' },
   correction: { label: 'Para Corrección', bg: 'bg-amber-50/70', text: 'text-amber-700', border: 'border-amber-100', dot: 'bg-amber-500' },
   done: { label: 'Completada', bg: 'bg-green-50/70', text: 'text-green-700', border: 'border-green-100', dot: 'bg-green-500' },
-  rejected: { label: 'Rechazada', bg: 'bg-orange-50/70', text: 'text-orange-700', border: 'border-orange-100', dot: 'bg-orange-500' }
+  blocked: { label: 'Bloqueada', bg: 'bg-red-50/70', text: 'text-red-700', border: 'border-red-100', dot: 'bg-red-500' }
 };
 
 const MONTHS_SPANISH = [
@@ -124,6 +123,7 @@ function TaskCalendarView({
   const [memberFilter, setMemberFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showClosedAndBlocked, setShowClosedAndBlocked] = useState<boolean>(false);
 
   const currentYear = currentDate && !isNaN(currentDate.getTime()) ? currentDate.getFullYear() : 2026;
   const currentMonth = currentDate && !isNaN(currentDate.getTime()) ? currentDate.getMonth() : 6;
@@ -136,10 +136,19 @@ function TaskCalendarView({
     return dateStr >= start && dateStr <= end;
   };
 
+  // Count closed/blocked tasks
+  const hiddenTasksCount = useMemo(() => {
+    return safeTasks.filter(t => t && (t.status === 'done' || t.status === 'blocked')).length;
+  }, [safeTasks]);
+
   // Filter tasks based on internal calendar filters
   const calendarFilteredTasks = useMemo(() => {
     return safeTasks.filter(task => {
       if (!task) return false;
+      // Default: hide completed and blocked tasks unless toggle is ON or explicit filter is selected
+      if (!showClosedAndBlocked && !statusFilter && (task.status === 'done' || task.status === 'blocked')) {
+        return false;
+      }
       if (memberFilter && task.memberId !== memberFilter && (!Array.isArray(task.auxiliaryIds) || !task.auxiliaryIds.includes(memberFilter))) {
         return false;
       }
@@ -154,7 +163,7 @@ function TaskCalendarView({
       }
       return true;
     });
-  }, [safeTasks, memberFilter, statusFilter, searchQuery]);
+  }, [safeTasks, memberFilter, statusFilter, searchQuery, showClosedAndBlocked]);
 
   // Tasks scheduled vs unscheduled
   const { scheduled: scheduledTasks, unscheduled: unscheduledTasks } = useMemo(() => {
@@ -384,7 +393,7 @@ function TaskCalendarView({
         </div>
 
         {/* Dynamic Filters Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 my-5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5 my-5 items-center">
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <input
@@ -434,6 +443,28 @@ function TaskCalendarView({
               ))}
             </select>
           </div>
+
+          {/* Toggle Button for Completed / Blocked */}
+          <button
+            type="button"
+            onClick={() => setShowClosedAndBlocked(!showClosedAndBlocked)}
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all ${
+              showClosedAndBlocked
+                ? 'bg-blue-50/80 border-blue-200 text-blue-700 shadow-xs'
+                : 'bg-slate-50 border-slate-200/80 text-slate-600 hover:bg-slate-100/80 hover:text-slate-800'
+            }`}
+            title="Alternar visibilidad de tareas completadas y bloqueadas"
+          >
+            <div className={`w-2 h-2 rounded-full ${showClosedAndBlocked ? 'bg-blue-600 animate-pulse' : 'bg-slate-300'}`} />
+            <span className="truncate">
+              {showClosedAndBlocked ? 'Cerradas Visibles' : 'Mostrar Cerradas/Bloq.'}
+            </span>
+            {hiddenTasksCount > 0 && !showClosedAndBlocked && (
+              <span className="bg-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded-full font-extrabold">
+                {hiddenTasksCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* CALENDAR MONTH GRID */}

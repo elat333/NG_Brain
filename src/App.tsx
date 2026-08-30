@@ -1,3 +1,4 @@
+import TaskModal from './components/TaskModal';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -600,25 +601,101 @@ const TaskCard: React.FC<TaskCardProps> = ({
         <p className="text-[11px] text-gray-400 line-clamp-2">{task.description}</p>
       )}
 
-      <div className="flex items-center justify-between pt-2 border-t border-gray-50 mt-auto">
-        <div className="flex items-center gap-1.5">
-          {member && (
-            <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[9px] font-bold" title={member.name}>
-              {member.name.charAt(0)}
+      <div className="flex items-center justify-between pt-2.5 border-t border-gray-100/80 mt-auto gap-2">
+        {/* Cluster de Participantes: Responsable ‚îÇ Revisor ‚îÇ Auxiliares */}
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+          {/* 1. Responsable Principal */}
+          {member ? (
+            <div
+              className="relative group/resp shrink-0"
+              title={`Responsable principal: ${member.name || 'Sin nombre'}`}
+            >
+              <div className="w-6 h-6 rounded-full ring-2 ring-[#97d700] overflow-hidden bg-emerald-50 text-emerald-800 flex items-center justify-center text-[9px] font-black shadow-xs">
+                {member.avatar ? (
+                  <img
+                    src={member.avatar}
+                    alt={member.name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span>{(member.name || 'U').charAt(0).toUpperCase()}</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div
+              className="w-6 h-6 rounded-full border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-[9px] text-gray-400 font-bold shrink-0"
+              title="Sin responsable asignado"
+            >
+              ?
             </div>
           )}
-          {auxiliaries && auxiliaries.length > 0 && (
-            <div className="flex -space-x-1">
-              {auxiliaries.map(a => (
-                <div key={a.id} className="w-4 h-4 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[8px] font-bold border border-white" title={a.name}>
-                  {a.name.charAt(0)}
+
+          {/* 2. Divisor 1 y Revisor */}
+          {revisor && (
+            <>
+              <div className="h-3.5 w-[1.5px] bg-gray-200/90 rounded-full shrink-0 mx-0.5" />
+              <div
+                className="relative group/rev shrink-0"
+                title={`Revisor / Aprobador: ${revisor.name || 'Sin nombre'}`}
+              >
+                <div className="w-5 h-5 rounded-full ring-1.5 ring-indigo-400 overflow-hidden bg-indigo-50 text-indigo-700 flex items-center justify-center text-[8px] font-bold shadow-xs">
+                  {revisor.avatar ? (
+                    <img
+                      src={revisor.avatar}
+                      alt={revisor.name}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span>{(revisor.name || 'R').charAt(0).toUpperCase()}</span>
+                  )}
                 </div>
-              ))}
-            </div>
+              </div>
+            </>
+          )}
+
+          {/* 3. Divisor 2 y Auxiliares */}
+          {auxiliaries && auxiliaries.length > 0 && (
+            <>
+              <div className="h-3.5 w-[1.5px] bg-gray-200/90 rounded-full shrink-0 mx-0.5" />
+              <div
+                className="flex items-center -space-x-1.5 shrink-0"
+                title={`Auxiliares: ${auxiliaries.map(a => a.name).join(', ')}`}
+              >
+                {auxiliaries.slice(0, 2).map((a: any) => (
+                  <div
+                    key={a.id}
+                    className="w-[18px] h-[18px] rounded-full ring-1 ring-purple-300 border border-white overflow-hidden bg-purple-50 text-purple-700 flex items-center justify-center text-[7.5px] font-bold shadow-xs shrink-0"
+                    title={`Auxiliar: ${a.name}`}
+                  >
+                    {a.avatar ? (
+                      <img
+                        src={a.avatar}
+                        alt={a.name}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span>{(a.name || 'A').charAt(0).toUpperCase()}</span>
+                    )}
+                  </div>
+                ))}
+                {auxiliaries.length > 2 && (
+                  <div
+                    className="w-[18px] h-[18px] rounded-full bg-gray-100 ring-1 ring-gray-300 border border-white text-gray-600 flex items-center justify-center text-[7px] font-black shrink-0"
+                    title={`+${auxiliaries.length - 2} auxiliares m√°s`}
+                  >
+                    +{auxiliaries.length - 2}
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {task.dueDate && (
             <span className="text-[9px] font-bold text-red-500/90 bg-red-50 px-1.5 py-0.5 rounded flex items-center gap-1" title="Fecha L√≠mite">
               <Calendar size={10} /> {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }).replace('.', '')}
@@ -1426,6 +1503,8 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [taskViewMode, setTaskViewMode] = useState<'board' | 'list' | 'calendar'>('board');
   const [tasksSubTab, setTasksSubTab] = useState<'board' | 'permissions'>('board');
+  const [collapsedColumns, setCollapsedColumns] = useState<Record<string, boolean>>({});
+  const [showAllDoneTasks, setShowAllDoneTasks] = useState<boolean>(false);
   const [showTaskMenu, setShowTaskMenu] = useState(false);
   const [showTimeInputs, setShowTimeInputs] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1551,6 +1630,106 @@ export default function App() {
     dueDate: '',
     blockedByTaskIds: [] as string[]
   });
+
+  const initialTaskSnapshotRef = useRef<any>(null);
+  const [showUnsavedTaskChangesModal, setShowUnsavedTaskChangesModal] = useState(false);
+
+  const hasUnsavedTaskChanges = () => {
+    if (!initialTaskSnapshotRef.current) return false;
+    try {
+      const current = {
+        title: (newTaskData.title || '').trim(),
+        description: (newTaskData.description || '').trim(),
+        storyDescription: (newTaskData.storyDescription || '').trim(),
+        acceptanceCriteria: (newTaskData.acceptanceCriteria || '').trim(),
+        priority: newTaskData.priority || 'media',
+        plannedDate: newTaskData.plannedDate || '',
+        plannedEndDate: newTaskData.plannedEndDate || '',
+        plannedStartTime: newTaskData.plannedStartTime || '',
+        plannedEndTime: newTaskData.plannedEndTime || '',
+        actualEndDate: newTaskData.actualEndDate || '',
+        memberId: newTaskData.memberId || '',
+        auxiliaryId: newTaskData.auxiliaryId || '',
+        auxiliaryIds: newTaskData.auxiliaryIds || [],
+        revisorId: newTaskData.revisorId || '',
+        processId: newTaskData.processId || '',
+        projectId: newTaskData.projectId || '',
+        taskTemplate: newTaskData.taskTemplate || 'standard',
+        status: newTaskData.status || 'backlog',
+        plannedHours: Number(newTaskData.plannedHours) || 0,
+        actualHours: Number(newTaskData.actualHours) || 0,
+        dueDate: newTaskData.dueDate || '',
+        blockedByTaskIds: newTaskData.blockedByTaskIds || [],
+        designData: newTaskData.designData || {},
+        deliverables: newTaskData.deliverables || []
+      };
+      const initial = {
+        title: (initialTaskSnapshotRef.current.title || '').trim(),
+        description: (initialTaskSnapshotRef.current.description || '').trim(),
+        storyDescription: (initialTaskSnapshotRef.current.storyDescription || '').trim(),
+        acceptanceCriteria: (initialTaskSnapshotRef.current.acceptanceCriteria || '').trim(),
+        priority: initialTaskSnapshotRef.current.priority || 'media',
+        plannedDate: initialTaskSnapshotRef.current.plannedDate || '',
+        plannedEndDate: initialTaskSnapshotRef.current.plannedEndDate || '',
+        plannedStartTime: initialTaskSnapshotRef.current.plannedStartTime || '',
+        plannedEndTime: initialTaskSnapshotRef.current.plannedEndTime || '',
+        actualEndDate: initialTaskSnapshotRef.current.actualEndDate || '',
+        memberId: initialTaskSnapshotRef.current.memberId || '',
+        auxiliaryId: initialTaskSnapshotRef.current.auxiliaryId || '',
+        auxiliaryIds: initialTaskSnapshotRef.current.auxiliaryIds || [],
+        revisorId: initialTaskSnapshotRef.current.revisorId || '',
+        processId: initialTaskSnapshotRef.current.processId || '',
+        projectId: initialTaskSnapshotRef.current.projectId || '',
+        taskTemplate: initialTaskSnapshotRef.current.taskTemplate || 'standard',
+        status: initialTaskSnapshotRef.current.status || 'backlog',
+        plannedHours: Number(initialTaskSnapshotRef.current.plannedHours) || 0,
+        actualHours: Number(initialTaskSnapshotRef.current.actualHours) || 0,
+        dueDate: initialTaskSnapshotRef.current.dueDate || '',
+        blockedByTaskIds: initialTaskSnapshotRef.current.blockedByTaskIds || [],
+        designData: initialTaskSnapshotRef.current.designData || {},
+        deliverables: initialTaskSnapshotRef.current.deliverables || []
+      };
+      return JSON.stringify(current) !== JSON.stringify(initial);
+    } catch {
+      return false;
+    }
+  };
+
+  const handleForceCloseTaskModal = () => {
+    setIsAddingTask(false);
+    setEditingTask(null);
+    setShowAddAuxDropdown(false);
+    setAuxSearchQuery('');
+    setShowAddBlockerDropdown(false);
+    setBlockerSearchQuery('');
+    setShowAddBlocksDropdown(false);
+    setBlocksSearchQuery('');
+    setShowUnsavedTaskChangesModal(false);
+    initialTaskSnapshotRef.current = null;
+    if (lastTab) {
+      setActiveTab(lastTab as any);
+      setLastTab(null);
+    }
+  };
+
+  const handleRequestCloseTaskModal = () => {
+    if (hasUnsavedTaskChanges()) {
+      setShowUnsavedTaskChangesModal(true);
+    } else {
+      handleForceCloseTaskModal();
+    }
+  };
+
+  const exportTasksBackup = (taskList: Task[]) => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(taskList, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `respaldo-tareas-${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
 
   const [showCompletedProjects, setShowCompletedProjects] = useState(false);
   const [isAddingProject, setIsAddingProject] = useState(false);
@@ -2023,7 +2202,7 @@ export default function App() {
       ? { dueDate: initialOverridesOrDate, plannedDate: initialOverridesOrDate } 
       : (initialOverridesOrDate || {});
 
-    setNewTaskData({
+    const data = {
       id: Math.random().toString(36).substr(2, 9),
       title: '',
       description: '',
@@ -2037,24 +2216,26 @@ export default function App() {
       plannedEndDate: '',
       memberId: '',
       auxiliaryId: '',
-      auxiliaryIds: [],
+      auxiliaryIds: [] as string[],
       revisorId: '',
       processId: '',
       projectId: '',
-      taskTemplate: 'standard',
+      taskTemplate: 'standard' as Task['taskTemplate'],
       designData: {
         campaign: '',
         formats: '',
         elements: []
       },
       status,
-      deliverables: [],
+      deliverables: [] as Deliverable[],
       plannedHours: 0,
       actualHours: 0,
       dueDate: '',
-      blockedByTaskIds: [],
+      blockedByTaskIds: [] as string[],
       ...overrides
-    });
+    };
+    setNewTaskData(data);
+    initialTaskSnapshotRef.current = JSON.parse(JSON.stringify(data));
     setIsAddingTask(true);
   };
 
@@ -2444,7 +2625,7 @@ export default function App() {
   const openEditTask = (task: Task) => {
     setEditingTask(task);
     setShowTaskHistory(false);
-    setNewTaskData({
+    const data = {
       title: task.title,
       description: task.description || '',
       storyDescription: task.storyDescription || '',
@@ -2470,7 +2651,9 @@ export default function App() {
       dueDate: task.dueDate || '',
       blockedByTaskIds: task.blockedByTaskIds || [],
       id: task.id
-    });
+    };
+    setNewTaskData(data);
+    initialTaskSnapshotRef.current = JSON.parse(JSON.stringify(data));
   };
 
   const updateTaskStatus = async (id: string, newStatus: Task['status']) => {
@@ -4386,10 +4569,10 @@ export default function App() {
                             { id: 'backlog', label: 'Product Backlog' },
                             { id: 'todo', label: 'Por Hacer' },
                             { id: 'in_progress', label: 'En Progreso' },
-                            { id: 'blocked', label: 'Bloqueada' },
                             { id: 'review', label: 'En Revisi√≥n' },
+                            { id: 'correction', label: 'Para Correcci√≥n' },
                             { id: 'done', label: 'Completada' },
-                            { id: 'rejected', label: 'Rechazada' },
+                            { id: 'blocked', label: 'Bloqueada' },
                           ].map(st => (
                             <button
                               key={st.id}
@@ -4560,6 +4743,15 @@ export default function App() {
                     </div>
                     
                     <input type="file" accept=".json,.csv" className="hidden" ref={fileInputRef} onChange={handleImportTasks} />
+                    <button
+                      type="button"
+                      onClick={() => exportTasksBackup(tasks)}
+                      title="Descargar respaldo de seguridad JSON de todas las tareas"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 text-[11px] font-bold rounded-xl transition-all border border-gray-200/60"
+                    >
+                      <Save size={14} className="text-gray-500" />
+                      <span className="hidden sm:inline">Respaldo JSON</span>
+                    </button>
                     
                     {!isReadOnly && (
                       <button 
@@ -5582,53 +5774,138 @@ export default function App() {
                     { id: 'backlog', label: 'Product Backlog', color: 'text-slate-400', bg: 'bg-slate-50' },
                     { id: 'todo', label: 'Por Hacer', color: 'text-gray-500', bg: 'bg-gray-50' },
                     { id: 'in_progress', label: 'En Progreso', color: 'text-blue-500', bg: 'bg-blue-50' },
-                    { id: 'blocked', label: 'Bloqueada', color: 'text-red-500', bg: 'bg-red-50' },
                     { id: 'review', label: 'En Revisi√≥n', color: 'text-purple-500', bg: 'bg-purple-50' },
                     { id: 'correction', label: 'Para Correcci√≥n', color: 'text-amber-500', bg: 'bg-amber-50' },
-                    { id: 'done', label: 'Completada', color: 'text-green-500', bg: 'bg-green-50' },
-                    { id: 'rejected', label: 'Rechazada', color: 'text-orange-500', bg: 'bg-orange-50' }
-                  ].map(column => (
-                    <div key={column.id} className="min-w-[320px] max-w-[320px] flex flex-col gap-4 h-full">
-                      <div className="flex items-center justify-between px-3 py-2 bg-white rounded-xl border border-gray-100 shadow-sm sticky top-0 z-10 transition-all group">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-1.5 h-1.5 rounded-full ${column.color.replace('text-', 'bg-')}`} />
-                          <h3 className={`font-bold uppercase tracking-wider text-[10px] ${column.color}`}>{column.label}</h3>
+                    { id: 'done', label: 'Completada', color: 'text-green-500', bg: 'bg-green-50', collapsible: true },
+                    { id: 'blocked', label: 'Bloqueada', color: 'text-red-500', bg: 'bg-red-50', collapsible: true }
+                  ].map(column => {
+                    const allColTasks = filteredTasks.filter(t => t.status === column.id);
+                    const isCollapsed = !!collapsedColumns[column.id];
+
+                    // For 'done' column: by default show recent (last 15 days), unless showAllDoneTasks is active
+                    let visibleColTasks = allColTasks;
+                    let hiddenDoneCount = 0;
+
+                    if (column.id === 'done' && !showAllDoneTasks) {
+                      const fifteenDaysAgo = new Date();
+                      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+                      const cutoffStr = fifteenDaysAgo.toISOString().split('T')[0];
+
+                      visibleColTasks = allColTasks.filter(t => {
+                        const taskDate = t.actualEndDate || t.dueDate || t.plannedDate || '';
+                        return !taskDate || taskDate >= cutoffStr;
+                      });
+                      hiddenDoneCount = allColTasks.length - visibleColTasks.length;
+                    }
+
+                    if (isCollapsed) {
+                      return (
+                        <div
+                          key={column.id}
+                          onClick={() => setCollapsedColumns({ ...collapsedColumns, [column.id]: false })}
+                          className="min-w-[48px] max-w-[48px] h-full bg-white/70 hover:bg-white rounded-2xl border border-gray-200/80 shadow-xs flex flex-col items-center py-4 cursor-pointer transition-all hover:shadow-md group select-none"
+                          title={`Desplegar columna ${column.label}`}
+                        >
+                          <div className={`w-2.5 h-2.5 rounded-full ${column.color.replace('text-', 'bg-')} mb-3`} />
+                          <span className="bg-gray-100 text-gray-600 text-[10px] font-black px-1.5 py-0.5 rounded-full mb-6">
+                            {allColTasks.length}
+                          </span>
+                          <div className="flex-1 flex items-center justify-center">
+                            <span className={`rotate-90 whitespace-nowrap text-[11px] font-extrabold uppercase tracking-widest ${column.color}`}>
+                              {column.label}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-gray-400 group-hover:text-blue-600 mt-auto font-bold">
+                            +
+                          </span>
                         </div>
-                        <span className="bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-0.5 rounded-full group-hover:bg-gray-200 transition-colors">
-                          {filteredTasks.filter(t => t.status === column.id).length}
-                        </span>
-                      </div>
-                      <div className={`flex-1 overflow-y-auto space-y-4 p-2 rounded-[2rem] ${column.bg}/30 border-2 border-dashed border-gray-100/50 hover:bg-white/40 transition-colors custom-scrollbar`}>
-                        {filteredTasks.filter(t => t.status === column.id).map(task => (
-                          <TaskCard 
-                            key={task.id} 
-                            task={task} 
-                            allTasks={tasks}
-                            member={members.find(m => m.id === task.memberId)} 
-                            auxiliary={members.find(m => m.id === task.auxiliaryId)}
-                            auxiliaries={task.auxiliaryIds ? members.filter(m => task.auxiliaryIds?.includes(m.id)) : (task.auxiliaryId ? members.filter(m => m.id === task.auxiliaryId) : [])}
-                            revisor={members.find(m => m.id === task.revisorId)}
-                            process={processes.find(p => p.id === task.processId)} 
-                            project={projects.find(p => p.id === task.projectId)}
-                            onUpdateStatus={updateTaskStatus} 
-                            onEdit={openEditTask} 
-                            onDelete={handleDeleteTask} 
-                          />
-                        ))}
-                        {filteredTasks.filter(t => t.status === column.id).length === 0 && (
-                          <button 
-                            onClick={() => openAddTaskModal(column.id as any)}
-                            className="w-full h-32 flex flex-col items-center justify-center text-gray-300 text-xs gap-3 opacity-50 hover:opacity-100 hover:bg-white/50 hover:text-blue-500 rounded-[1.5rem] transition-all border-2 border-transparent hover:border-blue-100 group"
-                          >
-                            <div className="p-3 bg-gray-50 rounded-xl group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                              <Plus size={20} />
+                      );
+                    }
+
+                    return (
+                      <div key={column.id} className="min-w-[320px] max-w-[320px] flex flex-col gap-4 h-full">
+                        <div className="flex items-center justify-between px-3 py-2 bg-white rounded-xl border border-gray-100 shadow-sm sticky top-0 z-10 transition-all group">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-1.5 h-1.5 rounded-full ${column.color.replace('text-', 'bg-')}`} />
+                            <h3 className={`font-bold uppercase tracking-wider text-[10px] ${column.color}`}>{column.label}</h3>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-0.5 rounded-full group-hover:bg-gray-200 transition-colors">
+                              {allColTasks.length}
+                            </span>
+                            {column.collapsible && (
+                              <button
+                                type="button"
+                                onClick={() => setCollapsedColumns({ ...collapsedColumns, [column.id]: true })}
+                                className="text-gray-400 hover:text-gray-700 p-1 hover:bg-gray-100 rounded-md transition-colors text-[10px] font-bold"
+                                title="Minimizar columna"
+                              >
+                                ‚óÄ
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className={`flex-1 overflow-y-auto space-y-4 p-2 rounded-[2rem] ${column.bg}/30 border-2 border-dashed border-gray-100/50 hover:bg-white/40 transition-colors custom-scrollbar`}>
+                          {column.id === 'done' && hiddenDoneCount > 0 && (
+                            <div className="bg-white/90 border border-green-200/80 rounded-xl p-2.5 text-center shadow-xs">
+                              <p className="text-[10px] text-gray-500 font-semibold mb-1">
+                                Mostrando tareas recientes (√∫ltimos 15 d√≠as)
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setShowAllDoneTasks(true)}
+                                className="text-[10px] font-bold text-green-700 hover:text-green-800 bg-green-50 hover:bg-green-100 px-2.5 py-1 rounded-lg transition-colors inline-flex items-center gap-1"
+                              >
+                                Ver archivo completo (+{hiddenDoneCount} tareas)
+                              </button>
                             </div>
-                            <span className="font-bold uppercase tracking-widest text-[9px]">A√±adir Tarea</span>
-                          </button>
-                        )}
+                          )}
+
+                          {column.id === 'done' && showAllDoneTasks && allColTasks.length > visibleColTasks.length && (
+                            <div className="text-center pb-1">
+                              <button
+                                type="button"
+                                onClick={() => setShowAllDoneTasks(false)}
+                                className="text-[9px] font-bold text-gray-500 hover:text-gray-800 underline"
+                              >
+                                Ocultar tareas antiguas
+                              </button>
+                            </div>
+                          )}
+
+                          {visibleColTasks.map(task => (
+                            <TaskCard 
+                              key={task.id} 
+                              task={task} 
+                              allTasks={tasks}
+                              member={members.find(m => m.id === task.memberId)} 
+                              auxiliary={members.find(m => m.id === task.auxiliaryId)}
+                              auxiliaries={task.auxiliaryIds ? members.filter(m => task.auxiliaryIds?.includes(m.id)) : (task.auxiliaryId ? members.filter(m => m.id === task.auxiliaryId) : [])}
+                              revisor={members.find(m => m.id === task.revisorId)}
+                              process={processes.find(p => p.id === task.processId)} 
+                              project={projects.find(p => p.id === task.projectId)}
+                              onUpdateStatus={updateTaskStatus} 
+                              onEdit={openEditTask} 
+                              onDelete={handleDeleteTask} 
+                            />
+                          ))}
+
+                          {visibleColTasks.length === 0 && (
+                            <button 
+                              onClick={() => openAddTaskModal(column.id as any)}
+                              className="w-full h-32 flex flex-col items-center justify-center text-gray-300 text-xs gap-3 opacity-50 hover:opacity-100 hover:bg-white/50 hover:text-blue-500 rounded-[1.5rem] transition-all border-2 border-transparent hover:border-blue-100 group"
+                            >
+                              <div className="p-3 bg-gray-50 rounded-xl group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                                <Plus size={20} />
+                              </div>
+                              <span className="font-bold uppercase tracking-widest text-[9px]">A√±adir Tarea</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : taskViewMode === 'calendar' ? (
                 <TaskCalendarView 
@@ -5729,11 +6006,10 @@ export default function App() {
                               <option value="backlog" className="font-sans text-slate-700 font-bold">Product Backlog</option>
                               <option value="todo" className="font-sans text-gray-700 font-bold">Por Hacer</option>
                               <option value="in_progress" className="font-sans text-blue-700 font-bold">En Progreso</option>
-                              <option value="blocked" className="font-sans text-red-700 font-bold">Bloqueada</option>
                               <option value="review" className="font-sans text-purple-700 font-bold">En Revisi√≥n</option>
                               <option value="correction" className="font-sans text-amber-700 font-bold">Para Correcci√≥n</option>
                               <option value="done" className="font-sans text-green-700 font-bold">Completada</option>
-                              <option value="rejected" className="font-sans text-orange-700 font-bold">Rechazada</option>
+                              <option value="blocked" className="font-sans text-red-700 font-bold">Bloqueada</option>
                             </select>
                           </div>
                         </th>
@@ -5988,11 +6264,10 @@ export default function App() {
                                 <option value="backlog">Product Backlog</option>
                                 <option value="todo">Por Hacer</option>
                                 <option value="in_progress">En Progreso</option>
-                                <option value="blocked">Bloqueada</option>
                                 <option value="review">En Revisi√≥n</option>
                                 <option value="correction">Para Correcci√≥n</option>
                                 <option value="done">Completada</option>
-                                <option value="rejected">Rechazada</option>
+                                <option value="blocked">Bloqueada</option>
                               </select>
                             </td>
                             
@@ -7771,1485 +8046,94 @@ export default function App() {
             </motion.div>
           )}
 
-          {(isAddingTask || editingTask) && (
-            <motion.div 
+          {/* Task Modal (Standard & Design Templates) */}
+          <TaskModal
+            isOpen={isAddingTask || !!editingTask}
+            editingTask={editingTask}
+            newTaskData={newTaskData}
+            setNewTaskData={setNewTaskData}
+            onSave={editingTask ? handleUpdateTask : handleAddTask}
+            onClose={handleRequestCloseTaskModal}
+            currentMember={currentMember}
+            roles={roles}
+            processes={processes}
+            projects={projects}
+            members={members}
+            tasks={tasks}
+            isNewTask={isNewTask}
+            isProcessLeader={isProcessLeader}
+            canEditMetadataField={canEditMetadataField}
+            canEditStatusField={canEditStatusField}
+            canEditPlanning={canEditPlanning}
+            canEditExecution={canEditExecution}
+            showTaskHistory={showTaskHistory}
+            setShowTaskHistory={setShowTaskHistory}
+            setTasks={setTasks}
+            setEditingTask={setEditingTask}
+            handleDeleteTask={handleDeleteTask}
+          />
+
+          {/* Modal de Advertencia de Cambios No Guardados */}
+          {showUnsavedTaskChangesModal && (
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6"
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[70] flex items-center justify-center p-4"
             >
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.95, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                className="bg-white w-full max-w-6xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+                className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 text-center"
               >
-                <form onSubmit={editingTask ? handleUpdateTask : handleAddTask} className="flex flex-col flex-1 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0 z-10">
-                    <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
-                      <div className={`p-2.5 rounded-xl shrink-0 ${editingTask ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>
-                        {editingTask ? <Edit size={20} /> : <CheckCircle2 size={20} />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <input
-                          type="text"
-                          required
-                          disabled={!(isNewTask || isProcessLeader)}
-                          placeholder="T√≠tulo de la historia de usuario..."
-                          className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none text-xl font-black tracking-tight placeholder:text-gray-300 px-0 py-0 ${
-                            !(isNewTask || isProcessLeader) ? 'cursor-not-allowed text-gray-700' : 'text-gray-900'
-                          }`}
-                          value={newTaskData.title}
-                          onChange={e => setNewTaskData({...newTaskData, title: e.target.value})}
-                        />
-                      </div>
-                    </div>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        setIsAddingTask(false);
-                        setEditingTask(null);
-                        setShowAddAuxDropdown(false);
-                        setAuxSearchQuery('');
-                        setShowAddBlockerDropdown(false);
-                        setBlockerSearchQuery('');
-                        setShowAddBlocksDropdown(false);
-                        setBlocksSearchQuery('');
-                        if (lastTab) {
-                          setActiveTab(lastTab as any);
-                          setLastTab(null);
-                        }
-                      }}
-                      className="p-3 shrink-0 hover:bg-gray-100 rounded-2xl transition-all text-gray-400 hover:text-gray-900 border border-transparent hover:border-gray-200 shadow-sm hover:shadow-md"
-                    >
-                      <X size={24} />
-                    </button>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
-                    {/* Left Column: Metadata */}
-                    <div className="lg:col-span-3 space-y-6">
-                      <div className="bg-gray-50/50 p-4 rounded-3xl border border-gray-100 space-y-6">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                            <Layers size={12} className="text-blue-500" /> Proceso
-                          </label>
-                          <select 
-                            required
-                            disabled={!canEditMetadataField}
-                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-xs font-bold shadow-sm disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-                            value={newTaskData.processId}
-                            onChange={e => setNewTaskData({...newTaskData, processId: e.target.value})}
-                          >
-                            <option value="">Seleccionar Proceso...</option>
-                            {processes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                            <LayoutTemplate size={12} className="text-pink-500" /> Plantilla de Tarea
-                          </label>
-                          <select 
-                            disabled={!isNewTask}
-                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-pink-500/10 focus:border-pink-500 transition-all appearance-none text-xs font-bold shadow-sm disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-                            value={newTaskData.taskTemplate || 'standard'}
-                            onChange={e => {
-                              const newTemplate = e.target.value as any;
-                              if ((newTemplate === 'design_post' || newTemplate === 'design_carousel' || newTemplate === 'design_video') && (!newTaskData.designData || !newTaskData.designData.elements || newTaskData.designData.elements.length === 0)) {
-                                setNewTaskData({
-                                  ...newTaskData, 
-                                  taskTemplate: newTemplate,
-                                  designData: {
-                                    campaign: newTaskData.designData?.campaign || '',
-                                    formats: newTaskData.designData?.formats || '',
-                                    elements: [{ id: Date.now().toString(), element: '', content: '', visual: '', observations: '' }],
-                                    references: newTaskData.designData?.references || []
-                                  }
-                                });
-                              } else {
-                                setNewTaskData({...newTaskData, taskTemplate: newTemplate});
-                              }
-                            }}
-                          >
-                            <option value="standard">Desarrollo / Est√°ndar</option>
-                            <option value="design_post">Dise√±o - Post Est√°tico</option>
-                            <option value="design_carousel">Dise√±o - Carrusel</option>
-                            <option value="design_video">Dise√±o - Video</option>
-                          </select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                            <User size={12} className="text-purple-500" /> Responsable
-                          </label>
-                          <select 
-                            disabled={!canEditMetadataField}
-                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-xs font-bold shadow-sm disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-                            value={newTaskData.memberId}
-                            onChange={e => setNewTaskData({...newTaskData, memberId: e.target.value})}
-                          >
-                            <option value="">Sin Asignar (Task Pool)</option>
-                            {newTaskData.processId ? (
-                              <>
-                                {sortedMembers.filter(m => m.processId === newTaskData.processId).length > 0 && (
-                                  <optgroup label="Miembros del Proceso">
-                                    {sortedMembers.filter(m => m.processId === newTaskData.processId).map(m => (
-                                      <option key={m.id} value={m.id}>{m.name}</option>
-                                    ))}
-                                  </optgroup>
-                                )}
-                                {sortedMembers.filter(m => m.processId !== newTaskData.processId).length > 0 && (
-                                  <optgroup label="Otros Miembros del Equipo">
-                                    {sortedMembers.filter(m => m.processId !== newTaskData.processId).map(m => (
-                                      <option key={m.id} value={m.id}>{m.name}</option>
-                                    ))}
-                                  </optgroup>
-                                )}
-                              </>
-                            ) : (
-                              sortedMembers.map(m => (
-                                <option key={m.id} value={m.id}>{m.name}</option>
-                              ))
-                            )}
-                          </select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                            <CheckCircle2 size={12} className="text-emerald-500" /> Revisor
-                          </label>
-                          <select 
-                            disabled={!canEditMetadataField}
-                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-xs font-bold shadow-sm cursor-pointer disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-                            value={newTaskData.revisorId || ''}
-                            onChange={e => setNewTaskData({...newTaskData, revisorId: e.target.value})}
-                          >
-                            <option value="">Sin Asignar (Revisi√≥n de L√≠der/Admin)</option>
-                            {sortedMembers.map(m => (
-                              <option key={m.id} value={m.id}>{m.name}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="space-y-3 relative">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                              <Users size={12} className="text-amber-500" /> Auxiliares ({newTaskData.auxiliaryIds?.length || 0})
-                            </label>
-                            
-                            {canEditMetadataField && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setShowAddAuxDropdown(!showAddAuxDropdown);
-                                  setAuxSearchQuery('');
-                                }}
-                                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider cursor-pointer border transition-all ${
-                                  showAddAuxDropdown 
-                                    ? 'bg-amber-500 border-amber-500 text-white shadow-md' 
-                                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200 shadow-sm'
-                                }`}
-                              >
-                                <UserPlus size={10} />
-                                <span>Agregar</span>
-                              </button>
-                            )}
-                          </div>
-
-                          {/* Horizontal flex of assigned auxiliaries */}
-                          <div className="flex flex-wrap gap-1.5 p-2 bg-white rounded-2xl min-h-[48px] items-center border border-dashed border-gray-200">
-                            {(!newTaskData.auxiliaryIds || newTaskData.auxiliaryIds.length === 0) ? (
-                              <span className="text-[10px] text-gray-400 italic px-2 select-none py-1">Sin auxiliares asignados. Usa "+ Agregar".</span>
-                            ) : (
-                              newTaskData.auxiliaryIds.map(id => {
-                                const m = sortedMembers.find(member => member.id === id);
-                                if (!m) return null;
-                                return (
-                                  <div 
-                                    key={id}
-                                    className="flex items-center gap-1.5 bg-amber-50/70 border border-amber-100 rounded-xl pl-1.5 pr-1 py-1 text-[11px] font-bold text-amber-800 transition-all shadow-sm hover:bg-amber-50"
-                                  >
-                                    <img 
-                                      src={m.avatar} 
-                                      className="w-4 h-4 rounded-md object-cover select-none" 
-                                      referrerPolicy="no-referrer"
-                                      alt=""
-                                    />
-                                    <span className="truncate max-w-[80px]" title={m.name}>{m.name.split(' ')[0]}</span>
-                                    {canEditMetadataField && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const nextIds = (newTaskData.auxiliaryIds || []).filter(currId => currId !== id);
-                                          setNewTaskData({
-                                            ...newTaskData,
-                                            auxiliaryIds: nextIds,
-                                            auxiliaryId: nextIds[0] || ''
-                                          });
-                                        }}
-                                        className="p-0.5 hover:bg-amber-150 rounded-md text-amber-500 hover:text-amber-800 transition-colors ml-0.5 cursor-pointer"
-                                        title={`Quitar ${m.name}`}
-                                      >
-                                        <X size={10} strokeWidth={3} />
-                                      </button>
-                                    )}
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
-
-                          {/* Dropdown Popover */}
-                          {showAddAuxDropdown && (
-                            <div className="absolute right-0 top-12 w-64 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 p-3 space-y-2.5">
-                              <div className="flex items-center justify-between border-b border-gray-100 pb-1.5">
-                                <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">A√±adir Miembro Auxiliar</span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setShowAddAuxDropdown(false);
-                                    setAuxSearchQuery('');
-                                  }}
-                                  className="p-1 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition cursor-pointer"
-                                >
-                                  <X size={11} strokeWidth={3} />
-                                </button>
-                              </div>
-
-                              {/* Mini Search input */}
-                              <div className="relative">
-                                <input
-                                  type="text"
-                                  placeholder="Buscar por nombre..."
-                                  className="w-full text-[11px] px-2.5 py-1.5 border border-gray-200 bg-gray-50/50 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-amber-500/20 font-medium"
-                                  value={auxSearchQuery}
-                                  onChange={e => setAuxSearchQuery(e.target.value)}
-                                />
-                              </div>
-
-                              {/* Members items */}
-                              <div className="max-h-[140px] overflow-y-auto custom-scrollbar space-y-1 pr-0.5">
-                                {sortedMembers
-                                  .filter(m => !newTaskData.memberId || m.id !== newTaskData.memberId)
-                                  .filter(m => !auxSearchQuery || m.name.toLowerCase().includes(auxSearchQuery.toLowerCase()))
-                                  .map(m => {
-                                    const isSelected = !!newTaskData.auxiliaryIds?.includes(m.id);
-                                    return (
-                                      <button
-                                        key={m.id}
-                                        type="button"
-                                        onClick={() => {
-                                          const currentIds = [...(newTaskData.auxiliaryIds || [])];
-                                          let nextIds = [];
-                                          if (isSelected) {
-                                            nextIds = currentIds.filter(id => id !== m.id);
-                                          } else {
-                                            nextIds = [...currentIds, m.id];
-                                          }
-                                          setNewTaskData({
-                                            ...newTaskData,
-                                            auxiliaryIds: nextIds,
-                                            auxiliaryId: nextIds[0] || ''
-                                          });
-                                        }}
-                                        className={`w-full flex items-center gap-2 px-2 py-1 rounded-xl text-left text-xs font-bold transition-all border cursor-pointer ${
-                                          isSelected 
-                                            ? 'bg-amber-50/70 border-amber-200 text-amber-800' 
-                                            : 'bg-white border-transparent hover:bg-gray-50 text-gray-700'
-                                        }`}
-                                      >
-                                        <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${
-                                          isSelected ? 'bg-amber-500 border-amber-500 text-white' : 'border-gray-200 bg-white'
-                                        }`}>
-                                          {isSelected && <Check size={8} strokeWidth={4} />}
-                                        </div>
-                                        <img 
-                                          src={m.avatar} 
-                                          className="w-4.5 h-4.5 rounded-md object-cover flex-shrink-0" 
-                                          referrerPolicy="no-referrer"
-                                          alt=""
-                                        />
-                                        <span className="truncate flex-1">{m.name}</span>
-                                      </button>
-                                    );
-                                  })
-                                }
-                                {sortedMembers
-                                  .filter(m => !newTaskData.memberId || m.id !== newTaskData.memberId)
-                                  .filter(m => !auxSearchQuery || m.name.toLowerCase().includes(auxSearchQuery.toLowerCase()))
-                                  .length === 0 && (
-                                    <p className="text-[10px] text-gray-400 italic text-center py-2">Sin otros miembros.</p>
-                                  )
-                                }
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                            <FolderKanban size={12} className="text-green-500" /> Proyecto
-                          </label>
-                          <select 
-                            disabled={!canEditMetadataField}
-                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-xs font-bold shadow-sm disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-                            value={newTaskData.projectId}
-                            onChange={e => setNewTaskData({...newTaskData, projectId: e.target.value})}
-                          >
-                            <option value="">Historia de Usuario Independiente</option>
-                            {projects.filter(p => 
-                              (!newTaskData.processId || p.processId === newTaskData.processId) &&
-                              (p.status !== 'completado' || p.id === newTaskData.projectId)
-                            ).map(p => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                            <Activity size={12} className="text-red-500" /> Estado Scrum
-                          </label>
-                          <select 
-                            required
-                            disabled={!canEditStatusField}
-                            className="w-full px-5 py-4 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-sm font-bold shadow-sm capitalize disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-                            value={newTaskData.status}
-                            onChange={e => {
-                               const newStatus = e.target.value as any;
-                               if (newStatus === 'in_progress' && editingTask) {
-                                 const { isBlocked, blockers } = isTaskBlocked(editingTask.id, tasks);
-                                 if (isBlocked) {
-                                   alert(`ESTA TAREA EST√Å BLOQUEADAPara poder iniciar esta tarea se debe terminar primero:‚Ä¢ ${blockers.map(t => t.title).join('‚Ä¢ ')}`);
-                                   return;
-                                 }
-                               }
-                               setNewTaskData({...newTaskData, status: newStatus});
-                            }}
-                          >
-                            {(() => {
-                              const allOptions = [
-                                { value: 'backlog', label: 'üì¶ Product Backlog' },
-                                { value: 'todo', label: 'üìã Por Hacer' },
-                                { value: 'in_progress', label: '‚ö° En Progreso' },
-                                { value: 'blocked', label: 'üö´ Bloqueada' },
-                                { value: 'review', label: 'üîç En Revisi√≥n' },
-                                { value: 'correction', label: 'üîß Para Correcci√≥n' },
-                                { value: 'done', label: '‚úÖ Completada' },
-                                { value: 'rejected', label: '‚ùå Rechazada' }
-                              ];
-
-                              if (isNewTask || isProcessLeader) {
-                                return allOptions.map(opt => (
-                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ));
-                              }
-
-                              if (taskAccess === 'colaborador') {
-                                // Only allow 'in_progress', 'review', and current status
-                                const filtered = allOptions.filter(opt => 
-                                  opt.value === 'in_progress' || 
-                                  opt.value === 'review' || 
-                                  opt.value === newTaskData.status
-                                );
-                                return filtered.map(opt => (
-                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ));
-                              }
-
-                              // Otherwise, they shouldn't be editing, but if they view it:
-                              return allOptions.filter(opt => opt.value === newTaskData.status).map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                              ));
-                            })()}
-                          </select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                            <Zap size={12} className="text-amber-500" /> Prioridad de la Tarea
-                          </label>
-                          <select 
-                            required
-                            disabled={!canEditMetadataField}
-                            className="w-full px-5 py-4 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-sm font-bold shadow-sm capitalize disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-                            value={newTaskData.priority || 'media'}
-                            onChange={e => setNewTaskData({...newTaskData, priority: e.target.value as 'baja' | 'media' | 'alta' | 'meteoric_crash'})}
-                          >
-                            <option value="baja">üü¢ Baja (Normal)</option>
-                            <option value="media">‚ö° Media (Est√°ndar)</option>
-                            <option value="alta">üî• Alta (Urgente)</option>
-                            <option value="meteoric_crash">‚òÑÔ∏è Meteoric Crash (ALERTA M√ÅXIMA)</option>
-                          </select>
-                        </div>
-
-                        <div className="space-y-4 pt-4 border-t-2 border-dashed border-gray-100 mt-4">
-                            <div className="bg-gray-50/50 p-4 rounded-[2rem] border border-gray-100/50 space-y-4">
-                              {/* ¬øQui√©n bloquea esta tarea? */}
-                              <div className="space-y-2 relative">
-                                <div className="flex items-center justify-between gap-4">
-                                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2 flex-shrink-0">
-                                    <Ban size={10} className="text-red-500" /> BLOQUEADA POR
-                                  </label>
-                                  
-                                  <div className="relative">
-                                    {canEditMetadataField && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setShowAddBlockerDropdown(!showAddBlockerDropdown);
-                                          setShowAddBlocksDropdown(false);
-                                        }}
-                                        className="px-3 py-1.5 bg-red-50 hover:bg-red-100/80 border border-red-200 text-red-700 rounded-xl focus:outline-none text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all flex items-center gap-1"
-                                      >
-                                        <Plus size={10} strokeWidth={3} /> {showAddBlockerDropdown ? 'Cerrar' : 'A√±adir'}
-                                      </button>
-                                    )}
-
-                                    {showAddBlockerDropdown && (
-                                      <div className="absolute left-0 lg:left-full lg:-ml-4 mt-2 lg:mt-0 w-72 bg-white rounded-2xl border border-gray-200 shadow-xl p-3 z-50 space-y-2 animate-in fade-in zoom-in-95">
-                                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Buscar Bloqueo</div>
-                                        
-                                        {/* Buscador de texto */}
-                                        <input
-                                          type="text"
-                                          placeholder="Buscar por t√≠tulo..."
-                                          value={blockerSearchQuery}
-                                          onChange={e => setBlockerSearchQuery(e.target.value)}
-                                          className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-red-400/20"
-                                        />
-
-                                        {/* Filtros r√°pidos: Proyecto y Proceso */}
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <select
-                                            value={blockerSelectedProjectId}
-                                            onChange={e => setBlockerSelectedProjectId(e.target.value)}
-                                            className="w-full px-2 py-1 bg-gray-50 border border-gray-200 text-[10px] rounded-lg text-gray-600 focus:outline-none"
-                                          >
-                                            <option value="all">Todos los Proy.</option>
-                                            {projects.map(p => (
-                                              <option key={p.id} value={p.id}>{p.name}</option>
-                                            ))}
-                                          </select>
-
-                                          <select
-                                            value={blockerSelectedProcessId}
-                                            onChange={e => setBlockerSelectedProcessId(e.target.value)}
-                                            className="w-full px-2 py-1 bg-gray-50 border border-gray-200 text-[10px] rounded-lg text-gray-600 focus:outline-none"
-                                          >
-                                            <option value="all">Todos los Proc.</option>
-                                            {processes.map(p => (
-                                              <option key={p.id} value={p.id}>{p.name}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-
-                                        {/* Resultados de tareas */}
-                                        <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar pt-1">
-                                          {(() => {
-                                            const filteredTasks = tasks.filter(t => {
-                                              if (t.id === newTaskData.id) return false;
-                                              if (newTaskData.blockedByTaskIds?.includes(t.id)) return false;
-                                              
-                                              // Filtro por texto
-                                              if (blockerSearchQuery && !t.title.toLowerCase().includes(blockerSearchQuery.toLowerCase())) {
-                                                return false;
-                                              }
-                                              // Filtro por proyecto
-                                              if (blockerSelectedProjectId !== 'all' && t.projectId !== blockerSelectedProjectId) {
-                                                return false;
-                                              }
-                                              // Filtro por proceso
-                                              if (blockerSelectedProcessId !== 'all' && t.processId !== blockerSelectedProcessId) {
-                                                return false;
-                                              }
-                                              return true;
-                                            }).sort((a, b) => {
-                                              const sameProjA = newTaskData.projectId && a.projectId === newTaskData.projectId;
-                                              const sameProcA = newTaskData.processId && a.processId === newTaskData.processId;
-                                              const sameProjB = newTaskData.projectId && b.projectId === newTaskData.projectId;
-                                              const sameProcB = newTaskData.processId && b.processId === newTaskData.processId;
-
-                                              const getScore = (sameProj: any, sameProc: any) => {
-                                                if (sameProj && sameProc) return 1;
-                                                if (sameProj) return 2;
-                                                if (sameProc) return 3;
-                                                return 4;
-                                              };
-
-                                              const scoreA = getScore(sameProjA, sameProcA);
-                                              const scoreB = getScore(sameProjB, sameProcB);
-
-                                              if (scoreA !== scoreB) {
-                                                return scoreA - scoreB;
-                                              }
-
-                                              const nameA_Proc = (processes.find(p => p.id === a.processId)?.name || '').toLowerCase();
-                                              const nameB_Proc = (processes.find(p => p.id === b.processId)?.name || '').toLowerCase();
-                                              if (nameA_Proc && !nameB_Proc) return -1;
-                                              if (!nameA_Proc && nameB_Proc) return 1;
-                                              const procCompare = nameA_Proc.localeCompare(nameB_Proc, 'es', { sensitivity: 'base' });
-                                              if (procCompare !== 0) return procCompare;
-
-                                              const nameA_Proj = (projects.find(p => p.id === a.projectId)?.name || '').toLowerCase();
-                                              const nameB_Proj = (projects.find(p => p.id === b.projectId)?.name || '').toLowerCase();
-                                              if (nameA_Proj && !nameB_Proj) return -1;
-                                              if (!nameA_Proj && nameB_Proj) return 1;
-                                              const projCompare = nameA_Proj.localeCompare(nameB_Proj, 'es', { sensitivity: 'base' });
-                                              if (projCompare !== 0) return projCompare;
-
-                                              return a.title.localeCompare(b.title, 'es', { sensitivity: 'base' });
-                                            });
-
-                                            if (filteredTasks.length === 0) {
-                                              return (
-                                                <div className="text-center py-4 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                                                  No se encontraron tareas
-                                                </div>
-                                              );
-                                            }
-
-                                            return filteredTasks.map(t => {
-                                              const tProj = projects.find(p => p.id === t.projectId)?.name;
-                                              const tProc = processes.find(p => p.id === t.processId)?.name;
-                                              return (
-                                                <button
-                                                  type="button"
-                                                  key={t.id}
-                                                  onClick={() => {
-                                                    setNewTaskData({
-                                                      ...newTaskData,
-                                                      blockedByTaskIds: [...(newTaskData.blockedByTaskIds || []), t.id]
-                                                    });
-                                                    setBlockerSearchQuery('');
-                                                    setShowAddBlockerDropdown(false);
-                                                  }}
-                                                  className="w-full text-left p-2 rounded-xl hover:bg-red-50/50 transition-colors border border-transparent hover:border-red-100 flex flex-col gap-0.5"
-                                                >
-                                                  <span className="text-xs font-semibold text-gray-800 line-clamp-1">{t.title}</span>
-                                                  <div className="flex flex-wrap gap-1 items-center">
-                                                    {tProj && (
-                                                      <span className="text-[8px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded font-black uppercase">
-                                                        {tProj}
-                                                      </span>
-                                                    )}
-                                                    {tProc && (
-                                                      <span className="text-[8px] bg-purple-50 text-purple-600 px-1 py-0.5 rounded font-black uppercase">
-                                                        {tProc}
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                </button>
-                                              );
-                                            });
-                                          })()}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                
-                                <div className="flex flex-wrap gap-2">
-                                    {newTaskData.blockedByTaskIds?.map(id => {
-                                      const blockedByTask = tasks.find(t => t.id === id);
-                                      return (
-                                        <div key={id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-red-700 rounded-xl text-[10px] font-black border border-red-100 shadow-sm group animate-in fade-in slide-in-from-left-2">
-                                          <span className="truncate max-w-[120px]" title={blockedByTask?.title}>{blockedByTask?.title}</span>
-                                          <div className="flex items-center gap-0.5 ml-auto">
-                                            <button 
-                                              type="button"
-                                              onClick={() => {
-                                                if (blockedByTask?.title) {
-                                                  navigator.clipboard.writeText(blockedByTask.title);
-                                                }
-                                              }}
-                                              className="hover:text-red-900 p-1 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                                              title="Copiar nombre"
-                                            >
-                                              <Copy size={11} />
-                                            </button>
-                                            {canEditMetadataField && (
-                                              <button 
-                                                type="button"
-                                                onClick={() => setNewTaskData({
-                                                  ...newTaskData, 
-                                                  blockedByTaskIds: newTaskData.blockedByTaskIds?.filter(tid => tid !== id)
-                                                })}
-                                                className="hover:text-red-900 p-1 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                              >
-                                                <X size={11} />
-                                              </button>
-                                            )}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                    {(!newTaskData.blockedByTaskIds || newTaskData.blockedByTaskIds.length === 0) && (
-                                      <div className="w-full py-2 text-center border border-dashed border-gray-200 rounded-xl">
-                                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Sin bloqueos activos</p>
-                                      </div>
-                                    )}
-                                </div>
-                              </div>
-     
-                              {/* ¬øA qui√©n bloquea esta tarea? */}
-                              <div className="space-y-2 pt-3 border-t border-gray-100 relative">
-                                <div className="flex items-center justify-between gap-4">
-                                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2 flex-shrink-0">
-                                    <Activity size={10} className="text-blue-500" /> BLOQUEA A
-                                  </label>
-                                  
-                                  <div className="relative">
-                                    {canEditMetadataField && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setShowAddBlocksDropdown(!showAddBlocksDropdown);
-                                          setShowAddBlockerDropdown(false);
-                                        }}
-                                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-blue-700 rounded-xl focus:outline-none text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all flex items-center gap-1"
-                                      >
-                                        <Plus size={10} strokeWidth={3} /> {showAddBlocksDropdown ? 'Cerrar' : 'A√±adir'}
-                                      </button>
-                                    )}
-
-                                    {showAddBlocksDropdown && (
-                                      <div className="absolute left-0 lg:left-full lg:-ml-4 mt-2 lg:mt-0 w-72 bg-white rounded-2xl border border-gray-200 shadow-xl p-3 z-50 space-y-2 animate-in fade-in zoom-in-95">
-                                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Buscar Tarea a Bloquear</div>
-                                        
-                                        {/* Buscador de texto */}
-                                        <input
-                                          type="text"
-                                          placeholder="Buscar por t√≠tulo..."
-                                          value={blocksSearchQuery}
-                                          onChange={e => setBlocksSearchQuery(e.target.value)}
-                                          className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-400/20"
-                                        />
-
-                                        {/* Filtros r√°pidos: Proyecto y Proceso */}
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <select
-                                            value={blocksSelectedProjectId}
-                                            onChange={e => setBlocksSelectedProjectId(e.target.value)}
-                                            className="w-full px-2 py-1 bg-gray-50 border border-gray-200 text-[10px] rounded-lg text-gray-600 focus:outline-none"
-                                          >
-                                            <option value="all">Todos los Proy.</option>
-                                            {projects.map(p => (
-                                              <option key={p.id} value={p.id}>{p.name}</option>
-                                            ))}
-                                          </select>
-
-                                          <select
-                                            value={blocksSelectedProcessId}
-                                            onChange={e => setBlocksSelectedProcessId(e.target.value)}
-                                            className="w-full px-2 py-1 bg-gray-50 border border-gray-200 text-[10px] rounded-lg text-gray-600 focus:outline-none"
-                                          >
-                                            <option value="all">Todos los Proc.</option>
-                                            {processes.map(p => (
-                                              <option key={p.id} value={p.id}>{p.name}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-
-                                        {/* Resultados de tareas */}
-                                        <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar pt-1">
-                                          {(() => {
-                                            const filteredTasks = tasks.filter(t => {
-                                              if (t.id === newTaskData.id) return false;
-                                              if ((t.blockedByTaskIds || []).includes(newTaskData.id)) return false;
-                                              
-                                              // Filtro por texto
-                                              if (blocksSearchQuery && !t.title.toLowerCase().includes(blocksSearchQuery.toLowerCase())) {
-                                                return false;
-                                              }
-                                              // Filtro por proyecto
-                                              if (blocksSelectedProjectId !== 'all' && t.projectId !== blocksSelectedProjectId) {
-                                                return false;
-                                              }
-                                              // Filtro por proceso
-                                              if (blocksSelectedProcessId !== 'all' && t.processId !== blocksSelectedProcessId) {
-                                                return false;
-                                              }
-                                              return true;
-                                            }).sort((a, b) => {
-                                              const sameProjA = newTaskData.projectId && a.projectId === newTaskData.projectId;
-                                              const sameProcA = newTaskData.processId && a.processId === newTaskData.processId;
-                                              const sameProjB = newTaskData.projectId && b.projectId === newTaskData.projectId;
-                                              const sameProcB = newTaskData.processId && b.processId === newTaskData.processId;
-
-                                              const getScore = (sameProj: any, sameProc: any) => {
-                                                if (sameProj && sameProc) return 1;
-                                                if (sameProj) return 2;
-                                                if (sameProc) return 3;
-                                                return 4;
-                                              };
-
-                                              const scoreA = getScore(sameProjA, sameProcA);
-                                              const scoreB = getScore(sameProjB, sameProcB);
-
-                                              if (scoreA !== scoreB) {
-                                                return scoreA - scoreB;
-                                              }
-
-                                              const nameA_Proc = (processes.find(p => p.id === a.processId)?.name || '').toLowerCase();
-                                              const nameB_Proc = (processes.find(p => p.id === b.processId)?.name || '').toLowerCase();
-                                              if (nameA_Proc && !nameB_Proc) return -1;
-                                              if (!nameA_Proc && nameB_Proc) return 1;
-                                              const procCompare = nameA_Proc.localeCompare(nameB_Proc, 'es', { sensitivity: 'base' });
-                                              if (procCompare !== 0) return procCompare;
-
-                                              const nameA_Proj = (projects.find(p => p.id === a.projectId)?.name || '').toLowerCase();
-                                              const nameB_Proj = (projects.find(p => p.id === b.projectId)?.name || '').toLowerCase();
-                                              if (nameA_Proj && !nameB_Proj) return -1;
-                                              if (!nameA_Proj && nameB_Proj) return 1;
-                                              const projCompare = nameA_Proj.localeCompare(nameB_Proj, 'es', { sensitivity: 'base' });
-                                              if (projCompare !== 0) return projCompare;
-
-                                              return a.title.localeCompare(b.title, 'es', { sensitivity: 'base' });
-                                            });
-
-                                            if (filteredTasks.length === 0) {
-                                              return (
-                                                <div className="text-center py-4 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                                                  No se encontraron tareas
-                                                </div>
-                                              );
-                                            }
-
-                                            return filteredTasks.map(t => {
-                                              const tProj = projects.find(p => p.id === t.projectId)?.name;
-                                              const tProc = processes.find(p => p.id === t.processId)?.name;
-                                              return (
-                                                <button
-                                                  type="button"
-                                                  key={t.id}
-                                                  onClick={() => {
-                                                    // Bloquear en estado local
-                                                    setTasks(prev => prev.map(pt => {
-                                                      if (pt.id === t.id) {
-                                                        const currentBlockedBy = pt.blockedByTaskIds || [];
-                                                        if (!currentBlockedBy.includes(newTaskData.id)) {
-                                                          return { ...pt, blockedByTaskIds: [...currentBlockedBy, newTaskData.id] };
-                                                        }
-                                                      }
-                                                      return pt;
-                                                    }));
-
-                                                    // Realizar actualizaci√≥n a DB
-                                                    const currentBlockedBy = t.blockedByTaskIds || [];
-                                                    if (!currentBlockedBy.includes(newTaskData.id)) {
-                                                      updateDoc(doc(db, 'tasks', t.id), {
-                                                        blockedByTaskIds: [...currentBlockedBy, newTaskData.id]
-                                                      }).catch(err => console.error(err));
-                                                    }
-
-                                                    setBlocksSearchQuery('');
-                                                    setShowAddBlocksDropdown(false);
-                                                  }}
-                                                  className="w-full text-left p-2 rounded-xl hover:bg-blue-50/50 transition-colors border border-transparent hover:border-blue-100 flex flex-col gap-0.5"
-                                                >
-                                                  <span className="text-xs font-semibold text-gray-800 line-clamp-1">{t.title}</span>
-                                                  <div className="flex flex-wrap gap-1 items-center">
-                                                    {tProj && (
-                                                      <span className="text-[8px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded font-black uppercase">
-                                                        {tProj}
-                                                      </span>
-                                                    )}
-                                                    {tProc && (
-                                                      <span className="text-[8px] bg-purple-50 text-purple-600 px-1 py-0.5 rounded font-black uppercase">
-                                                        {tProc}
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                </button>
-                                              );
-                                            });
-                                          })()}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-wrap gap-2">
-                                    {tasks.filter(t => t.blockedByTaskIds?.includes(newTaskData.id)).length > 0 ? (
-                                      tasks.filter(t => t.blockedByTaskIds?.includes(newTaskData.id)).map(t => (
-                                        <div key={t.id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-blue-700 rounded-xl text-[10px] font-black border border-blue-100 shadow-sm group animate-in fade-in slide-in-from-left-2">
-                                          <span className="truncate max-w-[120px]" title={t.title}>{t.title}</span>
-                                          <div className="flex items-center gap-0.5 ml-auto">
-                                            <button 
-                                              type="button"
-                                              onClick={() => {
-                                                navigator.clipboard.writeText(t.title);
-                                              }}
-                                              className="hover:text-blue-900 p-1 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                                              title="Copiar nombre"
-                                            >
-                                              <Copy size={11} />
-                                            </button>
-                                            {canEditMetadataField && (
-                                              <button 
-                                                type="button"
-                                                onClick={() => {
-                                                  // Quitar el bloqueo de la otra tarea en listado local
-                                                  setTasks(prev => prev.map(pt => pt.id === t.id ? {
-                                                    ...pt,
-                                                    blockedByTaskIds: pt.blockedByTaskIds?.filter(id => id !== newTaskData.id)
-                                                  } : pt));
-                                                  
-                                                  // Realizar actualizaci√≥n a DB
-                                                  updateDoc(doc(db, 'tasks', t.id), {
-                                                    blockedByTaskIds: (t.blockedByTaskIds || []).filter(id => id !== newTaskData.id)
-                                                  }).catch(err => console.error(err));
-                                                }}
-                                                className="hover:text-blue-900 p-1 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
-                                              >
-                                                <X size={11} />
-                                              </button>
-                                            )}
-                                          </div>
-                                        </div>
-                                      ))
-                                    ) : (
-                                      <div className="w-full py-2 text-center border border-dashed border-gray-200 rounded-xl">
-                                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">No bloquea a ninguna tarea</p>
-                                      </div>
-                                    )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                      {editingTask && (
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            handleDeleteTask(editingTask.id);
-                            setEditingTask(null);
-                          }}
-                          className="w-full flex items-center justify-center gap-3 py-4 bg-red-600 text-white rounded-3xl hover:bg-red-700 transition-all text-xs font-black uppercase tracking-widest shadow-xl shadow-red-200"
-                        >
-                          <Trash size={18} />
-                          Borrar Tarea
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Right Column: Content */}
-                    <div className="lg:col-span-9 space-y-4">
-                      {(() => {
-                        const canEditPlannedDates = isNewTask || isProcessLeader;
-                        const canEditDueDate = isNewTask || isProcessLeader || isPrimaryAssignee || (!editingTask?.memberId && taskAccess === 'colaborador');
-                        const canEditStoryAndCriteria = isNewTask || isProcessLeader;
-
-                        return (
-                          <>
-                            
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* BLOQUE 1: PLANIFICACI√ìN Y L√çMITES */}
-      <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100 space-y-3">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-2 mb-2">
-          <Calendar size={12} className="text-gray-400" /> Planificaci√≥n y L√≠mites
-        </h4>
-        
-        {/* FILA 1: Fecha Planificada | Horas Planificadas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-2 relative">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5">
-              <Calendar size={12} className="text-sky-500" /> Fecha Planificada
-            </label>
-            <input 
-              type="date" 
-              disabled={!canEditExecution}
-              className={`w-full px-2.5 py-2 border rounded-lg focus:outline-none transition-all text-xs font-bold ${
-                !canEditExecution ? 'bg-gray-100/80 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white border-gray-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
-              }`}
-              value={newTaskData.plannedDate || ''}
-              onChange={e => setNewTaskData({...newTaskData, plannedDate: e.target.value})}
-            />
-          </div>
-          
-          <div className="space-y-2 relative">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5">
-              <Clock size={12} className="text-blue-500" /> Horas Planificadas
-              {!canEditPlanning && <Lock size={10} className="text-gray-400 ml-auto" />}
-            </label>
-            <select 
-              disabled={!canEditPlanning}
-              className={`w-full px-2.5 py-2 border rounded-lg focus:outline-none transition-all text-xs font-bold appearance-none ${
-                !canEditPlanning ? 'bg-gray-100/80 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white border-gray-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm cursor-pointer'
-              }`}
-              value={newTaskData.plannedHours}
-              onChange={e => setNewTaskData({...newTaskData, plannedHours: parseFloat(e.target.value) || 0})}
-            >
-              <option value="0">Sin horas</option>
-              {[0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 40].map(num => (
-                <option key={num} value={num}>
-                  {num === 0.5 ? '0.5 horas' : num === 1 ? '1 hora' : `${num} horas`}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* FILA 2: Fecha L√≠mite | Horario Toggle */}
-        <div className="flex flex-col sm:flex-row gap-4 items-end">
-          <div className={`space-y-2 relative flex-1 p-3 -m-3 rounded-xl border transition-colors ${!canEditPlanning ? 'bg-red-50/40 border-red-50/50' : 'bg-red-50/80 border-red-100'}`}>
-            <label className="text-[10px] font-bold text-red-600 uppercase tracking-wider ml-1 flex items-center gap-1.5" title="Solo el l√≠der de proceso o administrador puede cambiar esta fecha">
-              <Calendar size={12} className="text-red-500" /> Fecha L√≠mite
-              {!canEditPlanning && <Lock size={10} className="text-red-300 ml-auto" />}
-            </label>
-            <input 
-              type="date" 
-              disabled={!canEditPlanning}
-              className={`w-full px-2.5 py-2 border rounded-lg focus:outline-none transition-all text-xs font-bold ${
-                !canEditPlanning ? 'bg-red-50/50 text-red-400/80 cursor-not-allowed border-red-200/40' : 'bg-white border-red-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 shadow-sm text-red-700'
-              }`}
-              value={newTaskData.dueDate || ''}
-              onChange={e => setNewTaskData({...newTaskData, dueDate: e.target.value})}
-            />
-          </div>
-
-          {!showTimeInputs && canEditExecution ? (
-            <div className="flex-1 pb-1">
-              <button 
-                type="button" 
-                onClick={() => setShowTimeInputs(true)}
-                className="text-[10px] font-black uppercase text-blue-500 hover:text-blue-600 flex items-center gap-1.5 transition-colors px-3 py-2 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-100"
-              >
-                <Plus size={14} /> Agregar Horario
-              </button>
-            </div>
-          ) : !showTimeInputs && !canEditExecution ? (
-            <div className="flex-1"></div>
-          ) : (
-            <>
-              <div className="space-y-2 relative flex-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5">
-                  <Clock size={12} className="text-gray-400" /> Hora Inicio
-                </label>
-                <input 
-                  type="time" 
-                  disabled={!canEditExecution}
-                  className={`w-full px-2.5 py-2 border rounded-lg focus:outline-none transition-all text-xs font-bold ${
-                    !canEditExecution ? 'bg-gray-100/80 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white border-gray-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
-                  }`}
-                  value={newTaskData.plannedStartTime || ''}
-                  onChange={e => setNewTaskData({...newTaskData, plannedStartTime: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2 relative flex-1">
-                <div className="flex items-center justify-between ml-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock size={12} className="text-gray-400" /> Hora Fin
-                  </label>
-                  {canEditExecution && (
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        setShowTimeInputs(false);
-                        setNewTaskData({...newTaskData, plannedStartTime: '', plannedEndTime: ''});
-                      }}
-                      className="text-red-400 hover:text-red-500 bg-red-50 hover:bg-red-100 p-1 rounded-md transition-colors"
-                      title="Quitar Horario"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  )}
+                <div className="w-14 h-14 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-amber-100">
+                  <AlertCircle size={28} />
                 </div>
-                <input 
-                  type="time" 
-                  disabled={!canEditExecution}
-                  className={`w-full px-2.5 py-2 border rounded-lg focus:outline-none transition-all text-xs font-bold ${
-                    !canEditExecution ? 'bg-gray-100/80 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white border-gray-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
-                  }`}
-                  value={newTaskData.plannedEndTime || ''}
-                  onChange={e => setNewTaskData({...newTaskData, plannedEndTime: e.target.value})}
-                />
-              </div>
-            </>
+                <h3 className="text-lg font-black text-gray-900 mb-2">
+                  ¬øTienes cambios sin guardar?
+                </h3>
+                <p className="text-xs text-gray-500 mb-6 leading-relaxed font-medium">
+                  Has realizado modificaciones en la historia o tarea. Si decides salir ahora sin guardar, se perder√°n todos los cambios efectuados.
+                </p>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      if (editingTask) {
+                        handleUpdateTask(e as any);
+                      } else {
+                        handleAddTask(e as any);
+                      }
+                    }}
+                    className="w-full py-3 bg-ng-lime text-ng-black rounded-xl text-xs font-black uppercase tracking-wider hover:opacity-90 transition-all shadow-md shadow-ng-lime/10 flex items-center justify-center gap-2"
+                  >
+                    <Check size={16} />
+                    <span>Guardar cambios y cerrar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleForceCloseTaskModal}
+                    className="w-full py-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-rose-100 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={16} />
+                    <span>Descartar cambios</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowUnsavedTaskChangesModal(false)}
+                    className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-700 transition-all"
+                  >
+                    Continuar editando
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
           )}
-        </div>
+
+        </AnimatePresence>
       </div>
-
-      {/* BLOQUE 2: EJECUCI√ìN REAL */}
-      <div className="bg-white p-4 rounded-2xl border border-blue-100 space-y-4 shadow-sm shadow-blue-900/5">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 flex items-center gap-2 mb-2">
-          <CheckCircle2 size={12} className="text-blue-500" /> Ejecuci√≥n Real
-        </h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2 relative">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5">
-              <Calendar size={12} className="text-emerald-500" /> Entregado el...
-              {!canEditExecution && <Lock size={10} className="text-gray-300 ml-auto" />}
-            </label>
-            <input 
-              type="date" 
-              disabled={!canEditExecution}
-              className={`w-full px-2.5 py-2 border rounded-lg focus:outline-none transition-all text-xs font-bold ${
-                !canEditExecution ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100' : 'bg-white border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
-              }`}
-              value={newTaskData.actualEndDate || ''}
-              onChange={e => setNewTaskData({...newTaskData, actualEndDate: e.target.value})}
-            />
-          </div>
-          <div className="space-y-2 relative">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5">
-              <Activity size={12} className="text-green-500" /> Horas Reales
-              {!canEditExecution && <Lock size={10} className="text-gray-300 ml-auto" />}
-            </label>
-            <input 
-              type="number" 
-              min="0"
-              step="0.5"
-              disabled={!canEditExecution}
-              className={`w-full px-2.5 py-2 border rounded-lg focus:outline-none transition-all text-xs font-bold ${
-                !canEditExecution ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100' : 'bg-white border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
-              }`}
-              value={newTaskData.actualHours}
-              onChange={e => setNewTaskData({...newTaskData, actualHours: parseFloat(e.target.value) || 0})}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-    {/* Section: Split Description into Description and Acceptance Criteria */}
-                            <div className="space-y-3">
-                              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] ml-1">Descripci√≥n de la historia</label>
-                              <textarea 
-                                placeholder="Describe el contexto narrativo de la historia de usuario o actividad..."
-                                disabled={!canEditStoryAndCriteria}
-                                className={`w-full h-32 px-6 py-4 border-2 border-gray-100 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none text-sm leading-relaxed shadow-sm placeholder:text-gray-300 ${
-                                  !canEditStoryAndCriteria ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white'
-                                }`}
-                                value={newTaskData.storyDescription || ''}
-                                onChange={e => setNewTaskData({...newTaskData, storyDescription: e.target.value})}
-                              />
-                              {!canEditStoryAndCriteria && (
-                                <span className="text-[8px] font-black tracking-tight text-red-500 uppercase block pl-1">Solo L√≠der / Administrador</span>
-                              )}
-                            </div>
-
-                            <div className="space-y-3">
-                              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] ml-1 flex items-center gap-2">
-                                <CheckSquare size={14} className="text-emerald-500" /> Criterios de Aceptaci√≥n
-                              </label>
-                              <textarea 
-                                placeholder="Lista de criterios requeridos para dar por finalizada la tarea..."
-                                disabled={!canEditStoryAndCriteria}
-                                className={`w-full h-24 px-6 py-4 border-2 border-gray-100 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all resize-none text-sm leading-relaxed shadow-sm placeholder:text-gray-300 ${
-                                  !canEditStoryAndCriteria ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white'
-                                }`}
-                                value={newTaskData.acceptanceCriteria || ''}
-                                onChange={e => setNewTaskData({...newTaskData, acceptanceCriteria: e.target.value})}
-                              />
-                            </div>
-
-                            {/* Section: Deliverables */}
-                            <div className="space-y-4 pt-6 border-t border-gray-100">
-                              <div className="flex items-center justify-between">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] ml-1 flex items-center gap-2">
-                                  <LinkIcon size={14} className="text-blue-500" /> Links para entrega de productos
-                                </label>
-                                {canEditExecution && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const newDeliverables = [...(newTaskData.deliverables || []), { id: Date.now().toString(), url: '', description: '' }];
-                                      setNewTaskData({ ...newTaskData, deliverables: newDeliverables });
-                                    }}
-                                    className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-bold uppercase tracking-tight hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2"
-                                  >
-                                    <Plus size={14} /> A√±adir Link
-                                  </button>
-                                )}
-                              </div>
-
-                              {(newTaskData.deliverables && newTaskData.deliverables.length > 0) ? (
-                                <div className="space-y-3">
-                                  {newTaskData.deliverables.map((del, idx) => (
-                                    <div key={del.id} className="flex gap-3 items-start bg-gray-50/50 p-3 rounded-2xl border border-gray-100">
-                                      <div className="flex-1 space-y-3">
-                                        <div className="flex flex-col sm:flex-row gap-3">
-                                          <div className="flex items-center gap-2 flex-1">
-                                            <FolderKanban size={12} className="text-orange-400 shrink-0" />
-                                            <input
-                                              type="text"
-                                              placeholder="Ubicaci√≥n en Drive (Ruta o carpeta)..."
-                                              disabled={!canEditExecution}
-                                              className={`w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs ${!canEditExecution ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white'}`}
-                                              value={del.folderLocation || ''}
-                                              onChange={e => {
-                                                const newDel = [...newTaskData.deliverables];
-                                                newDel[idx].folderLocation = e.target.value;
-                                                setNewTaskData({ ...newTaskData, deliverables: newDel });
-                                              }}
-                                            />
-                                          </div>
-                                          <div className="flex items-center gap-2 flex-1">
-                                            <LinkIcon size={12} className="text-blue-400 shrink-0" />
-                                            <input
-                                              type="text"
-                                              placeholder="URL del entregable (ej. Figma, Docs...)"
-                                              disabled={!canEditExecution}
-                                              className={`w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs ${!canEditExecution ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white'}`}
-                                              value={del.url}
-                                              onChange={e => {
-                                                const newDel = [...newTaskData.deliverables];
-                                                newDel[idx].url = e.target.value;
-                                                setNewTaskData({ ...newTaskData, deliverables: newDel });
-                                              }}
-                                            />
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <AlignLeft size={12} className="text-gray-400 shrink-0" />
-                                          <input
-                                            type="text"
-                                            placeholder="Descripci√≥n breve (opcional)..."
-                                            disabled={!canEditExecution}
-                                            className={`w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs ${!canEditExecution ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white'}`}
-                                            value={del.description || ''}
-                                            onChange={e => {
-                                              const newDel = [...newTaskData.deliverables];
-                                              newDel[idx].description = e.target.value;
-                                              setNewTaskData({ ...newTaskData, deliverables: newDel });
-                                            }}
-                                          />
-                                        </div>
-                                      </div>
-                                      {canEditExecution && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const newDel = newTaskData.deliverables.filter((_, i) => i !== idx);
-                                            setNewTaskData({ ...newTaskData, deliverables: newDel });
-                                          }}
-                                          className="p-2 text-red-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors mt-1 shrink-0"
-                                          title="Eliminar entregable"
-                                        >
-                                          <Trash2 size={16} />
-                                        </button>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="text-center py-6 bg-gray-50/50 rounded-2xl border border-gray-100 border-dashed">
-                                  <p className="text-xs font-medium text-gray-400">No hay links de entrega a√±adidos.</p>
-                                </div>
-                              )}
-                            </div>
-
-                            {(newTaskData.taskTemplate === 'design_post' || newTaskData.taskTemplate === 'design_carousel' || newTaskData.taskTemplate === 'design_video') && (
-                              <div className="space-y-6 pt-4 border-t border-gray-100">
-
-                                {(newTaskData.taskTemplate === 'design_post' || newTaskData.taskTemplate === 'design_carousel') && (() => {
-                                  let slides = newTaskData.taskTemplate === 'design_carousel' 
-                                    ? Array.from(new Set((newTaskData.designData?.elements || []).map(e => e.slideIndex || 1))).sort((a,b)=>a-b)
-                                    : [1];
-                                  if (slides.length === 0) slides = [1];
-                                  
-                                  return (
-                                    <>
-                                      {slides.map(slideIdx => {
-                                        const slideElements = newTaskData.designData?.elements?.filter(e => (e.slideIndex || 1) === slideIdx) || [];
-                                        
-                                        return (
-                                          <div key={slideIdx} className="space-y-3">
-                                            <div className="flex items-center justify-between">
-                                              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] ml-1 flex items-center gap-2">
-                                                <Layers size={14} className="text-purple-500" /> Elementos del Dise√±o {newTaskData.taskTemplate === 'design_carousel' ? `- Imagen ${slideIdx}` : ''}
-                                              </label>
-                                              <div className="flex items-center gap-2">
-                                                {newTaskData.taskTemplate === 'design_carousel' && slides.length > 1 && (
-                                                  <button 
-                                                    type="button"
-                                                    onClick={() => setSlideToDelete(slideIdx)}
-                                                    className="px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-[10px] font-bold uppercase tracking-tight hover:bg-red-600 hover:text-white transition-all flex items-center gap-2 shadow-sm"
-                                                    title="Eliminar imagen"
-                                                  >
-                                                    <Trash size={14} /> Borrar
-                                                  </button>
-                                                )}
-                                                <button 
-                                                  type="button"
-                                                  onClick={() => {
-                                                    const currentDesignData = newTaskData.designData || { campaign: '', formats: '', elements: [], references: [] };
-                                                    const newElements = [...(currentDesignData.elements || []), { id: Date.now().toString(), element: '', content: '', visual: '', observations: '', slideIndex: slideIdx }];
-                                                    setNewTaskData({ ...newTaskData, designData: { ...currentDesignData, elements: newElements } });
-                                                  }}
-                                                  className="px-3 py-1.5 bg-purple-50 text-purple-600 rounded-xl text-[10px] font-bold uppercase tracking-tight hover:bg-purple-600 hover:text-white transition-all flex items-center gap-2"
-                                                >
-                                                  <Plus size={14} /> A√±adir Fila
-                                                </button>
-                                              </div>
-                                            </div>
-                                            
-                                            <div className="overflow-x-auto border border-gray-100 rounded-2xl relative">
-                                              <table className="min-w-full w-max text-left text-xs table-fixed">
-                                                <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-black tracking-wider border-b border-gray-100">
-                                                  <tr>
-                                                    <th style={{ width: designColWidths.element }} className="p-0 border-r border-gray-100/50 relative group select-none">
-                                                      <div className="px-4 py-3 flex items-center overflow-hidden">Elemento</div>
-                                                      <div 
-                                                        className="absolute right-0 top-0 bottom-0 w-1 bg-gray-200 opacity-0 group-hover:opacity-100 cursor-col-resize hover:bg-purple-400 transition-colors"
-                                                        onMouseDown={(e) => {
-                                                          const startX = e.pageX;
-                                                          const startWidth = designColWidths.element;
-                                                          const onMouseMove = (moveEvent) => {
-                                                            setDesignColWidths(prev => ({ ...prev, element: Math.max(50, startWidth + (moveEvent.pageX - startX)) }));
-                                                          };
-                                                          const onMouseUp = () => {
-                                                            document.removeEventListener('mousemove', onMouseMove);
-                                                            document.removeEventListener('mouseup', onMouseUp);
-                                                          };
-                                                          document.addEventListener('mousemove', onMouseMove);
-                                                          document.addEventListener('mouseup', onMouseUp);
-                                                        }}
-                                                      />
-                                                    </th>
-                                                    <th style={{ width: designColWidths.content }} className="p-0 border-r border-gray-100/50 relative group select-none">
-                                                      <div className="px-4 py-3 flex items-center overflow-hidden">Contenido / Copy</div>
-                                                      <div 
-                                                        className="absolute right-0 top-0 bottom-0 w-1 bg-gray-200 opacity-0 group-hover:opacity-100 cursor-col-resize hover:bg-purple-400 transition-colors"
-                                                        onMouseDown={(e) => {
-                                                          const startX = e.pageX;
-                                                          const startWidth = designColWidths.content;
-                                                          const onMouseMove = (moveEvent) => {
-                                                            setDesignColWidths(prev => ({ ...prev, content: Math.max(50, startWidth + (moveEvent.pageX - startX)) }));
-                                                          };
-                                                          const onMouseUp = () => {
-                                                            document.removeEventListener('mousemove', onMouseMove);
-                                                            document.removeEventListener('mouseup', onMouseUp);
-                                                          };
-                                                          document.addEventListener('mousemove', onMouseMove);
-                                                          document.addEventListener('mouseup', onMouseUp);
-                                                        }}
-                                                      />
-                                                    </th>
-                                                    <th style={{ width: designColWidths.visual }} className="p-0 border-r border-gray-100/50 relative group select-none">
-                                                      <div className="px-4 py-3 flex items-center overflow-hidden">Referencia Visual (Descriptivo)</div>
-                                                      <div 
-                                                        className="absolute right-0 top-0 bottom-0 w-1 bg-gray-200 opacity-0 group-hover:opacity-100 cursor-col-resize hover:bg-purple-400 transition-colors"
-                                                        onMouseDown={(e) => {
-                                                          const startX = e.pageX;
-                                                          const startWidth = designColWidths.visual;
-                                                          const onMouseMove = (moveEvent) => {
-                                                            setDesignColWidths(prev => ({ ...prev, visual: Math.max(50, startWidth + (moveEvent.pageX - startX)) }));
-                                                          };
-                                                          const onMouseUp = () => {
-                                                            document.removeEventListener('mousemove', onMouseMove);
-                                                            document.removeEventListener('mouseup', onMouseUp);
-                                                          };
-                                                          document.addEventListener('mousemove', onMouseMove);
-                                                          document.addEventListener('mouseup', onMouseUp);
-                                                        }}
-                                                      />
-                                                    </th>
-                                                    <th style={{ width: designColWidths.observations }} className="p-0 relative group select-none">
-                                                      <div className="px-4 py-3 flex items-center overflow-hidden">Observaciones</div>
-                                                      <div 
-                                                        className="absolute right-0 top-0 bottom-0 w-1 bg-gray-200 opacity-0 group-hover:opacity-100 cursor-col-resize hover:bg-purple-400 transition-colors"
-                                                        onMouseDown={(e) => {
-                                                          const startX = e.pageX;
-                                                          const startWidth = designColWidths.observations;
-                                                          const onMouseMove = (moveEvent) => {
-                                                            setDesignColWidths(prev => ({ ...prev, observations: Math.max(50, startWidth + (moveEvent.pageX - startX)) }));
-                                                          };
-                                                          const onMouseUp = () => {
-                                                            document.removeEventListener('mousemove', onMouseMove);
-                                                            document.removeEventListener('mouseup', onMouseUp);
-                                                          };
-                                                          document.addEventListener('mousemove', onMouseMove);
-                                                          document.addEventListener('mouseup', onMouseUp);
-                                                        }}
-                                                      />
-                                                    </th>
-                                                    <th className="px-4 py-3 w-10"></th>
-                                                  </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100 bg-white">
-                                                  {slideElements.length === 0 && (
-                                                    <tr>
-                                                      <td colSpan={5} className="px-4 py-8 text-center text-gray-400 italic">No hay elementos agregados. A√±ade una fila para comenzar.</td>
-                                                    </tr>
-                                                  )}
-                                                  {newTaskData.designData?.elements?.map((el, originalIndex) => {
-                                                    if ((el.slideIndex || 1) !== slideIdx) return null;
-                                                    return (
-                                                      <tr key={el.id} className="group hover:bg-gray-50/50">
-                                                        <td className="p-1 border-r border-gray-100/50 align-top">
-                                                          <textarea
-                                                            rows={1}
-                                                            placeholder="Ej: Imagen principal"
-                                                            className="w-full bg-transparent border-0 focus:ring-2 focus:ring-purple-500/20 rounded p-2 resize-none overflow-hidden block"
-                                                            style={{ minHeight: '36px' }}
-                                                            ref={(elRef) => { if (elRef) { elRef.style.height = 'auto'; elRef.style.height = elRef.scrollHeight + 'px'; } }}
-                                                            onInput={(e) => {
-                                                              e.currentTarget.style.height = 'auto';
-                                                              e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
-                                                            }}
-                                                            value={el.element}
-                                                            onChange={(e) => {
-                                                              const newElements = [...(newTaskData.designData?.elements || [])];
-                                                              newElements[originalIndex] = { ...el, element: e.target.value };
-                                                              setNewTaskData({ ...newTaskData, designData: { ...newTaskData.designData!, elements: newElements } });
-                                                            }}
-                                                            onPaste={(e) => handleDesignTablePaste(e as any, originalIndex, 'element')}
-                                                          />
-                                                        </td>
-                                                        <td className="p-1 border-r border-gray-100/50 align-top">
-                                                          <textarea
-                                                            rows={1}
-                                                            placeholder="Ej: Seguridad es primero"
-                                                            className="w-full bg-transparent border-0 focus:ring-2 focus:ring-purple-500/20 rounded p-2 resize-none overflow-hidden block"
-                                                            style={{ minHeight: '36px' }}
-                                                            ref={(elRef) => { if (elRef) { elRef.style.height = 'auto'; elRef.style.height = elRef.scrollHeight + 'px'; } }}
-                                                            onInput={(e) => {
-                                                              e.currentTarget.style.height = 'auto';
-                                                              e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
-                                                            }}
-                                                            value={el.content}
-                                                            onChange={(e) => {
-                                                              const newElements = [...(newTaskData.designData?.elements || [])];
-                                                              newElements[originalIndex] = { ...el, content: e.target.value };
-                                                              setNewTaskData({ ...newTaskData, designData: { ...newTaskData.designData!, elements: newElements } });
-                                                            }}
-                                                            onPaste={(e) => handleDesignTablePaste(e as any, originalIndex, 'content')}
-                                                          />
-                                                        </td>
-                                                        <td className="p-1 border-r border-gray-100/50 align-top">
-                                                          <textarea
-                                                            rows={1}
-                                                            placeholder="Ej: Foto en planta"
-                                                            className="w-full bg-transparent border-0 focus:ring-2 focus:ring-purple-500/20 rounded p-2 resize-none overflow-hidden block"
-                                                            style={{ minHeight: '36px' }}
-                                                            ref={(elRef) => { if (elRef) { elRef.style.height = 'auto'; elRef.style.height = elRef.scrollHeight + 'px'; } }}
-                                                            onInput={(e) => {
-                                                              e.currentTarget.style.height = 'auto';
-                                                              e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
-                                                            }}
-                                                            value={el.visual}
-                                                            onChange={(e) => {
-                                                              const newElements = [...(newTaskData.designData?.elements || [])];
-                                                              newElements[originalIndex] = { ...el, visual: e.target.value };
-                                                              setNewTaskData({ ...newTaskData, designData: { ...newTaskData.designData!, elements: newElements } });
-                                                            }}
-                                                            onPaste={(e) => handleDesignTablePaste(e as any, originalIndex, 'visual')}
-                                                          />
-                                                        </td>
-                                                        <td className="p-1 align-top">
-                                                          <textarea
-                                                            rows={1}
-                                                            placeholder="Evitar oscuros"
-                                                            className="w-full bg-transparent border-0 focus:ring-2 focus:ring-purple-500/20 rounded p-2 resize-none overflow-hidden block"
-                                                            style={{ minHeight: '36px' }}
-                                                            ref={(elRef) => { if (elRef) { elRef.style.height = 'auto'; elRef.style.height = elRef.scrollHeight + 'px'; } }}
-                                                            onInput={(e) => {
-                                                              e.currentTarget.style.height = 'auto';
-                                                              e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
-                                                            }}
-                                                            value={el.observations}
-                                                            onChange={(e) => {
-                                                              const newElements = [...(newTaskData.designData?.elements || [])];
-                                                              newElements[originalIndex] = { ...el, observations: e.target.value };
-                                                              setNewTaskData({ ...newTaskData, designData: { ...newTaskData.designData!, elements: newElements } });
-                                                            }}
-                                                            onPaste={(e) => handleDesignTablePaste(e as any, originalIndex, 'observations')}
-                                                          />
-                                                        </td>
-                                                        <td className="px-2 py-2 text-right align-top">
-                                                          <button
-                                                            type="button"
-                                                            onClick={() => setElementToDelete(el.id)}
-                                                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                                                          >
-                                                            <Trash size={14} />
-                                                          </button>
-                                                        </td>
-                                                      </tr>
-                                                    );
-                                                  })}
-                                                </tbody>
-                                              </table>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-
-                                      {newTaskData.taskTemplate === 'design_carousel' && (
-                                        <div className="flex justify-start">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const currentDesignData = newTaskData.designData || { campaign: '', formats: '', elements: [], references: [] };
-                                              const currentSlides = Array.from(new Set((currentDesignData.elements || []).map(e => e.slideIndex || 1)));
-                                              const nextSlideIdx = currentSlides.length > 0 ? Math.max(...currentSlides) + 1 : 1;
-                                              const newElements = [...(currentDesignData.elements || []), { id: Date.now().toString(), element: '', content: '', visual: '', observations: '', slideIndex: nextSlideIdx }];
-                                              setNewTaskData({ ...newTaskData, designData: { ...currentDesignData, elements: newElements } });
-                                            }}
-                                            className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-[10px] font-bold uppercase tracking-tight hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200 border border-transparent transition-all flex items-center gap-2"
-                                          >
-                                            <Plus size={14} /> A√±adir imagen al carrusel
-                                          </button>
-                                        </div>
-                                      )}
-                                    </>
-                                  );
-                                })()}
-                                
-                                    {newTaskData.taskTemplate === 'design_video' && (
-                                      <div className="space-y-6 pt-4 border-t border-gray-100">
-                                        <div className="space-y-3">
-                                          <div className="flex items-center justify-between">
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] ml-1 flex items-center gap-2">
-                                              <Video size={14} className="text-purple-500" /> Guion Audiovisual
-                                            </label>
-                                            <div className="flex items-center gap-2">
-                                              <button 
-                                                type="button"
-                                                onClick={() => {
-                                                  const currentDesignData = newTaskData.designData || { campaign: '', formats: '', elements: [], videoScenes: [], references: [] };
-                                                  const newScenes = [...(currentDesignData.videoScenes || []), { id: Date.now().toString(), time: '', stage: '', visual: '', onScreenText: '', voiceOver: '' }];
-                                                  setNewTaskData({ ...newTaskData, designData: { ...currentDesignData, videoScenes: newScenes } });
-                                                }}
-                                                className="px-3 py-1.5 bg-purple-50 text-purple-600 rounded-xl text-[10px] font-bold uppercase tracking-tight hover:bg-purple-600 hover:text-white transition-all flex items-center gap-2"
-                                              >
-                                                <Plus size={14} /> A√±adir Escena
-                                              </button>
-                                            </div>
-                                          </div>
-                                          
-                                          <div className="overflow-x-auto border border-gray-100 rounded-2xl relative">
-                                            <table className="min-w-full w-max text-left text-xs table-fixed">
-                                              <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-black tracking-wider border-b border-gray-100">
-                                                <tr>
-                                                  <th style={{ width: videoColWidths.time }} className="p-0 border-r border-gray-100/50 relative group select-none">
-                                                    <div className="px-4 py-3 flex items-center overflow-hidden">Tiempo</div>
-                                                    <div className="absolute right-0 top-0 bottom-0 w-1 bg-gray-200 opacity-0 group-hover:opacity-100 cursor-col-resize hover:bg-purple-400 transition-colors" onMouseDown={(e) => { const startX = e.pageX; const startWidth = videoColWidths.time; const onMouseMove = (moveEvent) => setVideoColWidths(prev => ({ ...prev, time: Math.max(50, startWidth + (moveEvent.pageX - startX)) })); const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); }; document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp); }} />
-                                                  </th>
-                                                  <th style={{ width: videoColWidths.stage }} className="p-0 border-r border-gray-100/50 relative group select-none">
-                                                    <div className="px-4 py-3 flex items-center overflow-hidden">Etapa</div>
-                                                    <div className="absolute right-0 top-0 bottom-0 w-1 bg-gray-200 opacity-0 group-hover:opacity-100 cursor-col-resize hover:bg-purple-400 transition-colors" onMouseDown={(e) => { const startX = e.pageX; const startWidth = videoColWidths.stage; const onMouseMove = (moveEvent) => setVideoColWidths(prev => ({ ...prev, stage: Math.max(50, startWidth + (mxúÏ]În„6˛øO¡zÅ⁄∆F∂„$≥®«…`03€f—NÉùÙAAK¥Õâ$™$ïK”<L†?˚ l^lIIñ‰KtÒtc¨¸#cI$EûsæÔôgÿ5ywM|Ÿå¸à,$$ÊÚ«n=tª/ëÕ|!Ûøa° ﬂËu∫Ë¯›#áŸ°ß:r‚±hêØ©êƒ'º”ˆT{uæΩ˜˛é`ƒ˝¬`—Îª ˙<§∫a«)Ø5ùñoÙÄ˙'B•?„æúWÍ'Á ;óﬂﬂ£Í»˘]Sá∞7Ã˝Aäﬁ5!v’ÃlÒ{‰∏X4a‹!‹‚Òó«w÷˛`–? N\,È5A3Œ¬ 	‚[Z>ÛI´ 4a¢ΩŒL‡÷:D¡ùuÄ¶.πETOX6Hòp≤ÁSó›XsÍ8ƒoù|o°CΩ«ﬂf ~Å˙à8‘¶èˇÚª„>ΩùI·â`n(	‚t6ó "…å†§d|π±ˆ—df5∞MÂ\—b≤ÊjÊ£¯,àŸ!å[6s-N˝Ö ”F	B∏ƒ:ÑVíc_PIôØZ2.Z±RΩe7˛Ò}áD6c¨…Xò1F˜2}^Ø:\[©9{TZÆ,2±#}A‰˜ôŒùÄìku•sèzΩû:⁄Cf¿˙Àyœ√∑ù£¡^zI€¯ÜgÍòˇ¡ÊÑ¯Á‰VÓ¥áP¿ÒQÄ}â]£ısH$nD!ëVÖ-∫âÙ∞ç≥ÿigqÕ®MæÂ‹iOÒ=˚E˘	6ù6~°qàW}õ‹!≥Ò;ÌÿD~çï˛	ÙÎØH©ˆ.˚ÜoÕÛÿ<D4Ó°mXVÅm≤á‘ËçØxææ‚ﬁ'7ÁX\Ω≈˜P»ôØææÍŸ° èW:Ù|Ò
-V0ËÄ:ÍµÆf^∞ÊW‰Ó¯FÈQÁ·	7uaö]n€Cô3 ±äÆj•≥*g5\·¨>Ç$ÈÙŒöyCÅ…;ØäsÄYP?%™‹°kÏÜƒ,áÚPc(ÊøôcFŒ©∆`(≤{–N–VÆ•S\Yï \\v/_na‘πÖ	DSÈM©Ôú˙πÌÿÍ)mPPt||ååÆvÎ›êNQG›Ó‰∫Ò-/‡Ã•^Ì·¡=ŒàÏÈ•´w7pÂÔ5Ó;%‚=¥êÒÂØ¶‡≥=¥º£dÒ¿ì◊ôËCµLÈç5]W·µÜ◊ s0–ÿsPÑ€X$!‰µ.ˆ¡Ì%ö2_Z€W
-îÌ+Íœ,pV`◊∫ïv8G‡õ¶‡È≈à´ÀX˚≠ sÆ‰ˇÕg<	Åò¯u<ò±KÌ+∞‚O`ƒe¿fJ]û)#˚lad∆∫ÂÍìR˛Ö∂Ä∂Œ©œq‚h^I]#3Ï5≈K1òíÁˇ≠•ÏI*Å¥ﬁπ‘£>ÊjâAÇ∏˙ê’ÕËúc—Ú„˚˝aE2ç’7÷XôcTc˛üôI‹bè‹ƒ/ü>~©¡tªU<§äDV˜eIX·Ê√ä™©çz∞,Ôò¢£™[‹¨'ê~
-¥µ¡D~jÉ íûœn:5¿n;îLã:#3≈=§hÛµﬂá‰#”∑—CÚ∞ƒ°2i»Ñ◊˚)ä{ò%ëáëú]x}y≥$'œ÷á∆—°!ËUU<"ØˇâZìGTÜ›371}8¨·´Sáj~zÒ≤Ω‘ùvJwìÊ‹•U∏
-òÄuá¢/±ªUå‰fS¡ÔñÓpø÷’hæÒ¡V?_y’sâ?Ïxµ&ñI7F#ta|Q€!S∫“Í@¶§⁄+µ5õòE_„f¥€˘∑Ø˙Í‚’K[9∞ÆN«uÙà–x–gWg&∫U3tc…M~Nè™3t©e2y¥ƒﬁ£–∑T•ìw8õÚyÿ[¿[´gÌîÔÇ®Wˆ˝ú›∞ÏÍ1Y‡bõÃô1œ«å@œ-ıœQıêßxí#ï¶¶Á=Ë<ÄFÜ‹õºi.uâ&.≥Ø™O;…˛B‰˜QÅ	Ëˆ¡ã‡∂]'ÏÂd™‚
-˜d1mïUãéÔë˛“”∑ÓÕıMè¡°dÌó´/F'mŒ\◊LOf˘RÅtıâ2ˇTÂoSAZ√’Çùõﬂ∫Ynn∂tyÂÃ´œ;J°<Yl1iú«»˝>¡ ”ûzŸ‚‰æ_|	”–$0r‘∆Ûg≥∏û’∏Ò˘hJ$£î ÎÂ∞jY»Üx3—–«%ö/ü„âKÙ’AX ÏﬂÂPpµï∞€ï‚Cı©»ñÊDQœGËKÏ€s÷`aÉÖ;áÖöÀ7`à
-Éa¸4hXËSµ¥8‹t√Ááß…Œá˙èøy‘∆î∂¡«wMÇ´HT „î`ÉêÖ>u“àªÅ»M7|~˘üüs<¡aUâÍ˙™«w”o|àDÖ!2˚¶¨ Bü∫@ôzóõn¯¸‡Úû<˛˚sHö@≤¡ ]ƒ ‰∑P¢‚±‰‚$J˙‘'câ7πÈÜœ"3[âÄl r2øπª›nê)3õ◊∞,Ù©R¶ÑæCx˘«n†7¯úŸBˇáÇı6‡zÄùÉÏZ(Ω≥8˝©êzá∞zw—:á◊∆Y¸ç◊7ëﬁ“Xπ?]QÜˇ	z∆Ô¥4#Ì,ÀYMÈ˛°õﬁÁôá˙z`ˇ¸·æÊˆÚöêmÊØ>É õ≥´√}µ›¶ÀauR/∆Ï¡◊n%ÅÁµ˚O´ÔµI6°Vˆ6v°.ÌC—ä|ŒﬁóÄ≤ƒèjhEñıé÷ÔbåK$[öÃâ¿-wV`|vìcU…‘ dôí’˜÷-XP’¶™Ï<¨bápµÔ∞‹≠†ìrde:ï,€P™yâ∆ ü'€ÂãD ﬂµâ•v¡“:åùè¨¥>?ˆìu±
-:∂±ã'ƒ]™l≤¢ZO∆ÍS≈}‚*>ÉﬁÒ.MìÂÈÕ0˜¬ﬁv|ÍOY ÛÛ®•|MÃ&¿-m
-¿h*§QÏ·˚˙ÈJj’
-î|™≤Ö™ÅDç‚ÜëF\˝mBò÷÷“§Ÿÿ0ú1;kßå{X
-s 0§
-^¿—≈ÂûäÑÙJ}\é&dñ;° K3Ì-në+`∞(©–ìÏÉTÅf.*è‘O’Äe˝‰ÇZµø“7€C!èˆ€ÃSèÌ.3ÌÚúuÈô≤rã%Pé™ñ ¶¿¢≈÷‰\âÆ÷o›‹&Ê˝,-–ÁæXÆvd‹`ﬁ"1«ı¬+ÆπR_√*ÇXëfŒEG)1z‹ÿ9Ω(¡ 1Ç¬Ë5,ä"Önæ"âc÷iqÄ&'≥|√îVÄZ÷ÉÍè*X¥±\ÖÚ•(≥~iw|^á¢™I£zà§Fe>7§Ÿf1U`˛[égÍ5cÈ(üËJG⁄vu}Ç‚’[‘f'úq`¬3ù≥-”5õZ—+ßÍ
-©"Cùv¥>1`Ç/k´‚"Ê∞].Ωá›◊_óœê<3ŸôbPº¯Xp|è≈ùo£F~©èNòˆ √sÂ  UAC¿¯œ?G´Œ_.ª%àè·™ßŒUÆØ8÷™…™^=≈-z∫~ô¯Å yßM=<#˝v∑Ã‹ ﬁ¯]…D£yıﬂq	ﬂ`*Q¿0Ò⁄wﬁ0¥EàS5=◊íYØgÃ?5S‘k∏D#Y◊aäœÜ+™Ñ\X⁄s∞:ŒÀikº :3ﬁiΩSˇƒÍ“DZÜ£,;å^6ﬂ
-·óŸA±Ô0‰b3ÆﬂCß¿|–:ò
-}Ñπ=ß◊yèø	‰“·¨◊*+ê≠ã∑-⁄≤ Ç&¢πXˆ∆⁄¢π˙”∑·≠õîãZPÚßkée¢Û5øDŒ5] lX&W.T.≈,•#nEî*aÆìäí˛™ûı5ÁX mEwHÑƒïJKì=®$1Wä˛9|¸}‹jM% ‹d”5û¥Ω£÷…03¯˚Ÿó{ËÏ=¸˘ÅLŒJ‹≤ÑXãG%ﬁ˙ß|4 ˝öaãFq9±4PÌã˛( o3N§˛®òE@»#º—‚ yNÍ0
-\Y"¥ˆë”£í¡±ˆÈßN˘:d˙πÙØ` UÛpŒï…®Â*˚ß¢≠ˆõéÒîì»GZA\¥?â˘ Â»"È®	+¿’µ‡cÃ}U˙gcÍÕê‡∂ë  ı¿á<n-RÜ≠°Ó‹"6˘®˛É[=`*◊—*˚B†ãFÂßΩ‰üÛJgYR)òbû9ˆ^{çUZÂT!jwúRæs…7’ﬁÀ’yWªÏ≥&”ã	.u2úÔ¸¥á®’%Á#WV~œàWxœø™v∏™~U?@ÊÂjÃπ˙_DÈVŒ…§[›Yäè-^µ∆ÕRâWCﬁÍºP-mﬁ˙ÂÈ∞z¡˜*ÔLK˙î‚Ø:ÀΩ‹⁄xÖö=q√ÒFπoP˜ángÌ–&∂ˆ“z∏‚ˇ¸y°~√±˛Ei.7ºÒàÔD§LÃπäE÷·›f∞(
-Öù?∏ØSÒ⁄q ¸U.´3≈ÆÿîuÅˆÔ0€®π¯ø∂ıZoîÔë˛â8ômÿæd~Àë,B≤N˘ﬁ`pΩ.ÊkthìÌY*N<*◊-’
-]À	”üY.ı¢ˇ≥R/ø)ÈSë^x„®gx¥⁄≈üù#‚‡Àßkwñ\Jö„7s¢fÚÙOU∆"¿˛…=Y(pÈˆk[Üÿ•ø`éæ¢B2Nq»j˚'ÈS„æÓ^z—÷8Öq_ëï¸˘qﬂcJ<Ω•>ÎÆ§¸‘∏ˇ⁄áAí3NÑÇ˜∏]j
-0¶zû…I0®á?˝  ˇˇ †"‰°
+    </main>
+  </div>
+  );
+}
