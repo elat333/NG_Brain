@@ -2837,15 +2837,34 @@ export default function App() {
   };
 
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
   const [slideToDelete, setSlideToDelete] = useState<number | null>(null);
   const [elementToDelete, setElementToDelete] = useState<string | null>(null);
   const [sceneToDelete, setSceneToDelete] = useState<string | null>(null);
 
   const handleDeleteTask = (id: string) => {
     const task = tasks.find(t => t.id === id);
-    if (task) {
-      setTaskToDelete(task);
+    if (!task) return;
+
+    let taskProcessId = task.processId;
+    if (!taskProcessId && task.projectId) {
+      const proj = projects.find(p => p.id === task.projectId);
+      if (proj) {
+        taskProcessId = proj.processId;
+      }
     }
+
+    let taskAccess = getModuleAccess(currentMember, roles, taskProcessId ? `tasks_${taskProcessId}` : 'tasks');
+    if (taskProcessId === 'proc-mkt') {
+      taskAccess = getModuleAccess(currentMember, roles, 'marketing');
+    }
+
+    if (taskAccess !== 'lider' && taskAccess !== 'administrador') {
+      alert('Error: Solo los Líderes de este Proceso o Administradores pueden eliminar tareas.');
+      return;
+    }
+
+    setTaskToDelete(task);
   };
 
   const confirmDeleteTask = async () => {
@@ -2869,12 +2888,20 @@ export default function App() {
       setTaskToDelete(null);
       return;
     }
+
+    setIsDeletingTask(true);
     try {
       await deleteDoc(doc(db, 'tasks', taskToDelete.id));
+      if (editingTask?.id === taskToDelete.id) {
+        setEditingTask(null);
+        setIsAddingTask(false);
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'tasks');
+    } finally {
+      setIsDeletingTask(false);
+      setTaskToDelete(null);
     }
-    setTaskToDelete(null);
   };
 
   const openEditProcess = (proc: Process) => {
@@ -8125,6 +8152,59 @@ export default function App() {
                     className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-700 transition-all"
                   >
                     Continuar editando
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* Modal de Confirmación de Eliminación de Tarea */}
+          {taskToDelete && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[80] flex items-center justify-center p-4"
+              onClick={() => {
+                if (!isDeletingTask) setTaskToDelete(null);
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 text-center"
+              >
+                <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 shadow-sm">
+                  <Trash size={28} />
+                </div>
+                <h3 className="text-lg font-black text-gray-900 mb-2">
+                  ¿Eliminar esta tarea?
+                </h3>
+                <p className="text-xs text-gray-500 mb-2 leading-relaxed font-medium">
+                  Estás a punto de eliminar la tarea:
+                </p>
+                <p className="text-xs font-bold text-gray-800 bg-gray-50 py-2.5 px-3 rounded-xl border border-gray-100 mb-6 truncate">
+                  {taskToDelete.title}
+                </p>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    disabled={isDeletingTask}
+                    onClick={confirmDeleteTask}
+                    className="w-full py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-red-700 transition-all shadow-md shadow-red-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <Trash size={16} />
+                    <span>{isDeletingTask ? 'Eliminando...' : 'Sí, eliminar tarea'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeletingTask}
+                    onClick={() => setTaskToDelete(null)}
+                    className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-700 transition-all disabled:opacity-50"
+                  >
+                    Cancelar
                   </button>
                 </div>
               </motion.div>

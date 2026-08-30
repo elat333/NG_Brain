@@ -62,6 +62,8 @@ export default function TaskModal({
   handleDeleteTask
 }: TaskModalProps) {
   const [showTimeInputs, setShowTimeInputs] = useState(false);
+  const [showConfirmDeleteTask, setShowConfirmDeleteTask] = useState(false);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
   const [slideToDelete, setSlideToDelete] = useState<number | null>(null);
   const [elementToDelete, setElementToDelete] = useState<string | null>(null);
   const [sceneToDelete, setSceneToDelete] = useState<string | null>(null);
@@ -995,9 +997,10 @@ export default function TaskModal({
                       {editingTask && (
                         <button 
                           type="button"
-                          onClick={() => {
-                            handleDeleteTask?.(editingTask.id);
-                            setEditingTask?.(null);
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowConfirmDeleteTask(true);
                           }}
                           className="w-full flex items-center justify-center gap-3 py-4 bg-red-600 text-white rounded-3xl hover:bg-red-700 transition-all text-xs font-black uppercase tracking-widest shadow-xl shadow-red-200"
                         >
@@ -1232,7 +1235,7 @@ export default function TaskModal({
                               {(newTaskData.deliverables && newTaskData.deliverables.length > 0) ? (
                                 <div className="space-y-3">
                                   {newTaskData.deliverables.map((del, idx) => (
-                                    <div key={del.id} className="flex gap-3 items-start bg-gray-50/50 p-3 rounded-2xl border border-gray-100">
+                                    <div key={del.id || `del_${idx}`} className="flex gap-3 items-start bg-gray-50/50 p-3 rounded-2xl border border-gray-100">
                                       <div className="flex-1 space-y-3">
                                         <div className="flex flex-col sm:flex-row gap-3">
                                           <div className="flex items-center gap-2 flex-1">
@@ -1906,6 +1909,77 @@ export default function TaskModal({
                   </div>
                 </form>
               </motion.div>
+
+              {/* Modal de Confirmación de Eliminación de Tarea */}
+              {showConfirmDeleteTask && editingTask && (
+                <div 
+                  className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[80] flex items-center justify-center p-4"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isDeletingTask) setShowConfirmDeleteTask(false);
+                  }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 text-center"
+                  >
+                    <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 shadow-sm">
+                      <Trash size={28} />
+                    </div>
+                    <h3 className="text-lg font-black text-gray-900 mb-2">
+                      ¿Eliminar esta tarea?
+                    </h3>
+                    <p className="text-xs text-gray-500 mb-2 leading-relaxed font-medium">
+                      Estás a punto de eliminar la tarea:
+                    </p>
+                    <p className="text-xs font-bold text-gray-800 bg-gray-50 py-2 px-3 rounded-xl border border-gray-100 mb-6 truncate">
+                      {editingTask.title}
+                    </p>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        disabled={isDeletingTask}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setIsDeletingTask(true);
+                          try {
+                            if (handleDeleteTask) {
+                              await handleDeleteTask(editingTask.id);
+                            }
+                            setShowConfirmDeleteTask(false);
+                            if (setEditingTask) setEditingTask(null);
+                            if (onClose) onClose();
+                          } catch (err) {
+                            console.error('Error al eliminar tarea:', err);
+                          } finally {
+                            setIsDeletingTask(false);
+                          }
+                        }}
+                        className="w-full py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-red-700 transition-all shadow-md shadow-red-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        <Trash size={16} />
+                        <span>{isDeletingTask ? 'Eliminando...' : 'Sí, eliminar tarea'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isDeletingTask}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowConfirmDeleteTask(false);
+                        }}
+                        className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-700 transition-all disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
             </motion.div>
   );
 }

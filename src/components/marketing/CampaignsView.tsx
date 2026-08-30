@@ -236,9 +236,12 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
     if (!selectedCampaign) return;
     const campProjectId = await ensureCampaignProject(selectedCampaign);
     const mktProc = processes.find(p => p.id === selectedCampaign.processId) || processes.find(p => p.id === 'proc-mkt') || processes[0];
+    const campCode = selectedCampaign.code || selectedCampaign.name || 'CMP';
+    const initialTaskTitle = `${campCode}_`;
 
     if (onOpenCreateTaskModal) {
       onOpenCreateTaskModal({
+        title: initialTaskTitle,
         projectId: campProjectId,
         processId: mktProc?.id || 'proc-mkt',
         dueDate: selectedCampaign.endDate || new Date().toISOString().split('T')[0],
@@ -247,6 +250,14 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
         acceptanceCriteria: `Revisión y aprobación por el líder de la campaña ${selectedCampaign.code}`
       });
     } else {
+      setTaskForm({
+        title: initialTaskTitle,
+        description: '',
+        memberId: selectedCampaign.leaderMemberId || currentMember?.id || '',
+        category: 'diseno',
+        priority: 'media',
+        dueDate: selectedCampaign.endDate || new Date().toISOString().split('T')[0]
+      });
       setIsTaskModalOpen(true);
     }
   };
@@ -258,10 +269,11 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
     const mktProc = processes.find(p => p.id === selectedCampaign.processId) || processes.find(p => p.id === 'proc-mkt') || processes[0];
     const targetDueDate = selectedCampaign.endDate || new Date().toISOString().split('T')[0];
     const targetMemberId = selectedCampaign.leaderMemberId || currentMember?.id || '';
+    const campCode = selectedCampaign.code || selectedCampaign.name || 'CMP';
 
     if (presetType === 'diseno') {
       await onAddTaskForCampaign({
-        title: `🎨 Diseño de artes para anuncios - ${selectedCampaign.name}`,
+        title: `${campCode}_🎨 Diseño de artes para anuncios - ${selectedCampaign.name}`,
         description: `Diseñar formatos clave (Feed 1:1, Historias 9:16 y Carrusel) para la campaña ${selectedCampaign.code}. Incluir identidad visual de Novagreen y llamadas a la acción claras.`,
         status: 'todo',
         priority: 'alta',
@@ -285,7 +297,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
       });
     } else if (presetType === 'copy') {
       await onAddTaskForCampaign({
-        title: `✍️ Redacción de copys y guiones - ${selectedCampaign.name}`,
+        title: `${campCode}_✍️ Redacción de copys y guiones - ${selectedCampaign.name}`,
         description: `Redactar textos persuasivos para pauta digital, variaciones de titulares para A/B testing y guión para reels/videos explicativos.`,
         status: 'todo',
         priority: 'media',
@@ -300,7 +312,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
       });
     } else if (presetType === 'audiovisual') {
       await onAddTaskForCampaign({
-        title: `🎬 Grabación y edición de reels/videos - ${selectedCampaign.name}`,
+        title: `${campCode}_🎬 Grabación y edición de reels/videos - ${selectedCampaign.name}`,
         description: `Grabación de tomas y edición dinámica en formato vertical (9:16) con subtítulos y música para la campaña ${selectedCampaign.code}.`,
         status: 'todo',
         priority: 'alta',
@@ -326,7 +338,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
       });
     } else if (presetType === 'pauta') {
       await onAddTaskForCampaign({
-        title: `📱 Montaje y segmentación de anuncios en Ads Manager - ${selectedCampaign.name}`,
+        title: `${campCode}_📱 Montaje y segmentación de anuncios en Ads Manager - ${selectedCampaign.name}`,
         description: `Configuración de públicos personalizados, segmentación geográfica en ${selectedCampaign.city || 'Ecuador'}, eventos de conversión de píxel y presupuesto diario.`,
         status: 'todo',
         priority: 'alta',
@@ -341,7 +353,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
       });
     } else if (presetType === 'metricas') {
       await onAddTaskForCampaign({
-        title: `📊 Monitoreo de KPIs y optimización de CPL - ${selectedCampaign.name}`,
+        title: `${campCode}_📊 Monitoreo de KPIs y optimización de CPL - ${selectedCampaign.name}`,
         description: `Revisión periódica de tasa de clics (CTR), costo por lead (CPL) y ajuste de presupuestos hacia los creativos más rentables.`,
         status: 'todo',
         priority: 'media',
@@ -372,9 +384,16 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
 
     const campProjectId = await ensureCampaignProject(selectedCampaign);
     const mktProc = processes.find(p => p.id === selectedCampaign.processId) || processes[0];
+    const campCode = selectedCampaign.code || selectedCampaign.name || 'CMP';
+    
+    // Ensure the title starts with the campaign code and underscore if not already present
+    let finalTitle = taskForm.title.trim();
+    if (!finalTitle.startsWith(`${campCode}_`) && !finalTitle.startsWith(`${campCode} `)) {
+      finalTitle = `${campCode}_${finalTitle}`;
+    }
 
     await onAddTaskForCampaign({
-      title: taskForm.title,
+      title: finalTitle,
       description: taskForm.description,
       status: 'todo',
       priority: taskForm.priority,
@@ -531,7 +550,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                 {/* Channels Tags */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {(camp.channels || []).slice(0, 3).map((ch, idx) => (
-                    <span key={idx} className="text-[9px] font-bold bg-slate-50 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">
+                    <span key={`${camp.id}_ch_${ch}_${idx}`} className="text-[9px] font-bold bg-slate-50 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">
                       {ch}
                     </span>
                   ))}

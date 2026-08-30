@@ -9,6 +9,9 @@ import {
   FileText, 
   ChevronDown, 
   ChevronRight,
+  ChevronUp,
+  ArrowLeft,
+  ArrowRight,
   X,
   Share2,
   Users,
@@ -33,7 +36,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Lightbulb,
-  Info
+  Info,
+  Edit3,
+  CheckCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -63,6 +68,12 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
   const [ownershipFilter, setOwnershipFilter] = useState<'all' | 'mine' | 'supervised' | 'shared' | 'company'>('all');
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
+
+  // Category Edit / Rename State inside modal
+  const [renameCategoryInput, setRenameCategoryInput] = useState<string>('');
+  const [isRenamingCategory, setIsRenamingCategory] = useState<boolean>(false);
+  const [renameCategorySuccess, setRenameCategorySuccess] = useState<boolean>(false);
 
   // Active Note in Editor Modal / View
   const [activeNote, setActiveNote] = useState<PersonalNote | null>(null);
@@ -149,6 +160,22 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     return () => unsub();
   }, [propMembers]);
 
+  // Load category order preferences
+  useEffect(() => {
+    if (!memberId) return;
+
+    const prefDocRef = doc(db, 'user_personal_notes_prefs', memberId);
+    const unsubPref = onSnapshot(prefDocRef, (snap) => {
+      if (snap.exists() && Array.isArray(snap.data()?.categoryOrder)) {
+        setCategoryOrder(snap.data()?.categoryOrder);
+      }
+    }, (err) => {
+      console.warn('Prefs listener warning in notes:', err);
+    });
+
+    return () => unsubPref();
+  }, [memberId]);
+
   // Realtime subscription for all accessible notes
   useEffect(() => {
     if (!memberId) {
@@ -177,10 +204,15 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
           return false;
         });
 
-        // Sort: Pinned first, then order or update date
+        // Sort: Pinned first, then order asc if available, then fallback to update date desc
         accessible.sort((a, b) => {
           if (a.pinned && !b.pinned) return -1;
           if (!a.pinned && b.pinned) return 1;
+          if (typeof a.order === 'number' && typeof b.order === 'number') {
+            return a.order - b.order;
+          }
+          if (typeof a.order === 'number') return -1;
+          if (typeof b.order === 'number') return 1;
           const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
           const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
           return dateB - dateA;
@@ -198,7 +230,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     return () => unsub();
   }, [memberId, isGlobalNotesAdmin, supervisedMemberIds]);
 
-  // All distinct categories
+  // All distinct categories sorted by user preference
   const categoriesList = useMemo(() => {
     const set = new Set<string>();
     notes.forEach((n) => {
@@ -209,8 +241,24 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     if (!set.has('General')) {
       set.add('General');
     }
-    return Array.from(set).sort();
-  }, [notes]);
+
+    categoryOrder.forEach((c) => {
+      if (c && c.trim()) set.add(c.trim());
+    });
+
+    const allCats = Array.from(set);
+
+    allCats.sort((a, b) => {
+      const idxA = categoryOrder.indexOf(a);
+      const idxB = categoryOrder.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
+    return allCats;
+  }, [notes, categoryOrder]);
 
   // All distinct tags across accessible notes
   const allTagsList = useMemo(() => {
@@ -477,6 +525,8 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     if (e) e.stopPropagation();
     setShareTargetType('category');
     setSharingCategoryName(catName);
+    setRenameCategoryInput(catName);
+    setRenameCategorySuccess(false);
     setSharingNote(null);
     setSelectedShareMemberId('');
     setSelectedShareRole('viewer');
@@ -486,7 +536,117 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     setShareTargetType(null);
     setSharingNote(null);
     setSharingCategoryName(null);
+    setRenameCategoryInput('');
+    setRenameCategorySuccess(false);
     setSelectedShareMemberId('');
+  };
+
+  const handleRenameCategory = async () => {
+    if (!sharingCategoryName || !renameCategoryInput.trim()) return;
+    const newName = renameCategoryInput.trim();
+    if (newName.toLowerCase() === sharingCategoryName.toLowerCase()) return;
+
+    setIsRenamingCategory(true);
+    setRenameCategorySuccess(false);
+    try {
+      const catNotes = notes.filter(n => (n.category || 'General').toLowerCase() === sharingCategoryName.toLowerCase());
+      const updatePromises = catNotes.map(async (note) => {
+        const canManage = !note.createdByMemberId || note.createdByMemberId === memberId || isGlobalNotesAdmin;
+        if (!canManage) return;
+
+        return setDoc(doc(db, 'user_personal_notes', note.id), {
+          category: newName,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      });
+
+      await Promise.all(updatePromises);
+
+      // Also update categoryOrder if present
+      if (categoryOrder.length > 0 && categoryOrder.includes(sharingCategoryName)) {
+        const newOrder = categoryOrder.map(c => c === sharingCategoryName ? newName : c);
+        setCategoryOrder(newOrder);
+        try {
+          await setDoc(doc(db, 'user_personal_notes_prefs', memberId), {
+            categoryOrder: newOrder,
+            updatedAt: new Date().toISOString(),
+          }, { merge: true });
+        } catch (orderErr) {
+          console.error('Error updating category order:', orderErr);
+        }
+      }
+
+      setSharingCategoryName(newName);
+      setRenameCategorySuccess(true);
+      setTimeout(() => setRenameCategorySuccess(false), 3000);
+    } catch (err) {
+      console.error('Error renaming category:', err);
+    } finally {
+      setIsRenamingCategory(false);
+    }
+  };
+
+  // Handler: Move Category Up or Down
+  const handleMoveCategory = async (catName: string, direction: 'up' | 'down', e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const visibleCategories = categoriesList.filter(
+      (cat) => (groupedNotes[cat] || []).length > 0 && (selectedCategoryFilter === 'all' || selectedCategoryFilter === cat)
+    );
+    const currentIndex = visibleCategories.indexOf(catName);
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= visibleCategories.length) return;
+
+    const newVisible = [...visibleCategories];
+    const temp = newVisible[currentIndex];
+    newVisible[currentIndex] = newVisible[targetIndex];
+    newVisible[targetIndex] = temp;
+
+    const finalOrder = [...newVisible];
+    categoriesList.forEach((c) => {
+      if (!finalOrder.includes(c)) finalOrder.push(c);
+    });
+
+    setCategoryOrder(finalOrder);
+
+    try {
+      await setDoc(doc(db, 'user_personal_notes_prefs', memberId), {
+        categoryOrder: finalOrder,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (err) {
+      console.error('Error saving note category order:', err);
+    }
+  };
+
+  // Handler: Move Note Card Left or Right inside its Category
+  const handleMoveNoteCard = async (catNotes: PersonalNote[], note: PersonalNote, direction: 'left' | 'right', e: React.MouseEvent) => {
+    e.stopPropagation();
+    const currentIndex = catNotes.findIndex((n) => n.id === note.id);
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= catNotes.length) return;
+
+    const reordered = [...catNotes];
+    const temp = reordered[currentIndex];
+    reordered[currentIndex] = reordered[targetIndex];
+    reordered[targetIndex] = temp;
+
+    try {
+      const updatePromises = reordered.map((item, idx) => {
+        return setDoc(doc(db, 'user_personal_notes', item.id), {
+          order: idx,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
+      });
+
+      await Promise.all(updatePromises);
+    } catch (err) {
+      console.error('Error saving note card order:', err);
+    }
   };
 
   const handleShareNoteMember = async () => {
@@ -903,23 +1063,41 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
         </div>
       ) : (
         <div className="space-y-6">
-          {categoriesList
-            .filter(cat => selectedCategoryFilter === 'all' || selectedCategoryFilter === cat)
-            .map(cat => {
+          {(() => {
+            const visibleCategories = categoriesList.filter(
+              (cat) => (groupedNotes[cat] || []).length > 0 && (selectedCategoryFilter === 'all' || selectedCategoryFilter === cat)
+            );
+
+            return visibleCategories.map((cat, catIndex) => {
               const catNotes = groupedNotes[cat] || [];
-              if (catNotes.length === 0) return null;
-              const isCollapsed = !!collapsedCategories[cat];
+              const isCollapsed = collapsedCategories[cat] === undefined ? true : !!collapsedCategories[cat];
               const isSharedCat = catNotes.some(n => (n.sharedWith && n.sharedWith.length > 0) || n.isCompanyPublic);
+              const isFirstCat = catIndex === 0;
+              const isLastCat = catIndex === visibleCategories.length - 1;
 
               return (
                 <div key={cat} className="space-y-2.5">
-                  {/* Category Header with Folder Sharing and Add button */}
+                  {/* Category Header with Folder Sharing, Edit, Reorder and Add button */}
                   <div className="flex items-center justify-between px-1">
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setCollapsedCategories(prev => ({ ...prev, [cat]: !prev[cat] }))}
-                        className="flex items-center gap-2 text-left group"
+                      <div
+                        onClick={() => setCollapsedCategories(prev => {
+                          const currentVal = prev[cat] === undefined ? true : prev[cat];
+                          return { ...prev, [cat]: !currentVal };
+                        })}
+                        className="flex items-center gap-1.5 cursor-pointer select-none group"
                       >
+                        <button
+                          type="button"
+                          className="p-1 hover:bg-slate-100 rounded-md text-slate-400 group-hover:text-slate-600 transition-colors"
+                          title={collapsedCategories[cat] === false ? 'Colapsar carpeta' : 'Desplegar carpeta'}
+                        >
+                          {collapsedCategories[cat] === false ? (
+                            <ChevronDown size={15} />
+                          ) : (
+                            <ChevronRight size={15} />
+                          )}
+                        </button>
                         <div className="p-1 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-100 transition-colors">
                           <Folder size={14} />
                         </div>
@@ -927,18 +1105,13 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                           <span>{cat}</span>
                           <span className="text-[11px] font-bold text-slate-400 font-mono">({catNotes.length})</span>
                         </h3>
-                        {isCollapsed ? (
-                          <ChevronRight size={14} className="text-slate-400" />
-                        ) : (
-                          <ChevronDown size={14} className="text-slate-400" />
-                        )}
-                      </button>
+                      </div>
 
                       {/* Folder Share Action in Section Header */}
                       <button
                         type="button"
                         onClick={(e) => handleOpenShareCategory(cat, e)}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                           isSharedCat
                             ? 'bg-purple-50 text-purple-700 border border-purple-200/80 hover:bg-purple-100'
                             : 'bg-slate-100 hover:bg-purple-50 text-slate-500 hover:text-purple-700'
@@ -947,6 +1120,39 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                       >
                         <Share2 size={11} />
                         <span>Compartir Carpeta</span>
+                      </button>
+
+                      {/* Folder Edit Action in Section Header */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleOpenShareCategory(cat, e)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-700 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                        title={`Editar nombre y permisos de la carpeta "${cat}"`}
+                      >
+                        <Edit3 size={11} />
+                        <span>Editar</span>
+                      </button>
+
+                      <div className="h-3.5 w-px bg-slate-200 mx-0.5" />
+
+                      {/* Category Up / Down Order Buttons */}
+                      <button
+                        type="button"
+                        title="Subir posición de carpeta"
+                        disabled={isFirstCat}
+                        onClick={(e) => handleMoveCategory(cat, 'up', e)}
+                        className="p-0.5 text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                      >
+                        <ChevronUp size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Bajar posición de carpeta"
+                        disabled={isLastCat}
+                        onClick={(e) => handleMoveCategory(cat, 'down', e)}
+                        className="p-0.5 text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                      >
+                        <ChevronDown size={13} />
                       </button>
                     </div>
 
@@ -962,10 +1168,12 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                   {/* ULTRA COMPACT NOTES GRID (30% less width, 50% less height, title & actions inline) */}
                   {!isCollapsed && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
-                      {catNotes.map(note => {
+                      {catNotes.map((note, noteIndex) => {
                         const isMine = !note.createdByMemberId || note.createdByMemberId === memberId;
                         const role = getUserNoteRole(note);
                         const canEdit = role === 'owner' || role === 'editor';
+                        const isFirstCard = noteIndex === 0;
+                        const isLastCard = noteIndex === catNotes.length - 1;
                         
                         // Preview first lines of markdown
                         const previewContent = note.content
@@ -995,6 +1203,28 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
 
                                 {/* Quick action buttons inline with title */}
                                 <div className="flex items-center gap-0.5 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                  {/* Move Left / Right Buttons */}
+                                  <button
+                                    type="button"
+                                    title="Mover a la izquierda"
+                                    disabled={isFirstCard}
+                                    onClick={(e) => handleMoveNoteCard(catNotes, note, 'left', e)}
+                                    className="p-0.5 text-slate-400 hover:text-slate-800 rounded transition-colors disabled:opacity-20 disabled:hover:bg-transparent"
+                                  >
+                                    <ArrowLeft size={11} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Mover a la derecha"
+                                    disabled={isLastCard}
+                                    onClick={(e) => handleMoveNoteCard(catNotes, note, 'right', e)}
+                                    className="p-0.5 text-slate-400 hover:text-slate-800 rounded transition-colors disabled:opacity-20 disabled:hover:bg-transparent"
+                                  >
+                                    <ArrowRight size={11} />
+                                  </button>
+
+                                  <div className="h-3 w-px bg-slate-200 mx-0.5" />
+
                                   <button
                                     type="button"
                                     title={note.pinned ? "Desfijar nota" : "Fijar nota"}
@@ -1115,7 +1345,8 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                   )}
                 </div>
               );
-            })}
+            });
+          })()}
         </div>
       )}
 
@@ -1607,28 +1838,64 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
-                    <Share2 size={18} />
+                    {shareTargetType === 'category' ? <Folder size={18} /> : <Share2 size={18} />}
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-slate-900">
                       {shareTargetType === 'category' 
-                        ? `Compartir Toda la Carpeta "${sharingCategoryName}"` 
+                        ? `Gestionar y Compartir Carpeta "${sharingCategoryName}"` 
                         : 'Compartir Nota'}
                     </h4>
                     <p className="text-xs text-slate-400 font-medium truncate max-w-xs">
                       {shareTargetType === 'category'
-                        ? 'Los permisos se aplicarán a todas las notas de este grupo y a las nuevas que se creen.'
+                        ? 'Edita el nombre de la carpeta y configura los permisos para tu equipo.'
                         : (sharingNote?.title || 'Sin Título')}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleCloseShareModal}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
                 >
                   <X size={18} />
                 </button>
               </div>
+
+              {/* Rename Category Section */}
+              {shareTargetType === 'category' && (
+                <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-2">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-slate-600 block">
+                    Nombre de la Carpeta:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={renameCategoryInput}
+                      onChange={(e) => setRenameCategoryInput(e.target.value)}
+                      placeholder="Ej: Finanzas, Estrategia, Clientes..."
+                      className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                    <button
+                      type="button"
+                      disabled={isRenamingCategory || !renameCategoryInput.trim() || renameCategoryInput.trim().toLowerCase() === (sharingCategoryName || '').toLowerCase()}
+                      onClick={handleRenameCategory}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {renameCategorySuccess ? (
+                        <>
+                          <CheckCheck size={14} className="text-emerald-400" />
+                          <span>¡Guardado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save size={13} />
+                          <span>{isRenamingCategory ? 'Guardando...' : 'Guardar Nombre'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Company-Wide Public Toggle for Category */}
               {shareTargetType === 'category' && (

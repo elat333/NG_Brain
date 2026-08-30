@@ -19,7 +19,9 @@ import {
   Link2,
   Share2,
   Users,
-  Eye
+  Eye,
+  Save,
+  CheckCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -76,6 +78,11 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
   const [selectedShareMemberId, setSelectedShareMemberId] = useState<string>('');
   const [selectedShareRole, setSelectedShareRole] = useState<'viewer' | 'editor'>('viewer');
   const [shareActionLoading, setShareActionLoading] = useState<boolean>(false);
+
+  // Category Rename / Edit State inside modal
+  const [renameCategoryInput, setRenameCategoryInput] = useState<string>('');
+  const [isRenamingCategory, setIsRenamingCategory] = useState<boolean>(false);
+  const [renameCategorySuccess, setRenameCategorySuccess] = useState<boolean>(false);
 
   const memberId = currentMember?.id || 'guest_user';
 
@@ -376,10 +383,13 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
   };
 
   const toggleCategoryCollapse = (cat: string) => {
-    setCollapsedCategories((prev) => ({
-      ...prev,
-      [cat]: !prev[cat],
-    }));
+    setCollapsedCategories((prev) => {
+      const currentVal = prev[cat] === undefined ? true : prev[cat];
+      return {
+        ...prev,
+        [cat]: !currentVal,
+      };
+    });
   };
 
   const handleCopyUrl = (id: string, linkUrl: string) => {
@@ -506,6 +516,8 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
   const handleOpenShareCategory = (catName: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSharingCategory(catName);
+    setRenameCategoryInput(catName);
+    setRenameCategorySuccess(false);
     setSharingLink(null);
     setShareTargetType('category');
     setSelectedShareMemberId('');
@@ -516,7 +528,57 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
     setShareTargetType(null);
     setSharingLink(null);
     setSharingCategory(null);
+    setRenameCategoryInput('');
+    setRenameCategorySuccess(false);
     setSelectedShareMemberId('');
+  };
+
+  const handleRenameCategory = async () => {
+    if (!sharingCategory || !renameCategoryInput.trim()) return;
+    const newName = renameCategoryInput.trim();
+    if (newName.toLowerCase() === sharingCategory.toLowerCase()) return;
+
+    setIsRenamingCategory(true);
+    setRenameCategorySuccess(false);
+    try {
+      const targetLinks = links.filter(
+        (l) => (l.category || 'General').toLowerCase() === sharingCategory.toLowerCase()
+      );
+
+      const updatePromises = targetLinks.map((link) => {
+        const canManage = !link.createdByMemberId || link.createdByMemberId === memberId || isGlobalLinkAdmin;
+        if (!canManage) return;
+
+        return setDoc(doc(db, 'user_personal_links', link.id), {
+          category: newName,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
+      });
+
+      await Promise.all(updatePromises);
+
+      // Also update categoryOrder if present
+      if (categoryOrder.length > 0 && categoryOrder.includes(sharingCategory)) {
+        const newOrder = categoryOrder.map(c => c === sharingCategory ? newName : c);
+        setCategoryOrder(newOrder);
+        try {
+          await setDoc(doc(db, 'user_link_preferences', memberId), {
+            categoryOrder: newOrder,
+            updatedAt: new Date().toISOString(),
+          }, { merge: true });
+        } catch (orderErr) {
+          console.error('Error updating category order:', orderErr);
+        }
+      }
+
+      setSharingCategory(newName);
+      setRenameCategorySuccess(true);
+      setTimeout(() => setRenameCategorySuccess(false), 3000);
+    } catch (err) {
+      console.error('Error renaming category:', err);
+    } finally {
+      setIsRenamingCategory(false);
+    }
   };
 
   // Add / Update share for individual link
@@ -816,7 +878,7 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
       ) : (
         <div className="space-y-3">
           {filteredAndGroupedLinks.map(([catName, catLinks], catIndex) => {
-            const isCollapsed = !!collapsedCategories[catName];
+            const isCollapsed = collapsedCategories[catName] === undefined ? true : !!collapsedCategories[catName];
             const isFirstCat = catIndex === 0;
             const isLastCat = catIndex === filteredAndGroupedLinks.length - 1;
 
@@ -845,7 +907,7 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                     </span>
                   </div>
 
-                  {/* Actions on Category: Share Category + Up / Down Order Buttons */}
+                  {/* Actions on Category: Share Category + Edit Category + Up / Down Order Buttons */}
                   <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                     {/* Share category button */}
                     <button
@@ -856,6 +918,17 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                     >
                       <Share2 size={11} className="text-emerald-600" />
                       <span className="hidden sm:inline">Compartir Grupo</span>
+                    </button>
+
+                    {/* Edit category button */}
+                    <button
+                      type="button"
+                      title="Editar nombre y permisos del grupo"
+                      onClick={(e) => handleOpenShareCategory(catName, e)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-200 rounded-lg text-[10px] font-bold transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Edit3 size={11} className="text-slate-600" />
+                      <span className="hidden sm:inline">Editar</span>
                     </button>
 
                     <div className="h-3.5 w-px bg-slate-200 mx-0.5" />
@@ -1051,23 +1124,59 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                   <div>
                     <h3 className="text-sm md:text-base font-black text-slate-900">
                       {shareTargetType === 'category'
-                        ? `Compartir Categoría "${sharingCategory}"`
+                        ? `Gestionar y Compartir Grupo "${sharingCategory}"`
                         : `Compartir Enlace`}
                     </h3>
                     <p className="text-[11px] text-slate-500 font-medium truncate max-w-[260px]">
                       {shareTargetType === 'category'
-                        ? 'Otorga acceso a todos los enlaces de esta sección'
+                        ? 'Edita el nombre del grupo y configura permisos para tu equipo'
                         : sharingLink?.title}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleCloseShareModal}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   <X size={16} />
                 </button>
               </div>
+
+              {/* Rename Category Section */}
+              {shareTargetType === 'category' && (
+                <div className="bg-slate-50/90 p-3.5 rounded-2xl border border-slate-200/80 space-y-2">
+                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-600">
+                    Nombre del Grupo / Categoría
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={renameCategoryInput}
+                      onChange={(e) => setRenameCategoryInput(e.target.value)}
+                      placeholder="Ej: Repositorios, Campañas, Manuales..."
+                      className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                    <button
+                      type="button"
+                      disabled={isRenamingCategory || !renameCategoryInput.trim() || renameCategoryInput.trim().toLowerCase() === (sharingCategory || '').toLowerCase()}
+                      onClick={handleRenameCategory}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {renameCategorySuccess ? (
+                        <>
+                          <CheckCheck size={14} className="text-emerald-400" />
+                          <span>¡Guardado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save size={13} />
+                          <span>{isRenamingCategory ? 'Guardando...' : 'Guardar Nombre'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Add member form */}
               <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80 space-y-2.5">
