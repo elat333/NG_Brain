@@ -88,13 +88,15 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
     description: string;
     memberId: string;
     category: string;
+    taskTemplate: 'standard' | 'design_post' | 'design_carousel' | 'design_video';
     priority: 'baja' | 'media' | 'alta' | 'meteoric_crash';
     dueDate: string;
   }>({
     title: '',
     description: '',
     memberId: '',
-    category: 'diseno',
+    category: 'diseno_post',
+    taskTemplate: 'design_post',
     priority: 'media',
     dueDate: new Date().toISOString().split('T')[0]
   });
@@ -162,7 +164,8 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
 
   const handleOpenEdit = (camp: MarketingCampaign) => {
     setEditingCampaign({ ...camp });
-    setCreateLinkedProject(false);
+    // Si la campana ya tiene proyecto vinculado, se muestra el checklist seleccionado
+    setCreateLinkedProject(!!camp.projectId);
     setIsEditingModalOpen(true);
   };
 
@@ -262,7 +265,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
     }
   };
 
-  const handleQuickAddPresetTask = async (presetType: 'diseno' | 'copy' | 'audiovisual' | 'pauta' | 'metricas') => {
+  const handleQuickAddPresetTask = async (presetType: 'post_estatico' | 'carrusel' | 'video' | 'copy' | 'pauta' | 'metricas') => {
     if (!selectedCampaign) return;
 
     const campProjectId = await ensureCampaignProject(selectedCampaign);
@@ -271,20 +274,20 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
     const targetMemberId = selectedCampaign.leaderMemberId || currentMember?.id || '';
     const campCode = selectedCampaign.code || selectedCampaign.name || 'CMP';
 
-    if (presetType === 'diseno') {
+    if (presetType === 'post_estatico') {
       await onAddTaskForCampaign({
-        title: `${campCode}_🎨 Diseño de artes para anuncios - ${selectedCampaign.name}`,
-        description: `Diseñar formatos clave (Feed 1:1, Historias 9:16 y Carrusel) para la campaña ${selectedCampaign.code}. Incluir identidad visual de Novagreen y llamadas a la acción claras.`,
-        status: 'todo',
+        title: `${campCode}_🖼️ Post Estático - ${selectedCampaign.name}`,
+        description: `Diseñar arte de post estático (Feed 1:1 e Stories 9:16) para la campaña ${selectedCampaign.code}. Incluir elementos visuales de marca, llamada a la acción y titulares optimizados.`,
+        status: 'backlog',
         priority: 'alta',
         projectId: campProjectId,
         processId: mktProc?.id || 'proc-mkt',
         dueDate: targetDueDate,
         memberId: targetMemberId,
-        storyDescription: `Como diseñador, crear los artes gráficos para la campaña ${selectedCampaign.code}.`,
-        acceptanceCriteria: 'Artes aprobados en formato Feed 1:1 y Stories 9:16 con línea gráfica oficial de Novagreen.',
+        storyDescription: `Como diseñador, crear el diseño de post estático para la campaña ${selectedCampaign.code}.`,
+        acceptanceCriteria: 'Post estático aprobado en formatos oficiales con línea gráfica de Novagreen.',
         taskTemplate: 'design_post',
-        plannedHours: 4,
+        plannedHours: 3,
         designData: {
           campaign: selectedCampaign.name,
           formats: 'Feed 1:1, Stories 9:16',
@@ -295,26 +298,37 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
           references: []
         }
       });
-    } else if (presetType === 'copy') {
+    } else if (presetType === 'carrusel') {
       await onAddTaskForCampaign({
-        title: `${campCode}_✍️ Redacción de copys y guiones - ${selectedCampaign.name}`,
-        description: `Redactar textos persuasivos para pauta digital, variaciones de titulares para A/B testing y guión para reels/videos explicativos.`,
-        status: 'todo',
-        priority: 'media',
+        title: `${campCode}_📑 Carrusel Informativo - ${selectedCampaign.name}`,
+        description: `Diseñar secuencia gráfica de carrusel (múltiples diapositivas/slides) para educar y convertir en la campaña ${selectedCampaign.code}.`,
+        status: 'backlog',
+        priority: 'alta',
         projectId: campProjectId,
         processId: mktProc?.id || 'proc-mkt',
         dueDate: targetDueDate,
         memberId: targetMemberId,
-        storyDescription: `Como copywriter, redactar los textos persuasivos y llamados a la acción para la campaña ${selectedCampaign.code}.`,
-        acceptanceCriteria: 'Copys aprobados con al menos 3 variaciones de ganchos y llamadas a la acción.',
-        taskTemplate: 'standard',
-        plannedHours: 2
+        storyDescription: `Como diseñador, crear la secuencia visual de carrusel para la campaña ${selectedCampaign.code}.`,
+        acceptanceCriteria: 'Carrusel completo con portada, diapositivas de valor y slide final de CTA aprobados.',
+        taskTemplate: 'design_carousel',
+        plannedHours: 5,
+        designData: {
+          campaign: selectedCampaign.name,
+          formats: 'Carrusel 1:1 / 4:5',
+          elements: [
+            { id: `el-car-1-${Date.now()}`, slideIndex: 1, element: 'Slide 1 (Portada)', content: selectedCampaign.name, visual: 'Hook visual llamativo', observations: 'Generar curiosidad para deslizar' },
+            { id: `el-car-2-${Date.now()}`, slideIndex: 2, element: 'Slide 2 (Problema/Contexto)', content: 'Punto de dolor o necesidad', visual: 'Gráfico explicativo', observations: 'Texto claro y conciso' },
+            { id: `el-car-3-${Date.now()}`, slideIndex: 3, element: 'Slide 3 (Solución Novagreen)', content: 'Propuesta de valor y beneficios', visual: 'Demostración de producto', observations: 'Destacar diferenciales' },
+            { id: `el-car-4-${Date.now()}`, slideIndex: 4, element: 'Slide 4 (Llamada a la Acción)', content: 'Contáctanos / Más información', visual: 'Logo e información de contacto', observations: 'Instrucción directa al usuario' }
+          ],
+          references: []
+        }
       });
-    } else if (presetType === 'audiovisual') {
+    } else if (presetType === 'video') {
       await onAddTaskForCampaign({
-        title: `${campCode}_🎬 Grabación y edición de reels/videos - ${selectedCampaign.name}`,
-        description: `Grabación de tomas y edición dinámica en formato vertical (9:16) con subtítulos y música para la campaña ${selectedCampaign.code}.`,
-        status: 'todo',
+        title: `${campCode}_🎬 Video / Reel Promocional - ${selectedCampaign.name}`,
+        description: `Grabación y edición de video dinámico en formato vertical (9:16) con subtítulos y audio para la campaña ${selectedCampaign.code}.`,
+        status: 'backlog',
         priority: 'alta',
         projectId: campProjectId,
         processId: mktProc?.id || 'proc-mkt',
@@ -336,11 +350,26 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
           references: []
         }
       });
+    } else if (presetType === 'copy') {
+      await onAddTaskForCampaign({
+        title: `${campCode}_✍️ Redacción de copys y guiones - ${selectedCampaign.name}`,
+        description: `Redactar textos persuasivos para pauta digital, variaciones de titulares para A/B testing y guión para reels/videos explicativos.`,
+        status: 'backlog',
+        priority: 'media',
+        projectId: campProjectId,
+        processId: mktProc?.id || 'proc-mkt',
+        dueDate: targetDueDate,
+        memberId: targetMemberId,
+        storyDescription: `Como copywriter, redactar los textos persuasivos y llamados a la acción para la campaña ${selectedCampaign.code}.`,
+        acceptanceCriteria: 'Copys aprobados con al menos 3 variaciones de ganchos y llamadas a la acción.',
+        taskTemplate: 'standard',
+        plannedHours: 2
+      });
     } else if (presetType === 'pauta') {
       await onAddTaskForCampaign({
         title: `${campCode}_📱 Montaje y segmentación de anuncios en Ads Manager - ${selectedCampaign.name}`,
         description: `Configuración de públicos personalizados, segmentación geográfica en ${selectedCampaign.city || 'Ecuador'}, eventos de conversión de píxel y presupuesto diario.`,
-        status: 'todo',
+        status: 'backlog',
         priority: 'alta',
         projectId: campProjectId,
         processId: mktProc?.id || 'proc-mkt',
@@ -355,7 +384,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
       await onAddTaskForCampaign({
         title: `${campCode}_📊 Monitoreo de KPIs y optimización de CPL - ${selectedCampaign.name}`,
         description: `Revisión periódica de tasa de clics (CTR), costo por lead (CPL) y ajuste de presupuestos hacia los creativos más rentables.`,
-        status: 'todo',
+        status: 'backlog',
         priority: 'media',
         projectId: campProjectId,
         processId: mktProc?.id || 'proc-mkt',
@@ -371,9 +400,10 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
 
   const handleGenerateFullTaskPackage = async () => {
     if (!selectedCampaign) return;
-    await handleQuickAddPresetTask('diseno');
+    await handleQuickAddPresetTask('post_estatico');
+    await handleQuickAddPresetTask('carrusel');
+    await handleQuickAddPresetTask('video');
     await handleQuickAddPresetTask('copy');
-    await handleQuickAddPresetTask('audiovisual');
     await handleQuickAddPresetTask('pauta');
     await handleQuickAddPresetTask('metricas');
   };
@@ -392,16 +422,53 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
       finalTitle = `${campCode}_${finalTitle}`;
     }
 
+    const template = taskForm.taskTemplate || (
+      taskForm.category === 'carrusel' ? 'design_carousel' :
+      taskForm.category === 'video' ? 'design_video' :
+      taskForm.category === 'diseno_post' ? 'design_post' : 'standard'
+    );
+
+    const initialDesignData = template === 'design_post' ? {
+      campaign: selectedCampaign.name,
+      formats: 'Feed 1:1, Stories 9:16',
+      elements: [
+        { id: `el-1-${Date.now()}`, element: 'Imagen Principal', content: 'Creativo visual de alto impacto', visual: 'Fotografía/Render de alta calidad', observations: 'Cumplir guía de estilo de marca' },
+        { id: `el-2-${Date.now()}`, element: 'Titular / Hook', content: selectedCampaign.name, visual: 'Tipografía destacada', observations: 'Llamado a la acción claro' }
+      ],
+      references: []
+    } : template === 'design_carousel' ? {
+      campaign: selectedCampaign.name,
+      formats: 'Carrusel 1:1 / 4:5',
+      elements: [
+        { id: `el-car-1-${Date.now()}`, slideIndex: 1, element: 'Slide 1 (Portada)', content: selectedCampaign.name, visual: 'Hook visual', observations: 'Portada' },
+        { id: `el-car-2-${Date.now()}`, slideIndex: 2, element: 'Slide 2 (Contenido)', content: 'Detalle de valor', visual: 'Gráfico', observations: 'Contenido' },
+        { id: `el-car-3-${Date.now()}`, slideIndex: 3, element: 'Slide 3 (CTA)', content: 'Llamada a la acción', visual: 'Logo y contacto', observations: 'Cierre' }
+      ],
+      references: []
+    } : template === 'design_video' ? {
+      campaign: selectedCampaign.name,
+      formats: 'Vertical 9:16',
+      elements: [],
+      videoScenes: [
+        { id: `vs-1-${Date.now()}`, time: '0:00 - 0:03', stage: 'Gancho / Hook', visual: 'Toma llamativa', onScreenText: selectedCampaign.name, voiceOver: '', observations: '' },
+        { id: `vs-2-${Date.now()}`, time: '0:03 - 0:10', stage: 'Desarrollo', visual: 'Demostración', onScreenText: 'Conoce Novagreen', voiceOver: '', observations: '' },
+        { id: `vs-3-${Date.now()}`, time: '0:10 - 0:15', stage: 'CTA', visual: 'Logo final', onScreenText: '¡Contáctanos!', voiceOver: '', observations: '' }
+      ],
+      references: []
+    } : undefined;
+
     await onAddTaskForCampaign({
       title: finalTitle,
       description: taskForm.description,
-      status: 'todo',
+      status: 'backlog',
       priority: taskForm.priority,
       projectId: campProjectId,
       processId: mktProc?.id || 'proc-mkt',
       dueDate: taskForm.dueDate,
       memberId: taskForm.memberId || currentMember?.id,
-      storyDescription: `Tarea desglosada para la campaña ${selectedCampaign.code}`
+      storyDescription: `Tarea desglosada para la campaña ${selectedCampaign.code}`,
+      taskTemplate: template,
+      designData: initialDesignData
     });
 
     setIsTaskModalOpen(false);
@@ -409,7 +476,8 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
       title: '',
       description: '',
       memberId: '',
-      category: 'diseno',
+      category: 'diseno_post',
+      taskTemplate: 'design_post',
       priority: 'media',
       dueDate: new Date().toISOString().split('T')[0]
     });
@@ -756,34 +824,43 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                         + Añadir rápido:
                       </span>
                       <button
-                        onClick={() => handleQuickAddPresetTask('diseno')}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 rounded-lg text-slate-700 font-bold border border-slate-200 shadow-2xs text-[11px]"
+                        onClick={() => handleQuickAddPresetTask('post_estatico')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 rounded-xl text-slate-700 font-bold border border-slate-200 shadow-2xs text-[11px] transition-colors"
+                        title="Crear tarea con plantilla Post Estático en Backlog"
                       >
-                        <Palette size={12} className="text-pink-500" /> Arte / Diseño
+                        <Palette size={13} className="text-pink-500" /> Post Estático
+                      </button>
+                      <button
+                        onClick={() => handleQuickAddPresetTask('carrusel')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 rounded-xl text-slate-700 font-bold border border-slate-200 shadow-2xs text-[11px] transition-colors"
+                        title="Crear tarea con plantilla Diseño Carrusel en Backlog"
+                      >
+                        <Layers size={13} className="text-indigo-500" /> Carrusel
+                      </button>
+                      <button
+                        onClick={() => handleQuickAddPresetTask('video')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 rounded-xl text-slate-700 font-bold border border-slate-200 shadow-2xs text-[11px] transition-colors"
+                        title="Crear tarea con plantilla Diseño Video en Backlog"
+                      >
+                        <Video size={13} className="text-purple-500" /> Video
                       </button>
                       <button
                         onClick={() => handleQuickAddPresetTask('copy')}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 rounded-lg text-slate-700 font-bold border border-slate-200 shadow-2xs text-[11px]"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-100 rounded-xl text-slate-700 font-bold border border-slate-200 shadow-2xs text-[11px] transition-colors"
                       >
-                        <PenTool size={12} className="text-indigo-500" /> Copywriting
-                      </button>
-                      <button
-                        onClick={() => handleQuickAddPresetTask('audiovisual')}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 rounded-lg text-slate-700 font-bold border border-slate-200 shadow-2xs text-[11px]"
-                      >
-                        <Video size={12} className="text-purple-500" /> Video / Reel
+                        <PenTool size={13} className="text-amber-500" /> Copy
                       </button>
                       <button
                         onClick={() => handleQuickAddPresetTask('pauta')}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 rounded-lg text-slate-700 font-bold border border-slate-200 shadow-2xs text-[11px]"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-100 rounded-xl text-slate-700 font-bold border border-slate-200 shadow-2xs text-[11px] transition-colors"
                       >
-                        <Share2 size={12} className="text-blue-500" /> Pauta Digital
+                        <Share2 size={13} className="text-blue-500" /> Pauta
                       </button>
                       <button
                         onClick={() => handleQuickAddPresetTask('metricas')}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 rounded-lg text-slate-700 font-bold border border-slate-200 shadow-2xs text-[11px]"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-100 rounded-xl text-slate-700 font-bold border border-slate-200 shadow-2xs text-[11px] transition-colors"
                       >
-                        <BarChart2 size={12} className="text-emerald-500" /> Métricas
+                        <BarChart2 size={13} className="text-emerald-500" /> Métricas
                       </button>
                     </div>
                   )}
@@ -1161,6 +1238,26 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+                      Plantilla / Formato
+                    </label>
+                    <select
+                      value={taskForm.taskTemplate}
+                      onChange={(e) => setTaskForm(prev => ({ 
+                        ...prev, 
+                        taskTemplate: e.target.value as any,
+                        category: e.target.value 
+                      }))}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
+                    >
+                      <option value="design_post">🖼️ Post Estático</option>
+                      <option value="design_carousel">📑 Carrusel Informativo</option>
+                      <option value="design_video">🎬 Video / Reel</option>
+                      <option value="standard">📝 Tarea Estándar / Copy / Pauta / Métricas</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
                       Responsable
                     </label>
                     <select
@@ -1174,7 +1271,9 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                       ))}
                     </select>
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
                       Prioridad
@@ -1190,18 +1289,18 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                       <option value="meteoric_crash">Meteoric Crash ⚡</option>
                     </select>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
-                    Fecha de Entrega
-                  </label>
-                  <input
-                    type="date"
-                    value={taskForm.dueDate}
-                    onChange={(e) => setTaskForm(prev => ({ ...prev, dueDate: e.target.value }))}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                  />
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
+                      Fecha de Entrega
+                    </label>
+                    <input
+                      type="date"
+                      value={taskForm.dueDate}
+                      onChange={(e) => setTaskForm(prev => ({ ...prev, dueDate: e.target.value }))}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

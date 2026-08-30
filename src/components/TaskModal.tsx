@@ -62,8 +62,6 @@ export default function TaskModal({
   handleDeleteTask
 }: TaskModalProps) {
   const [showTimeInputs, setShowTimeInputs] = useState(false);
-  const [showConfirmDeleteTask, setShowConfirmDeleteTask] = useState(false);
-  const [isDeletingTask, setIsDeletingTask] = useState(false);
   const [slideToDelete, setSlideToDelete] = useState<number | null>(null);
   const [elementToDelete, setElementToDelete] = useState<string | null>(null);
   const [sceneToDelete, setSceneToDelete] = useState<string | null>(null);
@@ -258,7 +256,7 @@ export default function TaskModal({
                             onChange={e => setNewTaskData({...newTaskData, processId: e.target.value})}
                           >
                             <option value="">Seleccionar Proceso...</option>
-                            {processes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            {processes.map((p, pIdx) => <option key={`modal_proc_${p.id || pIdx}_${pIdx}`} value={p.id}>{p.name}</option>)}
                           </select>
                         </div>
                         <div className="space-y-2">
@@ -308,22 +306,22 @@ export default function TaskModal({
                               <>
                                 {sortedMembers.filter(m => m.processId === newTaskData.processId).length > 0 && (
                                   <optgroup label="Miembros del Proceso">
-                                    {sortedMembers.filter(m => m.processId === newTaskData.processId).map(m => (
-                                      <option key={m.id} value={m.id}>{m.name}</option>
+                                    {sortedMembers.filter(m => m.processId === newTaskData.processId).map((m, mIdx) => (
+                                      <option key={`modal_m_proc_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
                                     ))}
                                   </optgroup>
                                 )}
                                 {sortedMembers.filter(m => m.processId !== newTaskData.processId).length > 0 && (
                                   <optgroup label="Otros Miembros del Equipo">
-                                    {sortedMembers.filter(m => m.processId !== newTaskData.processId).map(m => (
-                                      <option key={m.id} value={m.id}>{m.name}</option>
+                                    {sortedMembers.filter(m => m.processId !== newTaskData.processId).map((m, mIdx) => (
+                                      <option key={`modal_m_other_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
                                     ))}
                                   </optgroup>
                                 )}
                               </>
                             ) : (
-                              sortedMembers.map(m => (
-                                <option key={m.id} value={m.id}>{m.name}</option>
+                              sortedMembers.map((m, mIdx) => (
+                                <option key={`modal_m_all_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
                               ))
                             )}
                           </select>
@@ -339,8 +337,8 @@ export default function TaskModal({
                             onChange={e => setNewTaskData({...newTaskData, revisorId: e.target.value})}
                           >
                             <option value="">Sin Asignar (Revisión de Líder/Admin)</option>
-                            {sortedMembers.map(m => (
-                              <option key={m.id} value={m.id}>{m.name}</option>
+                            {sortedMembers.map((m, mIdx) => (
+                              <option key={`modal_rev_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
                             ))}
                           </select>
                         </div>
@@ -373,12 +371,12 @@ export default function TaskModal({
                             {(!newTaskData.auxiliaryIds || newTaskData.auxiliaryIds.length === 0) ? (
                               <span className="text-[10px] text-gray-400 italic px-2 select-none py-1">Sin auxiliares asignados. Usa "+ Agregar".</span>
                             ) : (
-                              newTaskData.auxiliaryIds.map(id => {
+                              newTaskData.auxiliaryIds.map((id, aIdx) => {
                                 const m = sortedMembers.find(member => member.id === id);
                                 if (!m) return null;
                                 return (
                                   <div 
-                                    key={id}
+                                    key={`task_aux_${id}_${aIdx}`}
                                     className="flex items-center gap-1.5 bg-amber-50/70 border border-amber-100 rounded-xl pl-1.5 pr-1 py-1 text-[11px] font-bold text-amber-800 transition-all shadow-sm hover:bg-amber-50"
                                   >
                                     <img 
@@ -441,11 +439,11 @@ export default function TaskModal({
                                 {sortedMembers
                                   .filter(m => !newTaskData.memberId || m.id !== newTaskData.memberId)
                                   .filter(m => !auxSearchQuery || m.name.toLowerCase().includes(auxSearchQuery.toLowerCase()))
-                                  .map(m => {
+                                  .map((m, mIdx) => {
                                     const isSelected = !!newTaskData.auxiliaryIds?.includes(m.id);
                                     return (
                                       <button
-                                        key={m.id}
+                                        key={`aux_add_opt_${m.id || mIdx}_${mIdx}`}
                                         type="button"
                                         onClick={() => {
                                           const currentIds = [...(newTaskData.auxiliaryIds || [])];
@@ -508,8 +506,8 @@ export default function TaskModal({
                             {projects.filter(p => 
                               (!newTaskData.processId || p.processId === newTaskData.processId) &&
                               (p.status !== 'completado' || p.id === newTaskData.projectId)
-                            ).map(p => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ).map((p, pIdx) => (
+                              <option key={`modal_proj_${p.id || pIdx}_${pIdx}`} value={p.id}>{p.name}</option>
                             ))}
                           </select>
                         </div>
@@ -626,8 +624,8 @@ export default function TaskModal({
                                             className="w-full px-2 py-1 bg-gray-50 border border-gray-200 text-[10px] rounded-lg text-gray-600 focus:outline-none"
                                           >
                                             <option value="all">Todos los Proy.</option>
-                                            {projects.map(p => (
-                                              <option key={p.id} value={p.id}>{p.name}</option>
+                                            {projects.map((p, pIdx) => (
+                                              <option key={`blocker_p_${p.id || pIdx}_${pIdx}`} value={p.id}>{p.name}</option>
                                             ))}
                                           </select>
                                           <select
@@ -636,8 +634,8 @@ export default function TaskModal({
                                             className="w-full px-2 py-1 bg-gray-50 border border-gray-200 text-[10px] rounded-lg text-gray-600 focus:outline-none"
                                           >
                                             <option value="all">Todos los Proc.</option>
-                                            {processes.map(p => (
-                                              <option key={p.id} value={p.id}>{p.name}</option>
+                                            {processes.map((p, pIdx) => (
+                                              <option key={`blocker_proc_${p.id || pIdx}_${pIdx}`} value={p.id}>{p.name}</option>
                                             ))}
                                           </select>
                                         </div>
@@ -698,13 +696,13 @@ export default function TaskModal({
                                                 </div>
                                               );
                                             }
-                                            return filteredTasks.map(t => {
+                                            return filteredTasks.map((t, tIdx) => {
                                               const tProj = projects.find(p => p.id === t.projectId)?.name;
                                               const tProc = processes.find(p => p.id === t.processId)?.name;
                                               return (
                                                 <button
                                                   type="button"
-                                                  key={t.id}
+                                                  key={`blocker_cand_${t.id || tIdx}_${tIdx}`}
                                                   onClick={() => {
                                                     setNewTaskData({
                                                       ...newTaskData,
@@ -739,10 +737,10 @@ export default function TaskModal({
                                 </div>
                                 
                                 <div className="flex flex-wrap gap-2">
-                                    {newTaskData.blockedByTaskIds?.map(id => {
+                                    {newTaskData.blockedByTaskIds?.map((id, bIdx) => {
                                       const blockedByTask = tasks.find(t => t.id === id);
                                       return (
-                                        <div key={id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-red-700 rounded-xl text-[10px] font-black border border-red-100 shadow-sm group animate-in fade-in slide-in-from-left-2">
+                                        <div key={`task_blocked_by_${id}_${bIdx}`} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-red-700 rounded-xl text-[10px] font-black border border-red-100 shadow-sm group animate-in fade-in slide-in-from-left-2">
                                           <span className="truncate max-w-[120px]" title={blockedByTask?.title}>{blockedByTask?.title}</span>
                                           <div className="flex items-center gap-0.5 ml-auto">
                                             <button 
@@ -893,13 +891,13 @@ export default function TaskModal({
                                                 </div>
                                               );
                                             }
-                                            return filteredTasks.map(t => {
+                                            return filteredTasks.map((t, tIdx) => {
                                               const tProj = projects.find(p => p.id === t.projectId)?.name;
                                               const tProc = processes.find(p => p.id === t.processId)?.name;
                                               return (
                                                 <button
                                                   type="button"
-                                                  key={t.id}
+                                                  key={`blocks_cand_${t.id || tIdx}_${tIdx}`}
                                                   onClick={() => {
                                                     // Bloquear en estado local
                                                     setTasks?.(prev => prev.map(pt => {
@@ -947,8 +945,8 @@ export default function TaskModal({
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     {tasks.filter(t => t.blockedByTaskIds?.includes(newTaskData.id)).length > 0 ? (
-                                      tasks.filter(t => t.blockedByTaskIds?.includes(newTaskData.id)).map(t => (
-                                        <div key={t.id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-blue-700 rounded-xl text-[10px] font-black border border-blue-100 shadow-sm group animate-in fade-in slide-in-from-left-2">
+                                      tasks.filter(t => t.blockedByTaskIds?.includes(newTaskData.id)).map((t, tIdx) => (
+                                        <div key={`task_blocks_out_${t.id || tIdx}_${tIdx}`} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-blue-700 rounded-xl text-[10px] font-black border border-blue-100 shadow-sm group animate-in fade-in slide-in-from-left-2">
                                           <span className="truncate max-w-[120px]" title={t.title}>{t.title}</span>
                                           <div className="flex items-center gap-0.5 ml-auto">
                                             <button 
@@ -1000,7 +998,9 @@ export default function TaskModal({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setShowConfirmDeleteTask(true);
+                            if (handleDeleteTask) {
+                              handleDeleteTask(editingTask.id);
+                            }
                           }}
                           className="w-full flex items-center justify-center gap-3 py-4 bg-red-600 text-white rounded-3xl hover:bg-red-700 transition-all text-xs font-black uppercase tracking-widest shadow-xl shadow-red-200"
                         >
@@ -1441,7 +1441,7 @@ export default function TaskModal({
                                                   {newTaskData.designData?.elements?.map((el, originalIndex) => {
                                                     if ((el.slideIndex || 1) !== slideIdx) return null;
                                                     return (
-                                                      <tr key={el.id} className="group hover:bg-gray-50/50">
+                                                      <tr key={el.id || `design_el_${originalIndex}`} className="group hover:bg-gray-50/50">
                                                         <td className="p-1 border-r border-gray-100/50 align-top">
                                                           <textarea
                                                             rows={1}
@@ -1611,8 +1611,8 @@ export default function TaskModal({
                                                     <div className="px-4 py-3 flex items-center overflow-hidden">Observaciones</div>
                                                     <div className="absolute right-0 top-0 bottom-0 w-1 bg-gray-200 opacity-0 group-hover:opacity-100 cursor-col-resize hover:bg-purple-400 transition-colors" onMouseDown={(e) => { const startX = e.pageX; const startWidth = videoColWidths.observations || 200; const onMouseMove = (moveEvent) => setVideoColWidths(prev => ({ ...prev, observations: Math.max(50, startWidth + (moveEvent.pageX - startX)) })); const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); }; document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp); }} />
                                                   </th>
-                                                  {newTaskData.designData?.customVideoColumns?.map(col => (
-                                                    <th key={col.id} style={{ width: videoColWidths[col.id] || 200 }} className="p-0 border-r border-gray-100/50 relative group select-none group/th">
+                                                  {newTaskData.designData?.customVideoColumns?.map((col, colIdx) => (
+                                                    <th key={col.id || `custom_col_${colIdx}`} style={{ width: videoColWidths[col.id] || 200 }} className="p-0 border-r border-gray-100/50 relative group select-none group/th">
                                                       <div className="px-2 py-2 flex items-center justify-between overflow-hidden">
                                                         <input 
                                                           value={col.name}
@@ -1657,7 +1657,7 @@ export default function TaskModal({
                                               <tbody className="divide-y divide-gray-100 bg-white">
                                                 
                                                 {(newTaskData.designData?.videoScenes?.length ? newTaskData.designData.videoScenes : [{ id: 'default-scene', time: '', stage: '', visual: '', onScreenText: '', voiceOver: '' }]).map((scene, originalIndex) => (
-                                                  <tr key={scene.id} className="group hover:bg-gray-50/50">
+                                                  <tr key={scene.id || `video_scene_${originalIndex}`} className="group hover:bg-gray-50/50">
                                                     <td className="p-1 border-r border-gray-100/50 align-top">
                                                       <textarea
                                                         rows={1}
@@ -1909,77 +1909,6 @@ export default function TaskModal({
                   </div>
                 </form>
               </motion.div>
-
-              {/* Modal de Confirmación de Eliminación de Tarea */}
-              {showConfirmDeleteTask && editingTask && (
-                <div 
-                  className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[80] flex items-center justify-center p-4"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isDeletingTask) setShowConfirmDeleteTask(false);
-                  }}
-                >
-                  <motion.div
-                    initial={{ scale: 0.95, opacity: 0, y: 15 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.95, opacity: 0, y: 15 }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 text-center"
-                  >
-                    <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 shadow-sm">
-                      <Trash size={28} />
-                    </div>
-                    <h3 className="text-lg font-black text-gray-900 mb-2">
-                      ¿Eliminar esta tarea?
-                    </h3>
-                    <p className="text-xs text-gray-500 mb-2 leading-relaxed font-medium">
-                      Estás a punto de eliminar la tarea:
-                    </p>
-                    <p className="text-xs font-bold text-gray-800 bg-gray-50 py-2 px-3 rounded-xl border border-gray-100 mb-6 truncate">
-                      {editingTask.title}
-                    </p>
-                    <div className="space-y-2">
-                      <button
-                        type="button"
-                        disabled={isDeletingTask}
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setIsDeletingTask(true);
-                          try {
-                            if (handleDeleteTask) {
-                              await handleDeleteTask(editingTask.id);
-                            }
-                            setShowConfirmDeleteTask(false);
-                            if (setEditingTask) setEditingTask(null);
-                            if (onClose) onClose();
-                          } catch (err) {
-                            console.error('Error al eliminar tarea:', err);
-                          } finally {
-                            setIsDeletingTask(false);
-                          }
-                        }}
-                        className="w-full py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-red-700 transition-all shadow-md shadow-red-200 flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        <Trash size={16} />
-                        <span>{isDeletingTask ? 'Eliminando...' : 'Sí, eliminar tarea'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isDeletingTask}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowConfirmDeleteTask(false);
-                        }}
-                        className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-700 transition-all disabled:opacity-50"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </motion.div>
-                </div>
-              )}
             </motion.div>
   );
 }

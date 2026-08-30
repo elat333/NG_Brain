@@ -260,7 +260,7 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
       id: taskId,
       title: taskData.title || 'Nueva Tarea',
       description: taskData.description || '',
-      status: taskData.status || 'todo',
+      status: taskData.status || 'backlog',
       priority: taskData.priority || 'media',
       dueDate: taskData.dueDate || new Date().toISOString().split('T')[0],
       memberId: taskData.memberId || currentMember?.id || 'mem-1',

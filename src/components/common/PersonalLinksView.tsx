@@ -884,7 +884,7 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
 
             return (
               <div
-                key={catName}
+                key={`cat_group_${catName}_${catIndex}`}
                 className="bg-white border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs"
               >
                 {/* Category Header */}

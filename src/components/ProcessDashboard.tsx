@@ -1058,21 +1058,21 @@ export default function ProcessDashboard({
       // Headers
       if (trimmed.startsWith('# ')) {
         renderedElements.push(
-          <h1 key={index} className="text-2xl font-extrabold text-slate-900 mt-8 mb-4 border-b border-slate-100 pb-2.5 tracking-tight flex items-center gap-2">
+          <h1 key={`md_h1_${index}`} className="text-2xl font-extrabold text-slate-900 mt-8 mb-4 border-b border-slate-100 pb-2.5 tracking-tight flex items-center gap-2">
             <span className="text-slate-300 font-normal">#</span> {trimmed.slice(2)}
           </h1>
         );
         inList = false;
       } else if (trimmed.startsWith('## ')) {
         renderedElements.push(
-          <h2 key={index} className="text-xl font-bold text-slate-800 mt-6 mb-3 tracking-tight pb-1 border-b border-slate-50/80 flex items-center gap-1.5">
+          <h2 key={`md_h2_${index}`} className="text-xl font-bold text-slate-800 mt-6 mb-3 tracking-tight pb-1 border-b border-slate-50/80 flex items-center gap-1.5">
             <span className="text-slate-300/80 font-normal">##</span> {trimmed.slice(3)}
           </h2>
         );
         inList = false;
       } else if (trimmed.startsWith('### ')) {
         renderedElements.push(
-          <h3 key={index} className="text-base font-bold text-slate-700 mt-5 mb-2 tracking-tight flex items-center gap-1">
+          <h3 key={`md_h3_${index}`} className="text-base font-bold text-slate-700 mt-5 mb-2 tracking-tight flex items-center gap-1">
             <span className="text-slate-300/60 font-normal">###</span> {trimmed.slice(4)}
           </h3>
         );
@@ -1081,7 +1081,7 @@ export default function ProcessDashboard({
       // Blockquote
       else if (trimmed.startsWith('> ')) {
         renderedElements.push(
-          <blockquote key={index} className="border-l-4 border-slate-300 bg-slate-50 pl-4 py-2.5 my-3 italic text-slate-600 rounded-r-xl">
+          <blockquote key={`md_bq_${index}`} className="border-l-4 border-slate-300 bg-slate-50 pl-4 py-2.5 my-3 italic text-slate-600 rounded-r-xl">
             {trimmed.slice(2)}
           </blockquote>
         );
@@ -1093,7 +1093,7 @@ export default function ProcessDashboard({
           inList = true;
         }
         renderedElements.push(
-          <li key={index} className="ml-6 list-disc text-slate-700 my-1.5 text-sm font-medium leading-relaxed marker:text-slate-400 pl-1">
+          <li key={`md_li_disc_${index}`} className="ml-6 list-disc text-slate-700 my-1.5 text-sm font-medium leading-relaxed marker:text-slate-400 pl-1">
             {parseInlineMarkdown(trimmed.slice(2))}
           </li>
         );
@@ -1104,21 +1104,21 @@ export default function ProcessDashboard({
           inList = true;
         }
         renderedElements.push(
-          <li key={index} className="ml-6 list-decimal text-slate-700 my-1.5 text-sm font-medium leading-relaxed marker:text-slate-500 pl-1">
+          <li key={`md_li_dec_${index}`} className="ml-6 list-decimal text-slate-700 my-1.5 text-sm font-medium leading-relaxed marker:text-slate-500 pl-1">
             {parseInlineMarkdown(numberedMatch[2])}
           </li>
         );
       }
       // Empty line
       else if (trimmed === '') {
-        renderedElements.push(<div key={index} className="h-3" />);
+        renderedElements.push(<div key={`md_spacer_${index}`} className="h-3" />);
         inList = false;
       }
       // Paragraph
       else {
         inList = false;
         renderedElements.push(
-          <p key={index} className="text-slate-700 leading-relaxed my-2.5 text-sm font-medium">
+          <p key={`md_p_${index}`} className="text-slate-700 leading-relaxed my-2.5 text-sm font-medium">
             {parseInlineMarkdown(trimmed)}
           </p>
         );
@@ -1478,9 +1478,8 @@ export default function ProcessDashboard({
                                                   {week.tasks.length === 0 ? (
                                                     <p className="text-xs text-slate-400 italic">No hay tareas.</p>
                                                   ) : (
-                                                    week.tasks.map(t => (
-                                                      <div 
-                                                        key={t.id} 
+                                                    week.tasks.map((t, tIdx) => (
+                                        <div key={`proc_task_${t.id || tIdx}_${tIdx}`} 
                                                         onClick={() => onOpenTask && onOpenTask(t)}
                                                         className="p-3 bg-white hover:border-blue-300 rounded-xl border border-slate-200 text-xs space-y-2 transition-all cursor-pointer group shadow-sm"
                                                       >

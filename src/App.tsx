@@ -123,6 +123,7 @@ import { CapacitacionModule, CapacitacionSubTab } from './components/Capacitacio
 import VentasModule from './components/VentasModule';
 import { AcreditacionModule } from './components/AcreditacionModule';
 import { CompanyEditorView } from './components/common/CompanyEditorView';
+import { MemberEditorView } from './components/common/MemberEditorView';
 import { ProductosModule, ProductSubTab } from './components/ProductosModule';
 import { QHSEModule, QHSESubTab } from './components/QHSEModule';
 import { processAndCompressImage } from './lib/imageUtils';
@@ -275,6 +276,10 @@ const getModuleAccess = (
 
   // Handle projects module special case
   if (moduleId === 'projects') {
+    const generalAccess = member.moduleAccess ? member.moduleAccess['projects'] : undefined;
+    if (generalAccess !== undefined && generalAccess !== 'ninguno') {
+      return generalAccess;
+    }
     if (member.moduleAccess) {
       const keys = Object.keys(member.moduleAccess);
       const specificLevels = keys
@@ -286,7 +291,8 @@ const getModuleAccess = (
       if (specificLevels.includes('colaborador')) return 'colaborador';
       if (specificLevels.includes('lector')) return 'lector';
     }
-    return 'ninguno';
+    if (generalAccess !== undefined) return generalAccess;
+    return 'colaborador';
   }
 
   // Handle projects_ process-specific module ID
@@ -294,7 +300,15 @@ const getModuleAccess = (
     if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
       return member.moduleAccess[moduleId];
     }
-    return 'ninguno';
+    const generalProjectsAccess = member.moduleAccess ? member.moduleAccess['projects'] : undefined;
+    if (generalProjectsAccess !== undefined) {
+      return generalProjectsAccess;
+    }
+    const procId = moduleId.replace('projects_', '');
+    if (member.processId === procId) {
+      return 'lider';
+    }
+    return 'colaborador';
   }
 
   // Handle importaciones module
@@ -664,9 +678,9 @@ const TaskCard: React.FC<TaskCardProps> = ({
                 className="flex items-center -space-x-1.5 shrink-0"
                 title={`Auxiliares: ${auxiliaries.map(a => a.name).join(', ')}`}
               >
-                {auxiliaries.slice(0, 2).map((a: any) => (
+                {auxiliaries.slice(0, 2).map((a: any, aIdx: number) => (
                   <div
-                    key={a.id}
+                    key={`task_card_aux_${a.id || aIdx}`}
                     className="w-[18px] h-[18px] rounded-full ring-1 ring-purple-300 border border-white overflow-hidden bg-purple-50 text-purple-700 flex items-center justify-center text-[7.5px] font-bold shadow-xs shrink-0"
                     title={`Auxiliar: ${a.name}`}
                   >
@@ -751,99 +765,6 @@ const ProcessDetailCard: React.FC<ProcessDetailCardProps> = ({ proc, members, on
     </div>
   </div>
 );
-
-interface MemberEditorViewProps {
-  editingMember: any;
-  newMemberData: any;
-  setNewMemberData: (data: any) => void;
-  processes: any[];
-  companies: any[];
-  roles: any[];
-  onCancel: () => void;
-  onSave?: (e?: any) => void;
-}
-
-const MemberEditorView: React.FC<MemberEditorViewProps> = ({
-  editingMember,
-  newMemberData,
-  setNewMemberData,
-  processes,
-  companies,
-  roles,
-  onCancel,
-}) => {
-  return (
-    <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
-      <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-        <h3 className="font-black text-gray-900 text-lg">
-          {editingMember ? 'Editar Miembro' : 'Nuevo Miembro'}
-        </h3>
-        <button onClick={onCancel} className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-gray-700">
-          <X size={20} />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-gray-600">Nombre Completo</label>
-          <input
-            type="text"
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            value={newMemberData.name || ''}
-            onChange={e => setNewMemberData({ ...newMemberData, name: e.target.value })}
-            placeholder="Nombre del miembro..."
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-gray-600">Email</label>
-          <input
-            type="email"
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            value={newMemberData.email || ''}
-            onChange={e => setNewMemberData({ ...newMemberData, email: e.target.value })}
-            placeholder="correo@empresa.com"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-gray-600">Cargo / Rol</label>
-          <input
-            type="text"
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            value={newMemberData.role || ''}
-            onChange={e => setNewMemberData({ ...newMemberData, role: e.target.value })}
-            placeholder="Ej: Líder de Operaciones"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-gray-600">Proceso</label>
-          <select
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            value={newMemberData.processId || ''}
-            onChange={e => setNewMemberData({ ...newMemberData, processId: e.target.value })}
-          >
-            <option value="">Selecciona un proceso</option>
-            {processes.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-100 transition-all"
-        >
-          Cancelar
-        </button>
-      </div>
-    </div>
-  );
-};
 
 interface MemberProfileCardProps {
   member: any;
@@ -1223,26 +1144,33 @@ export default function App() {
     };
     deleteOrphans();
 
-    const collections = [
-      { name: 'members', setState: setMembers, initial: initialMembers },
-      { name: 'processes', setState: setProcesses, initial: initialProcesses },
-      { name: 'tasks', setState: setTasks, initial: initialTasks },
-      { name: 'projects', setState: setProjects, initial: [] },
-      { name: 'companies', setState: setCompanies, initial: initialCompanies },
-      { name: 'industries', setState: setIndustries, initial: initialIndustries },
-      { name: 'roles', setState: setRoles, initial: initialRoles },
-      { name: 'process_links', setState: setProcessLinks, initial: [] },
-      { name: 'process_notes', setState: setProcessNotes, initial: [] },
+    const collections: Array<{ name: string; setState: (data: any[]) => void; initial?: any }> = [
+      { name: 'members', setState: (data) => setMembers(data), initial: initialMembers },
+      { name: 'processes', setState: (data) => setProcesses(data), initial: initialProcesses },
+      { name: 'tasks', setState: (data) => setTasks(data), initial: initialTasks },
+      { name: 'projects', setState: (data) => setProjects(data), initial: [] },
+      { name: 'companies', setState: (data) => setCompanies(data), initial: initialCompanies },
+      { name: 'industries', setState: (data) => setIndustries(data), initial: initialIndustries },
+      { name: 'roles', setState: (data) => setRoles(data), initial: initialRoles },
+      { name: 'process_links', setState: (data) => setProcessLinks(data), initial: [] },
+      { name: 'process_notes', setState: (data) => setProcessNotes(data), initial: [] },
       { name: 'management_notes', setState: (data: any[]) => setManagementNotes(data.length > 0 ? data : initialManagementNotes), initial: initialManagementNotes },
       { name: 'management_strategy', setState: (data: any[]) => { if (data.length > 0) setManagementStrategy(data[0]); }, initial: initialManagementStrategy },
       { name: 'management_governance', setState: (data: any[]) => { if (data.length > 0) setManagementGovernance(data[0]); }, initial: initialManagementGovernance },
-      { name: 'products', setState: setProducts, initial: initialProducts },
+      { name: 'products', setState: (data) => setProducts(data), initial: initialProducts },
     ];
 
     const unsubscribes = collections.map(col => {
       return onSnapshot(collection(db, col.name), (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ ...doc.data() } as any));
-        col.setState(data);
+        if (!snapshot.empty) {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+          col.setState(data);
+        } else if (col.initial && Array.isArray(col.initial) && col.initial.length > 0) {
+          // If the cloud collection is empty, retain initial default data
+          col.setState(col.initial);
+        } else {
+          col.setState([]);
+        }
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, col.name);
       });
@@ -1734,6 +1662,8 @@ export default function App() {
   const [showCompletedProjects, setShowCompletedProjects] = useState(false);
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [newProjectData, setNewProjectData] = useState({
     name: '',
     description: '',
@@ -2808,19 +2738,38 @@ export default function App() {
     setNewProjectData({ name: '', description: '', processId: '', status: 'activo', city: '' });
   };
 
-  const deleteProject = async (id: string) => {
-    const proj = projects.find(p => p.id === id);
-    const access = getModuleAccess(currentMember, roles, proj?.processId ? `projects_${proj.processId}` : 'projects');
-    if (access !== 'administrador') {
-      alert('Error: Solo los Administradores pueden eliminar proyectos.');
+  const handleDeleteProject = (projOrId: Project | string) => {
+    const proj = typeof projOrId === 'string' ? projects.find(p => p.id === projOrId) : projOrId;
+    if (!proj) return;
+    const access = getModuleAccess(currentMember, roles, proj.processId ? `projects_${proj.processId}` : 'projects');
+    const isUserAdmin = currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin';
+    if (!isUserAdmin && access !== 'administrador' && access !== 'lider') {
+      alert('No tienes permisos suficientes para eliminar este proyecto.');
       return;
     }
-    if (window.confirm('¿Estás seguro de que deseas eliminar este proyecto? Las tareas asociadas perderán su vinculación con el proyecto.')) {
-      try {
-        await deleteDoc(doc(db, 'projects', id));
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, 'projects');
+    setProjectToDelete(proj);
+  };
+
+  const confirmDeleteProject = async () => {
+    if (!projectToDelete) return;
+    setIsDeletingProject(true);
+    try {
+      await deleteDoc(doc(db, 'projects', projectToDelete.id));
+
+      // Also clean up task associations if any
+      const linkedTasks = tasks.filter(t => t.projectId === projectToDelete.id);
+      for (const t of linkedTasks) {
+        try {
+          await updateDoc(doc(db, 'tasks', t.id), { projectId: '' });
+        } catch {
+          // Ignore individual unlinking errors
+        }
       }
+      setProjectToDelete(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'projects');
+    } finally {
+      setIsDeletingProject(false);
     }
   };
 
@@ -4310,7 +4259,7 @@ export default function App() {
                             <div className="space-y-0.5 mt-1 max-h-[160px] overflow-y-auto custom-scrollbar">
                               {projects.filter(p => normalizeText(p.name).includes(normalizeText(searchQuery))).map(p => (
                                 <button 
-                                  key={p.id}
+                                  key={`smart_search_p_${p.id}`}
                                   onClick={() => {
                                     setSmartFilters(prev => ({ ...prev, projectId: p.id }));
                                     setSearchQuery('');
@@ -4323,7 +4272,7 @@ export default function App() {
                                 </button>
                               ))}
                               {sortedMembers.filter(m => normalizeText(m.name).includes(normalizeText(searchQuery))).map(m => (
-                                <React.Fragment key={m.id}>
+                                <React.Fragment key={`smart_search_m_${m.id}`}>
                                   <button 
                                     onClick={() => {
                                       setSmartFilters(prev => ({ ...prev, memberId: m.id }));
@@ -4350,7 +4299,7 @@ export default function App() {
                               ))}
                               {processes.filter(p => normalizeText(p.name).includes(normalizeText(searchQuery))).map(p => (
                                 <button 
-                                  key={p.id}
+                                  key={`smart_search_proc_${p.id}`}
                                   onClick={() => {
                                     setSmartFilters(prev => ({ ...prev, processId: p.id }));
                                     setSearchQuery('');
@@ -4455,7 +4404,7 @@ export default function App() {
                         <div className="space-y-0.5 font-sans">
                           {projects.map(p => (
                             <button
-                              key={p.id}
+                              key={`smart_filter_proj_${p.id}`}
                               onClick={() => {
                                 setSmartFilters(prev => ({ ...prev, projectId: p.id }));
                                 setShowSmartDropdown(false);
@@ -4492,7 +4441,7 @@ export default function App() {
                         <div className="space-y-0.5 font-sans">
                           {sortedMembers.map(m => (
                             <button
-                              key={m.id}
+                              key={`smart_filter_member_${m.id}`}
                               onClick={() => {
                                 setSmartFilters(prev => ({ ...prev, memberId: m.id }));
                                 setShowSmartDropdown(false);
@@ -4526,7 +4475,7 @@ export default function App() {
                         <div className="space-y-0.5 font-sans">
                           {processes.map(p => (
                             <button
-                              key={p.id}
+                              key={`smart_filter_proc_${p.id}`}
                               onClick={() => {
                                 setSmartFilters(prev => ({ ...prev, processId: p.id }));
                                 setShowSmartDropdown(false);
@@ -4560,7 +4509,7 @@ export default function App() {
                         <div className="space-y-0.5 font-sans">
                           {sortedMembers.map(m => (
                             <button
-                              key={m.id}
+                              key={`smart_filter_aux_${m.id}`}
                               onClick={() => {
                                 setSmartFilters(prev => ({ ...prev, auxiliaryId: m.id }));
                                 setShowSmartDropdown(false);
@@ -4602,7 +4551,7 @@ export default function App() {
                             { id: 'blocked', label: 'Bloqueada' },
                           ].map(st => (
                             <button
-                              key={st.id}
+                              key={`smart_filter_status_${st.id}`}
                               onClick={() => {
                                 setSmartFilters(prev => ({ ...prev, status: st.id }));
                                 setShowSmartDropdown(false);
@@ -5238,25 +5187,41 @@ export default function App() {
                 />
               ) : (
                 <>
-                  <div className="flex items-center gap-4 mb-8">
-                    <button 
-                      onClick={() => setDirectorySubTab('people')}
-                      className={`px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${directorySubTab === 'people' ? 'bg-ng-lime text-ng-black shadow-lg shadow-ng-lime/20' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
-                    >
-                      Personas
-                    </button>
-                    <button 
-                      onClick={() => setDirectorySubTab('companies')}
-                      className={`px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${directorySubTab === 'companies' ? 'bg-ng-lime text-ng-black shadow-lg shadow-ng-lime/20' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
-                    >
-                      Compañías
-                    </button>
-                    <button 
-                      onClick={() => setDirectorySubTab('industries')}
-                      className={`px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${directorySubTab === 'industries' ? 'bg-ng-lime text-ng-black shadow-lg shadow-ng-lime/20' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
-                    >
-                      Industrias
-                    </button>
+                  <div className="flex items-center justify-between gap-4 mb-8">
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => setDirectorySubTab('people')}
+                        className={`px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${directorySubTab === 'people' ? 'bg-ng-lime text-ng-black shadow-lg shadow-ng-lime/20' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
+                      >
+                        Personas ({members.length})
+                      </button>
+                      <button 
+                        onClick={() => setDirectorySubTab('companies')}
+                        className={`px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${directorySubTab === 'companies' ? 'bg-ng-lime text-ng-black shadow-lg shadow-ng-lime/20' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
+                      >
+                        Compañías ({companies.length})
+                      </button>
+                      <button 
+                        onClick={() => setDirectorySubTab('industries')}
+                        className={`px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${directorySubTab === 'industries' ? 'bg-ng-lime text-ng-black shadow-lg shadow-ng-lime/20' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
+                      >
+                        Industrias ({industries.length})
+                      </button>
+                    </div>
+
+                    {searchQuery && (
+                      <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100">
+                        <span className="text-[11px] font-bold text-blue-700">
+                          Filtrado por: <strong>"{searchQuery}"</strong>
+                        </span>
+                        <button
+                          onClick={() => setSearchQuery('')}
+                          className="text-xs font-bold text-blue-600 hover:text-blue-800 underline ml-1"
+                        >
+                          Limpiar
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {directorySubTab === 'people' ? (
@@ -5294,8 +5259,8 @@ export default function App() {
                                 </td>
                                 <td className="px-6 py-4">
                                   <div className="flex flex-wrap gap-1">
-                                    {(member.categories || []).map(cat => (
-                                      <span key={cat} className={`px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest border border-blue-50 bg-white text-blue-600`}>
+                                    {(member.categories || []).map((cat, cIdx) => (
+                                      <span key={`member_cat_${cat}_${cIdx}`} className={`px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest border border-blue-50 bg-white text-blue-600`}>
                                         {cat}
                                       </span>
                                     ))}
@@ -5374,7 +5339,7 @@ export default function App() {
                                 <div className="flex flex-wrap gap-1">
                                   {(company.industries && company.industries.length > 0) ? (
                                     company.industries.slice(0, 2).map((ind, i) => (
-                                      <span key={i} className="text-[9px] font-bold text-slate-500 px-1.5 py-0.5 bg-slate-50 rounded border border-slate-100 uppercase tracking-widest">
+                                      <span key={`comp_ind_${ind}_${i}`} className="text-[9px] font-bold text-slate-500 px-1.5 py-0.5 bg-slate-50 rounded border border-slate-100 uppercase tracking-widest">
                                         {ind}
                                       </span>
                                     ))
@@ -5662,15 +5627,16 @@ export default function App() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {processProjects.map(project => {
                         const projectAccess = getModuleAccess(currentMember, roles, `projects_${project.processId}`);
-                        const canEdit = projectAccess === 'lider' || projectAccess === 'administrador';
-                        const canDelete = projectAccess === 'administrador';
+                        const isUserAdmin = currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin';
+                        const canEdit = isUserAdmin || projectAccess === 'lider' || projectAccess === 'administrador';
+                        const canDelete = isUserAdmin || projectAccess === 'administrador' || projectAccess === 'lider';
                         return (
                           <ProjectCard 
                             key={project.id} 
                             project={project}
                             tasks={tasks.filter(t => t.projectId === project.id && isTaskVisibleForMember(t, currentMember, roles))}
                             onEdit={openEditProject}
-                            onDelete={deleteProject}
+                            onDelete={handleDeleteProject}
                             canEdit={canEdit}
                             canDelete={canDelete}
                           />
@@ -6061,8 +6027,8 @@ export default function App() {
                               onChange={(e) => setTableFilters(prev => ({ ...prev, processId: e.target.value }))}
                             >
                               <option value="" className="font-bold">TODOS</option>
-                              {processes.map(p => (
-                                <option key={p.id} value={p.id} className="font-medium">{p.name}</option>
+                              {processes.map((p, pIdx) => (
+                                <option key={`th_filter_proc_${p.id || pIdx}_${pIdx}`} value={p.id} className="font-medium">{p.name}</option>
                               ))}
                             </select>
                           </div>
@@ -6088,8 +6054,8 @@ export default function App() {
                               onChange={(e) => setTableFilters(prev => ({ ...prev, projectId: e.target.value }))}
                             >
                               <option value="" className="font-bold">TODOS</option>
-                              {projects.map(pj => (
-                                <option key={pj.id} value={pj.id} className="font-medium">{pj.name}</option>
+                              {projects.map((pj, pjIdx) => (
+                                <option key={`th_filter_pj_${pj.id || pjIdx}_${pjIdx}`} value={pj.id} className="font-medium">{pj.name}</option>
                               ))}
                             </select>
                           </div>
@@ -6115,8 +6081,8 @@ export default function App() {
                               onChange={(e) => setTableFilters(prev => ({ ...prev, memberId: e.target.value }))}
                             >
                               <option value="" className="font-bold">TODOS</option>
-                              {sortedMembers.map(m => (
-                                <option key={m.id} value={m.id} className="font-medium">{m.name}</option>
+                              {sortedMembers.map((m, mIdx) => (
+                                <option key={`th_filter_m_${m.id || mIdx}_${mIdx}`} value={m.id} className="font-medium">{m.name}</option>
                               ))}
                             </select>
                           </div>
@@ -6142,8 +6108,8 @@ export default function App() {
                               onChange={(e) => setTableFilters(prev => ({ ...prev, auxiliaryId: e.target.value }))}
                             >
                               <option value="" className="font-bold">TODOS</option>
-                              {sortedMembers.map(m => (
-                                <option key={m.id} value={m.id} className="font-medium">{m.name}</option>
+                              {sortedMembers.map((m, mIdx) => (
+                                <option key={`th_filter_aux_${m.id || mIdx}_${mIdx}`} value={m.id} className="font-medium">{m.name}</option>
                               ))}
                             </select>
                           </div>
@@ -6169,8 +6135,8 @@ export default function App() {
                               onChange={(e) => setTableFilters(prev => ({ ...prev, revisorId: e.target.value }))}
                             >
                               <option value="" className="font-bold">TODOS</option>
-                              {sortedMembers.map(m => (
-                                <option key={m.id} value={m.id} className="font-medium">{m.name}</option>
+                              {sortedMembers.map((m, mIdx) => (
+                                <option key={`th_filter_rev_${m.id || mIdx}_${mIdx}`} value={m.id} className="font-medium">{m.name}</option>
                               ))}
                             </select>
                           </div>
@@ -6347,7 +6313,7 @@ export default function App() {
                                   <div className="flex -space-x-2 overflow-hidden py-1">
                                     {taskAuxiliaries.slice(0, 3).map((aux, aIdx) => (
                                       <img 
-                                        key={aux.id}
+                                        key={`table_aux_${aux.id || aIdx}_${aIdx}`}
                                         src={aux.avatar || `https://picsum.photos/seed/${aux.name.replace(/\s/g, '')}/54/54`}
                                         className="w-7 h-7 rounded-lg object-cover ring-2 ring-white hover:z-10 hover:scale-105 transition-all"
                                         alt={aux.name}
@@ -7576,17 +7542,37 @@ export default function App() {
                         <Users size={24} />
                       </div>
                       <div>
-                        <h2 className="text-2xl font-black text-ng-black">Gestión de Equipo</h2>
+                        <div className="flex items-center gap-3">
+                          <h2 className="text-2xl font-black text-ng-black">Gestión de Equipo</h2>
+                          <span className="text-xs font-black bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
+                            {members.filter(m => (m.categories || []).includes('miembro')).length} Integrantes
+                          </span>
+                        </div>
                         <p className="text-ng-black/40 text-sm font-medium">Control operativo y perfiles de los integrantes del equipo.</p>
                       </div>
                     </div>
-                    <button 
-                      onClick={() => setIsAddingMember(true)}
-                      className="px-6 py-3 bg-ng-lime text-ng-black font-black rounded-2xl shadow-lg shadow-ng-lime/20 hover:opacity-90 transition-all flex items-center gap-2 uppercase text-xs tracking-widest"
-                    >
-                      <Plus size={18} />
-                      Añadir Integrante
-                    </button>
+                    <div className="flex items-center gap-3">
+                      {searchQuery && (
+                        <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-xl border border-blue-100">
+                          <span className="text-[11px] font-bold text-blue-700">
+                            Filtrado por: <strong>"{searchQuery}"</strong>
+                          </span>
+                          <button
+                            onClick={() => setSearchQuery('')}
+                            className="text-xs font-bold text-blue-600 hover:text-blue-800 underline ml-1"
+                          >
+                            Limpiar
+                          </button>
+                        </div>
+                      )}
+                      <button 
+                        onClick={() => setIsAddingMember(true)}
+                        className="px-6 py-3 bg-ng-lime text-ng-black font-black rounded-2xl shadow-lg shadow-ng-lime/20 hover:opacity-90 transition-all flex items-center gap-2 uppercase text-xs tracking-widest"
+                      >
+                        <Plus size={18} />
+                        Añadir Integrante
+                      </button>
+                    </div>
                   </div>
 
                   {(isAddingMember || editingMember) ? (
@@ -8202,6 +8188,74 @@ export default function App() {
                     type="button"
                     disabled={isDeletingTask}
                     onClick={() => setTaskToDelete(null)}
+                    className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-700 transition-all disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* Modal de Confirmación de Eliminación de Proyecto */}
+          {projectToDelete && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[80] flex items-center justify-center p-4"
+              onClick={() => {
+                if (!isDeletingProject) setProjectToDelete(null);
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 text-center"
+              >
+                <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 shadow-sm">
+                  <FolderKanban size={28} />
+                </div>
+                <h3 className="text-lg font-black text-gray-900 mb-2">
+                  ¿Eliminar este proyecto?
+                </h3>
+                <p className="text-xs text-gray-500 mb-3 leading-relaxed font-medium">
+                  Estás a punto de eliminar permanentemente el proyecto:
+                </p>
+                <div className="bg-gray-50 py-3 px-4 rounded-2xl border border-gray-100 mb-4 text-left">
+                  <p className="text-xs font-black text-gray-900 truncate">
+                    {projectToDelete.name}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Proceso: <span className="font-bold text-gray-700">{processes.find(p => p.id === projectToDelete.processId)?.name || 'General'}</span>
+                  </p>
+                </div>
+
+                {tasks.filter(t => t.projectId === projectToDelete.id).length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-6 text-left flex items-start gap-2.5">
+                    <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-[11px] font-medium text-amber-800 leading-tight">
+                      Hay <strong>{tasks.filter(t => t.projectId === projectToDelete.id).length} tareas vinculadas</strong>. Se conservarán en el sistema pero quedarán desvinculadas del proyecto.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    disabled={isDeletingProject}
+                    onClick={confirmDeleteProject}
+                    className="w-full py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-red-700 transition-all shadow-md shadow-red-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <Trash size={16} />
+                    <span>{isDeletingProject ? 'Eliminando...' : 'Sí, eliminar proyecto'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeletingProject}
+                    onClick={() => setProjectToDelete(null)}
                     className="w-full py-2 text-xs font-bold text-gray-400 hover:text-gray-700 transition-all disabled:opacity-50"
                   >
                     Cancelar

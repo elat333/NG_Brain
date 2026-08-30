@@ -952,11 +952,11 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                 <X size={9} />
               </button>
             )}
-            {allTagsList.map(tag => {
+            {allTagsList.map((tag, tIdx) => {
               const isSelected = selectedTagFilter?.toLowerCase() === tag.toLowerCase();
               return (
                 <button
-                  key={tag}
+                  key={`filter_tag_${tag}_${tIdx}`}
                   onClick={() => setSelectedTagFilter(isSelected ? null : tag)}
                   className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${
                     isSelected
@@ -1307,9 +1307,9 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                             <div className="space-y-1 pt-1.5 border-t border-slate-100/90">
                               {note.tags && note.tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1">
-                                  {note.tags.slice(0, 3).map(t => (
+                                  {note.tags.slice(0, 3).map((t, tIdx) => (
                                     <span
-                                      key={t}
+                                      key={`note_tag_${note.id}_${t}_${tIdx}`}
                                       className="px-1.5 py-0.2 bg-slate-50 hover:bg-indigo-50 text-slate-500 hover:text-indigo-700 rounded text-[9px] font-semibold transition-colors"
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -1761,9 +1761,9 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                     <Hash size={12} />
                     <span>Etiquetas:</span>
                   </span>
-                  {formTags.map(t => (
+                  {formTags.map((t, tIdx) => (
                     <span
-                      key={t}
+                      key={`form_tag_${t}_${tIdx}`}
                       className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-bold"
                     >
                       <span>{t}</span>
