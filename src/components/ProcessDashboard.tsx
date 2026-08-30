@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Users, 
   Clock, 
@@ -11,7 +11,7 @@ import {
   FolderKanban, 
   ExternalLink, 
   Plus, 
-  Trash, 
+  Trash,
   Edit, 
   Save, 
   X, 
@@ -41,6 +41,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TeamMember, Process, Task, Project, Role, ProcessLink, ProcessNote, NoteShareAccess } from '../types';
+import { PersonalLinksView } from './common/PersonalLinksView';
+import { PersonalNotesView } from './common/PersonalNotesView';
 import { 
   db, 
   collection, 
@@ -51,6 +53,105 @@ import {
   OperationType, 
   handleFirestoreError 
 } from '../lib/firebase';
+
+
+interface MemberSearchSelectProps {
+  members: TeamMember[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+  processes: Process[];
+  contextProcessId: string;
+  excludeMemberIds?: string[];
+  placeholder?: string;
+}
+
+const MemberSearchSelect: React.FC<MemberSearchSelectProps> = ({
+  members,
+  selectedId,
+  onSelect,
+  processes,
+  contextProcessId,
+  excludeMemberIds = [],
+  placeholder = '-- Buscar o seleccionar un integrante --'
+}) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selectedId) {
+      const m = members.find(x => x.id === selectedId);
+      if (m) setSearchTerm(m.name);
+    } else {
+      setSearchTerm('');
+    }
+  }, [selectedId, members]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        if (selectedId) {
+          const m = members.find(x => x.id === selectedId);
+          if (m) setSearchTerm(m.name);
+        } else {
+          setSearchTerm('');
+        }
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectedId, members]);
+
+  const availableMembers = members.filter(m => !excludeMemberIds.includes(m.id));
+  const filtered = availableMembers.filter(m => m.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={searchTerm}
+        onChange={e => {
+          setSearchTerm(e.target.value);
+          setIsOpen(true);
+          onSelect('');
+        }}
+        onFocus={() => setIsOpen(true)}
+        className="w-full bg-white border border-slate-200 text-xs font-bold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+      />
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400 italic">No se encontraron integrantes</div>
+          ) : (
+            filtered.map(m => {
+              const memberProc = processes.find(p => p.id === m.processId);
+              const isSameProc = m.processId === contextProcessId;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors flex items-center justify-between group"
+                  onClick={() => {
+                    onSelect(m.id);
+                    setSearchTerm(m.name);
+                    setIsOpen(false);
+                  }}
+                >
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900">{m.name}</span>
+                  <span className="text-[9px] text-slate-400 uppercase font-black truncate max-w-[120px]">
+                    {isSameProc ? 'Mismo Proceso' : memberProc ? `Proceso: ${memberProc.name}` : 'Sin proceso'}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Helper to determine if a member is a system admin or has process leadership permissions
 const getModuleAccess = (
@@ -154,6 +255,8 @@ interface ProcessDashboardProps {
   showFicha?: boolean;
   setShowFicha?: (show: boolean) => void;
   onOpenTask?: (task: Task) => void;
+  onUpdateTask?: (id: string, updates: Partial<Task>) => void;
+  onDeleteTask?: (id: string) => void;
 }
 
 export default function ProcessDashboard({
@@ -171,7 +274,9 @@ export default function ProcessDashboard({
   setSelectedProcessId: externalSetSelectedProcessId,
   showFicha: externalShowFicha,
   setShowFicha: externalSetShowFicha,
-  onOpenTask
+  onOpenTask,
+  onUpdateTask,
+  onDeleteTask
 }: ProcessDashboardProps) {
   // Determine list of accessible processes for the current member
   const isSystemAdmin = currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin';
@@ -214,7 +319,7 @@ export default function ProcessDashboard({
     return processes.find(p => p.id === selectedProcessId);
   }, [processes, selectedProcessId]);
 
-  // Sub-modules state: 'summary' (Hours and tasks), 'projects' (Project progress), 'links' (Bookmarks), 'notes' (Markdown documents)
+  // Sub-modules state: 'summary' (Hours and tasks), 'projects' (Project progress), 'links' (Enlaces de Interes), 'notes' (Notas Obsidian)
   const [localActiveSubTab, setLocalActiveSubTab] = useState<'summary' | 'projects' | 'links' | 'notes'>('summary');
 
   const activeSubTab = externalActiveSubTab !== undefined ? externalActiveSubTab : localActiveSubTab;
@@ -263,6 +368,7 @@ export default function ProcessDashboard({
 
   // Links Share & Category Editing States
   const [expandedLinkCategories, setExpandedLinkCategories] = useState<Record<string, boolean>>({});
+  const [expandedWeeks, setExpandedWeeks] = useState<Record<string, boolean>>({});
   const [editingLinkCategory, setEditingLinkCategory] = useState<string | null>(null);
   const [newCategoryNameInput, setNewCategoryNameInput] = useState<string>('');
 
@@ -354,18 +460,33 @@ export default function ProcessDashboard({
     }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [processNotes, selectedProcessId, currentMember]);
 
-  // Calculates metrics per team member of the process
+  // Calculates metrics per team member of the process (Only current week)
   const memberMetrics = useMemo(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+    const currentWeekInfo = getWeekInfo(todayStr);
+
     return processMembers.map(member => {
       const memberTasks = processTasks.filter(t => t.memberId === member.id);
-      const completedTasks = memberTasks.filter(t => t.status === 'done');
       
-      const totalPlannedHours = memberTasks.reduce((sum, t) => sum + (t.plannedHours || 0), 0);
-      const totalActualHours = memberTasks.reduce((sum, t) => sum + (t.actualHours || 0), 0);
+      const currentWeekTasks = memberTasks.filter(t => {
+        const dateStr = t.plannedDate || t.dueDate;
+        if (!dateStr) return false;
+        const info = getWeekInfo(dateStr);
+        return info.key === currentWeekInfo.key;
+      });
+
+      const completedTasks = currentWeekTasks.filter(t => t.status === 'done');
+      
+      const totalPlannedHours = currentWeekTasks.reduce((sum, t) => sum + (t.plannedHours || 0), 0);
+      const totalActualHours = currentWeekTasks.reduce((sum, t) => sum + (t.actualHours || 0), 0);
       
       return {
         member,
-        totalTasks: memberTasks.length,
+        totalTasks: currentWeekTasks.length,
         completedTasks: completedTasks.length,
         plannedHours: totalPlannedHours,
         actualHours: totalActualHours,
@@ -386,34 +507,71 @@ export default function ProcessDashboard({
     };
   }, [viewingMemberId, memberMetrics, processTasks]);
 
-  // Calculates weekly hours breakdown for the selected member
-  const weeklyHours = useMemo(() => {
-    if (!viewingMemberDetail) return [];
+  // Groups tasks and calculates weekly breakdowns, expired tasks, and unscheduled tasks for the selected member
+  const memberTasksGrouped = useMemo(() => {
+    if (!viewingMemberId) return { weeks: [], expiredTasks: [], unscheduledTasks: [] };
     
-    const groups: Record<string, { label: string; planned: number; actual: number; tasksCount: number }> = {};
+    const memberTasks = processTasks.filter(t => t.memberId === viewingMemberId);
     
-    viewingMemberDetail.tasks.forEach(task => {
-      // Resolve date: use plannedDate, fallback to dueDate, fallback to createdAt
-      const dateStr = task.plannedDate || task.dueDate || (task.createdAt ? task.createdAt.substring(0, 10) : undefined);
-      const { key, label } = getWeekInfo(dateStr);
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+    const currentWeekInfo = getWeekInfo(todayStr);
+    
+    const weeksMap: Record<string, { key: string, label: string, planned: number, actual: number, tasks: Task[] }> = {};
+    const expiredTasks: Task[] = [];
+    const unscheduledTasks: Task[] = [];
+    
+    memberTasks.forEach(task => {
+      const dateStr = task.plannedDate || task.dueDate;
       
-      if (!groups[key]) {
-        groups[key] = { label, planned: 0, actual: 0, tasksCount: 0 };
+      if (!dateStr) {
+        if (task.status !== 'done') {
+          unscheduledTasks.push(task);
+        }
+      } else {
+        const { key, label } = getWeekInfo(dateStr);
+        
+        if (!weeksMap[key]) {
+          let finalLabel = label;
+          if (key === currentWeekInfo.key) {
+            finalLabel = `Semana Actual (${label.replace('Semana del ', '')})`;
+          }
+          weeksMap[key] = { key, label: finalLabel, planned: 0, actual: 0, tasks: [] };
+        }
+        
+        weeksMap[key].tasks.push(task);
+        weeksMap[key].planned += task.plannedHours || 0;
+        weeksMap[key].actual += task.actualHours || 0;
+        
+        if (dateStr < todayStr && task.status !== 'done') {
+          expiredTasks.push(task);
+        }
       }
-      
-      groups[key].planned += task.plannedHours || 0;
-      groups[key].actual += task.actualHours || 0;
-      groups[key].tasksCount += 1;
     });
     
-    return Object.entries(groups)
-      .map(([key, data]) => ({ key, ...data }))
-      .sort((a, b) => {
-        if (a.key === '9999-99-99') return 1;
-        if (b.key === '9999-99-99') return -1;
-        return b.key.localeCompare(a.key);
+    const weeks = Object.values(weeksMap).sort((a, b) => b.key.localeCompare(a.key));
+    
+    weeks.forEach(w => {
+      w.tasks.sort((a, b) => {
+        const da = a.plannedDate || a.dueDate || '';
+        const db = b.plannedDate || b.dueDate || '';
+        return da.localeCompare(db);
       });
-  }, [viewingMemberDetail]);
+    });
+    
+    return {
+      weeks,
+      expiredTasks: expiredTasks.sort((a, b) => {
+        const da = a.plannedDate || a.dueDate || '';
+        const db = b.plannedDate || b.dueDate || '';
+        return da.localeCompare(db);
+      }),
+      unscheduledTasks: unscheduledTasks.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+    };
+  }, [viewingMemberId, processTasks]);
 
   // --- Links Management ---
   const [showAddLink, setShowAddLink] = useState(false);
@@ -1258,92 +1416,187 @@ export default function ProcessDashboard({
                                 </div>
                               </div>
 
-                              {/* Sección en 2 Columnas para Desglose Semanal y Lista de Tareas */}
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* Desglose de Horas por Semana (Recientes primero) */}
-                                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-                                  <h5 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                                    <Calendar size={15} className="text-blue-500" /> Desglose de Horas por Semana (Recientes primero):
-                                  </h5>
-                                  {weeklyHours.length === 0 ? (
-                                    <p className="text-xs text-slate-400 italic">No hay registros de horas asignados a semanas.</p>
+                              {/* Sección en 2 Columnas (Semanas vs Expiradas) */}
+                              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start mt-6">
+                                {/* Columna Izquierda (Principal 2/3): Semanas */}
+                                <div className="lg:col-span-2 space-y-4">
+                                  {memberTasksGrouped.weeks.length === 0 ? (
+                                    <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs text-center">
+                                      <Calendar size={24} className="mx-auto text-slate-300 mb-2" />
+                                      <p className="text-xs text-slate-400 font-bold">No hay tareas planificadas en semanas.</p>
+                                    </div>
                                   ) : (
-                                    <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
-                                      {weeklyHours.map(week => {
-                                        const weekOver = week.actual > week.planned && week.planned > 0;
-                                        const weekRatio = week.planned > 0 ? (week.actual / week.planned) * 100 : 0;
-                                        return (
-                                          <div key={week.key} className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-2">
-                                            <div className="flex items-center justify-between font-bold text-slate-800">
-                                              <span>{week.label}</span>
-                                              <span className="font-black">
-                                                {week.planned}h <span className="text-slate-300">/</span> <span className={weekOver ? 'text-amber-600' : 'text-emerald-600'}>{week.actual}h</span>
-                                              </span>
+                                    memberTasksGrouped.weeks.map(week => {
+                                      const weekOver = week.actual > week.planned && week.planned > 0;
+                                      const weekRatio = week.planned > 0 ? (week.actual / week.planned) * 100 : 0;
+                                      const isExpanded = !!expandedWeeks[week.key];
+
+                                      return (
+                                        <div key={week.key} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden transition-all">
+                                          <div 
+                                            onClick={() => setExpandedWeeks(prev => ({ ...prev, [week.key]: !prev[week.key] }))}
+                                            className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${isExpanded ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}
+                                          >
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2">
+                                                <Calendar size={16} className={isExpanded ? 'text-blue-500' : 'text-slate-400'} />
+                                                <h5 className="text-sm font-black text-slate-800">{week.label}</h5>
+                                              </div>
+                                              <div className="flex items-center gap-4 mt-2">
+                                                <div className="w-32">
+                                                  <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold mb-1">
+                                                    <span>Progreso</span>
+                                                    <span>{weekRatio.toFixed(0)}%</span>
+                                                  </div>
+                                                  <div className="h-1.5 bg-slate-200/60 rounded-full overflow-hidden">
+                                                    <div 
+                                                      className={`h-full rounded-full transition-all duration-300 ${weekOver ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                                      style={{ width: `${Math.min(weekRatio, 100)}%` }}
+                                                    />
+                                                  </div>
+                                                </div>
+                                                <div className="text-[10px] font-bold text-slate-500">
+                                                  <span className="text-slate-800 font-black">{week.planned}h</span> Plan <span className="mx-1">•</span>
+                                                  <span className={weekOver ? 'text-amber-600 font-black' : 'text-emerald-600 font-black'}>{week.actual}h</span> Real
+                                                </div>
+                                              </div>
                                             </div>
-                                            
-                                            <div className="h-1.5 bg-slate-200/60 rounded-full overflow-hidden">
-                                              <div 
-                                                className={`h-full rounded-full transition-all duration-300 ${
-                                                  weekOver ? 'bg-amber-500' : 'bg-emerald-500'
-                                                }`}
-                                                style={{ width: `${Math.min(weekRatio, 100)}%` }}
-                                              />
-                                            </div>
-                                            <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold">
-                                              <span>{week.tasksCount} {week.tasksCount === 1 ? 'tarea' : 'tareas'}</span>
-                                              <span>{weekRatio.toFixed(0)}% de plan.</span>
+                                            <div className="ml-4 p-2 bg-slate-100 rounded-full text-slate-500">
+                                              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                             </div>
                                           </div>
-                                        );
-                                      })}
-                                    </div>
+                                          
+                                          <AnimatePresence>
+                                            {isExpanded && (
+                                              <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="border-t border-slate-100"
+                                              >
+                                                <div className="p-4 bg-slate-50 space-y-2">
+                                                  {week.tasks.length === 0 ? (
+                                                    <p className="text-xs text-slate-400 italic">No hay tareas.</p>
+                                                  ) : (
+                                                    week.tasks.map(t => (
+                                                      <div 
+                                                        key={t.id} 
+                                                        onClick={() => onOpenTask && onOpenTask(t)}
+                                                        className="p-3 bg-white hover:border-blue-300 rounded-xl border border-slate-200 text-xs space-y-2 transition-all cursor-pointer group shadow-sm"
+                                                      >
+                                                        <div className="flex items-start justify-between gap-2">
+                                                          <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2">
+                                                            {t.title}
+                                                          </span>
+                                                          <div className="flex items-center gap-1.5 shrink-0">
+                                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                              t.status === 'done' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                              t.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                                                              t.status === 'blocked' ? 'bg-red-50 text-red-600 border border-red-100' :
+                                                              'bg-slate-100 text-slate-600 border border-slate-200'
+                                                            }`}>
+                                                              {t.status}
+                                                            </span>
+                                                          </div>
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mt-2">
+                                                          <span>Pl: {t.plannedHours || 0}h | Rl: {t.actualHours || 0}h</span>
+                                                          <span className="flex items-center gap-1 text-slate-500"><Calendar size={12}/> {t.dueDate || t.plannedDate || 'Sin fecha'}</span>
+                                                        </div>
+                                                      </div>
+                                                    ))
+                                                  )}
+                                                </div>
+                                              </motion.div>
+                                            )}
+                                          </AnimatePresence>
+                                        </div>
+                                      );
+                                    })
                                   )}
                                 </div>
 
-                                {/* Listado de Tareas en el Proceso (Click para ver ficha) */}
-                                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-                                  <h5 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center justify-between">
-                                    <span className="flex items-center gap-2">
-                                      <CheckCircle2 size={15} className="text-emerald-500" /> Tareas en el Proceso:
-                                    </span>
-                                    <span className="text-[10px] font-bold text-slate-400 lowercase">clic para abrir ficha</span>
-                                  </h5>
-                                  
-                                  {viewingMemberDetail.tasks.length === 0 ? (
-                                    <p className="text-xs text-slate-400 italic">No tiene tareas asignadas a este proceso.</p>
-                                  ) : (
-                                    <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
-                                      {viewingMemberDetail.tasks.map(t => (
-                                        <div 
-                                          key={t.id} 
-                                          onClick={() => onOpenTask && onOpenTask(t)}
-                                          className="p-3.5 bg-slate-50 hover:bg-blue-50/70 hover:border-blue-200 rounded-xl border border-slate-100 text-xs space-y-2 transition-all cursor-pointer group"
-                                          title="Haga clic para ver los detalles completos de la tarea"
-                                        >
-                                          <div className="flex items-start justify-between gap-2">
-                                            <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-2">
-                                              {t.title}
-                                            </span>
-                                            <div className="flex items-center gap-1.5 shrink-0">
-                                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                                                t.status === 'done' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                t.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                                                t.status === 'blocked' ? 'bg-red-50 text-red-600 border border-red-100' :
-                                                'bg-slate-100 text-slate-600'
-                                              }`}>
-                                                {t.status}
-                                              </span>
-                                              <Eye size={14} className="text-slate-400 group-hover:text-blue-600 transition-colors" />
+                                {/* Columna Derecha (Atención Prioritaria: Expiradas y Sin Fecha) */}
+                                <div className="space-y-6">
+                                  {/* Tareas Expiradas */}
+                                  <div className="bg-red-50/50 p-4 rounded-2xl border border-red-100 shadow-xs">
+                                    <h5 className="text-xs font-black text-red-700 uppercase tracking-wider flex items-center gap-2 mb-4">
+                                      <AlertCircle size={15} /> Tareas Expiradas
+                                    </h5>
+                                    {memberTasksGrouped.expiredTasks.length === 0 ? (
+                                      <p className="text-[10px] text-red-400/80 font-bold text-center py-2">No hay tareas expiradas.</p>
+                                    ) : (
+                                      <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                                        {memberTasksGrouped.expiredTasks.map(t => (
+                                          <div key={t.id} className="p-3 bg-white rounded-xl border border-red-200 shadow-sm text-xs group relative overflow-hidden">
+                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500"></div>
+                                            <div className="pl-2">
+                                              <p className="font-bold text-slate-800 line-clamp-2 mb-2">{t.title}</p>
+                                              <div className="flex items-center justify-between text-[10px] font-bold mb-3">
+                                                <span className="text-red-500">Venció: {t.dueDate || t.plannedDate}</span>
+                                                <span className="text-slate-400">{t.plannedHours || 0}h</span>
+                                              </div>
+                                              
+                                              {/* Botones de acción rápida */}
+                                              <div className="flex items-center gap-2 border-t border-slate-100 pt-2">
+                                                <button 
+                                                  onClick={(e) => { e.stopPropagation(); onUpdateTask && onUpdateTask(t.id, { status: 'done', actualHours: t.actualHours || t.plannedHours }); }}
+                                                  className="flex-1 flex justify-center items-center gap-1 py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
+                                                  title="Marcar como Completada"
+                                                >
+                                                  <CheckCircle2 size={12} /> Completar
+                                                </button>
+                                                <button 
+                                                  onClick={(e) => { e.stopPropagation(); onUpdateTask && onUpdateTask(t.id, { status: 'blocked' }); }}
+                                                  className="flex-1 flex justify-center items-center gap-1 py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
+                                                  title="Bloquear tarea"
+                                                >
+                                                  <AlertCircle size={12} /> Bloquear
+                                                </button>
+                                                <button 
+                                                  onClick={(e) => { e.stopPropagation(); onDeleteTask && onDeleteTask(t.id); }}
+                                                  className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
+                                                  title="Eliminar tarea"
+                                                >
+                                                  <Trash size={14} />
+                                                </button>
+                                                <button 
+                                                  onClick={(e) => { e.stopPropagation(); onOpenTask && onOpenTask(t); }}
+                                                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
+                                                  title="Abrir y reprogramar"
+                                                >
+                                                  <Calendar size={14} />
+                                                </button>
+                                              </div>
                                             </div>
                                           </div>
-                                          <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold">
-                                            <span>Pl: {t.plannedHours || 0}h | Rl: {t.actualHours || 0}h</span>
-                                            {t.dueDate && <span>Vence: {t.dueDate}</span>}
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Tareas Sin Fecha Asignada */}
+                                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-xs">
+                                    <h5 className="text-xs font-black text-slate-600 uppercase tracking-wider flex items-center gap-2 mb-4">
+                                      <Clock size={15} /> Sin fecha asignada
+                                    </h5>
+                                    {memberTasksGrouped.unscheduledTasks.length === 0 ? (
+                                      <p className="text-[10px] text-slate-400 font-bold text-center py-2">Todas las tareas tienen fecha.</p>
+                                    ) : (
+                                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                                        {memberTasksGrouped.unscheduledTasks.map(t => (
+                                          <div 
+                                            key={t.id}
+                                            onClick={() => onOpenTask && onOpenTask(t)} 
+                                            className="p-2.5 bg-white hover:border-blue-300 rounded-lg border border-slate-200 text-xs transition-all cursor-pointer shadow-sm flex items-center justify-between group"
+                                          >
+                                            <span className="font-bold text-slate-700 group-hover:text-blue-600 truncate mr-2">{t.title}</span>
+                                            <Calendar size={14} className="text-slate-400 group-hover:text-blue-500 shrink-0" />
                                           </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1453,729 +1706,41 @@ export default function ProcessDashboard({
           </div>
         )}
 
-        {/* SUBTAB 3: ENLACES DE INTERÉS */}
+        {/* ENLACES DE INTERES SUB-TAB */}
         {activeSubTab === 'links' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* Listado de Enlaces */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div>
-                  <h3 className="text-base font-black text-slate-900">Marcadores y Accesos Rápidos</h3>
-                  <p className="text-xs font-bold text-slate-400">Enlaces de interés y repositorios del proceso</p>
-                </div>
-                {canEditLinks && (
-                  <button
-                    onClick={() => setShowAddLink(!showAddLink)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 text-xs font-black uppercase tracking-wider rounded-xl transition-all"
-                  >
-                    <Plus size={14} />
-                    Agregar Link
-                  </button>
-                )}
-              </div>
-
-              {/* Formulario de Adición */}
-              <AnimatePresence>
-                {showAddLink && (
-                  <motion.form 
-                    onSubmit={handleAddLink}
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4 overflow-hidden text-left"
-                  >
-                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Nuevo Enlace de Interés</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                      <div className="md:col-span-3 space-y-1">
-                        <label htmlFor="link-code-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Código (Opcional)</label>
-                        <input 
-                          id="link-code-input"
-                          type="text" 
-                          placeholder="Ej: COD-001"
-                          value={newLinkCode}
-                          onChange={(e) => setNewLinkCode(e.target.value)}
-                          className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime"
-                        />
-                      </div>
-                      <div className="md:col-span-9 space-y-1">
-                        <label htmlFor="link-title-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Nombre del Enlace</label>
-                        <input 
-                          id="link-title-input"
-                          type="text" 
-                          required
-                          placeholder="Ej: Carpeta de Diseños en Drive"
-                          value={newLinkTitle}
-                          onChange={(e) => setNewLinkTitle(e.target.value)}
-                          className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label htmlFor="link-url-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">URL / Enlace</label>
-                        <input 
-                          id="link-url-input"
-                          type="text" 
-                          required
-                          placeholder="Ej: drive.google.com/..."
-                          value={newLinkUrl}
-                          onChange={(e) => setNewLinkUrl(e.target.value)}
-                          className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label htmlFor="link-category-select" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Categoría</label>
-                        <select
-                          id="link-category-select"
-                          value={newLinkCategory}
-                          onChange={(e) => setNewLinkCategory(e.target.value)}
-                          className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime cursor-pointer"
-                        >
-                          <option value="">General</option>
-                          {linkCategories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                          <option value="custom">+ Crear nueva...</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {newLinkCategory === 'custom' && (
-                      <div className="space-y-1">
-                        <label htmlFor="link-custom-category-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Nombre de la Nueva Categoría</label>
-                        <input 
-                          id="link-custom-category-input"
-                          type="text" 
-                          required
-                          placeholder="Ej: Manuales, Diseños, Repositorios..."
-                          value={customLinkCategory}
-                          onChange={(e) => setCustomLinkCategory(e.target.value)}
-                          className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime"
-                        />
-                      </div>
-                    )}
-
-                    <div className="space-y-1">
-                      <label htmlFor="link-description-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Descripción (Opcional)</label>
-                      <input 
-                        id="link-description-input"
-                        type="text" 
-                        placeholder="Ej: Instrucciones o contenido de esta carpeta..."
-                        value={newLinkDescription}
-                        onChange={(e) => setNewLinkDescription(e.target.value)}
-                        className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setShowAddLink(false)}
-                        className="px-3.5 py-1.5 bg-white text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-black uppercase tracking-wider border border-slate-100 transition-all"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-1.5 bg-ng-black text-white hover:bg-slate-800 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
-                      >
-                        Guardar
-                      </button>
-                    </div>
-                  </motion.form>
-                )}
-              </AnimatePresence>
-
-              {/* Links List grouped by Category */}
-              {filteredLinks.length === 0 ? (
-                <div className="p-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 max-w-md mx-auto">
-                  <Bookmark size={32} className="mx-auto text-slate-300 mb-2" />
-                  <p className="text-sm font-bold text-slate-400">Sin enlaces registrados</p>
-                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">No se han registrado marcadores para este proceso todavía. {canEditLinks ? '¡Haz clic en Agregar Link para registrar el primero!' : ''}</p>
-                </div>
-              ) : (
-                <div className="space-y-6 text-left">
-                  {Object.entries(groupedLinks).map(([categoryName, links]) => {
-                    const isExpanded = expandedLinkCategories[categoryName] !== false;
-                    const linksArray = links as ProcessLink[];
-                    const isEditingThisCategory = editingLinkCategory === categoryName;
-                    const isLeaderOrAdmin = isSystemAdmin || processAccessLevel === 'administrador' || processAccessLevel === 'lider';
-                    const canRenameThisCategory = isLeaderOrAdmin && categoryName !== 'Compartidos Conmigo';
-
-                    return (
-                      <div key={categoryName} className="space-y-3 bg-slate-50/50 p-3.5 rounded-2xl border border-slate-100">
-                        {/* Category Header */}
-                        <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5 flex-wrap">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setExpandedLinkCategories(prev => ({
-                                  ...prev,
-                                  [categoryName]: !isExpanded
-                                }));
-                              }}
-                              className="flex items-center gap-1.5 hover:text-slate-900 transition-all font-bold text-slate-700 text-left cursor-pointer select-none"
-                            >
-                              {isExpanded ? <ChevronDown size={14} className="text-slate-400 shrink-0" /> : <ChevronRight size={14} className="text-slate-400 shrink-0" />}
-                              {isExpanded ? <FolderOpen size={15} className="text-amber-500 fill-amber-100/50 shrink-0" /> : <Folder size={15} className="text-amber-500 fill-amber-100/50 shrink-0" />}
-                            </button>
-
-                            {isEditingThisCategory ? (
-                              <div className="flex items-center gap-1.5 flex-1 max-w-xs">
-                                <input
-                                  type="text"
-                                  value={newCategoryNameInput}
-                                  onChange={(e) => setNewCategoryNameInput(e.target.value)}
-                                  className="bg-white border border-slate-300 px-2 py-1 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-ng-lime/30 w-full"
-                                  autoFocus
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleRenameLinkCategory(categoryName, newCategoryNameInput)}
-                                  className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all"
-                                  title="Guardar nombre"
-                                >
-                                  <Check size={12} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingLinkCategory(null);
-                                    setNewCategoryNameInput('');
-                                  }}
-                                  className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-lg transition-all"
-                                  title="Cancelar"
-                                >
-                                  <X size={12} />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 min-w-0">
-                                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider truncate">{categoryName}</h4>
-                                <span className="text-[9px] bg-slate-200/80 text-slate-600 font-bold px-2 py-0.5 rounded-full shrink-0">
-                                  {linksArray.length}
-                                </span>
-
-                                {canRenameThisCategory && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingLinkCategory(categoryName);
-                                      setNewCategoryNameInput(categoryName);
-                                    }}
-                                    className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg transition-all text-[10px] flex items-center gap-1 font-bold"
-                                    title="Editar nombre de categoría (Líder/Admin)"
-                                  >
-                                    <Pencil size={11} />
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Action on Category Header: Compartir Categoría */}
-                          {categoryName !== 'Compartidos Conmigo' && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCategoryToShare({ name: categoryName, links: linksArray });
-                                setIsCategoryShareModalOpen(true);
-                              }}
-                              className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/60 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-2xs shrink-0 cursor-pointer"
-                              title="Compartir todos los enlaces de esta categoría"
-                            >
-                              <Share2 size={11} />
-                              Compartir Categoría
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Indented Link Cards */}
-                        {isExpanded && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                            {linksArray.map(link => {
-                              const author = members.find(m => m.id === link.createdByMemberId);
-                              const sharedCount = link.sharedWith?.length || 0;
-                              const myShare = link.sharedWith?.find(s => s.memberId === currentMember?.id);
-                              const isSharedWithMe = link.createdByMemberId !== currentMember?.id && !!myShare;
-                              const isFromOtherProc = link.processId !== selectedProcessId;
-                              const linkProc = processes.find(p => p.id === link.processId);
-
-                              const canEditThisLink = isLeaderOrAdmin || link.createdByMemberId === currentMember?.id || myShare?.access === 'editar';
-                              const canDeleteThisLink = isLeaderOrAdmin || link.createdByMemberId === currentMember?.id || myShare?.access === 'editar';
-                              const canShareThisLink = isLeaderOrAdmin || link.createdByMemberId === currentMember?.id || myShare?.access === 'editar';
-
-                              return (
-                                <div 
-                                  key={link.id} 
-                                  className="p-3.5 bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl flex flex-col justify-between gap-3 transition-all shadow-2xs"
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex items-start gap-2.5 min-w-0">
-                                      <div className="p-2 bg-slate-100 text-slate-600 rounded-lg shrink-0 mt-0.5">
-                                        <LinkIcon size={14} />
-                                      </div>
-                                      <div className="min-w-0 space-y-1">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          {link.code && (
-                                            <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 font-mono text-[9px] font-black rounded shrink-0">
-                                              {link.code}
-                                            </span>
-                                          )}
-                                          <h4 className="text-xs font-bold text-slate-900 truncate">{link.title}</h4>
-                                        </div>
-
-                                        {link.description && (
-                                          <p className="text-[11px] text-slate-500 font-medium line-clamp-2 leading-snug">
-                                            {link.description}
-                                          </p>
-                                        )}
-
-                                        <a 
-                                          href={link.url} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer" 
-                                          className="text-[10px] text-emerald-600 hover:text-emerald-800 hover:underline font-bold truncate inline-flex items-center gap-1 pt-0.5"
-                                        >
-                                          Visitar enlace
-                                          <ExternalLink size={10} className="shrink-0" />
-                                        </a>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Metadata and Actions footer */}
-                                  <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[9px] text-slate-400 font-bold uppercase tracking-wider flex-wrap gap-1">
-                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                      <span className="truncate">Por: {author?.name || 'Sistema'}</span>
-                                      {isFromOtherProc && linkProc && (
-                                        <span className="text-[7px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded font-black truncate">
-                                          {linkProc.name}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                      {isSharedWithMe && (
-                                        <span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase ${
-                                          myShare?.access === 'editar' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
-                                        }`}>
-                                          {myShare?.access === 'editar' ? 'Compartido (Editar)' : 'Compartido (Ver)'}
-                                        </span>
-                                      )}
-
-                                      {canShareThisLink && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setLinkToShare(link);
-                                            setIsLinkShareModalOpen(true);
-                                          }}
-                                          className="p-1 text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-0.5 text-[8px] font-black cursor-pointer"
-                                          title="Compartir enlace individual"
-                                        >
-                                          <Share2 size={11} />
-                                          {sharedCount > 0 && <span>{sharedCount}</span>}
-                                        </button>
-                                      )}
-
-                                      {canEditThisLink && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenEditLink(link)}
-                                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                                          title="Editar enlace (Código, Nombre, URL, Descripción)"
-                                        >
-                                          <Pencil size={11} />
-                                        </button>
-                                      )}
-
-                                      {canDeleteThisLink && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteLink(link.id)}
-                                          className="p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                                          title="Eliminar enlace"
-                                        >
-                                          <Trash size={11} />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Ayuda / FAQ */}
-            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <HelpCircle size={14} className="text-slate-400" />
-                Guía de Enlaces
-              </h3>
-              <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                Los enlaces de interés facilitan el acceso rápido a recursos compartidos por los líderes de proceso. Puedes vincular:
-              </p>
-              <ul className="space-y-2 text-xs font-medium text-slate-600">
-                <li className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-ng-black" />
-                  <span>Carpetas en Google Drive o Dropbox</span>
-                </li>
-                <li className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-ng-black" />
-                  <span>Repositorios de GitHub o Bitbucket</span>
-                </li>
-                <li className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-ng-black" />
-                  <span>Tableros externos, Figma o Miro</span>
-                </li>
-              </ul>
-              <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] text-slate-400 font-semibold flex items-start gap-1.5">
-                <Lock size={12} className="shrink-0 mt-0.5 text-slate-400" />
-                <span>Solo los Líderes del Proceso o Administradores pueden añadir y eliminar enlaces.</span>
-              </div>
-            </div>
-          </div>
+          <motion.div
+            key="process_links_view_tab"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="w-full"
+          >
+            <PersonalLinksView
+              currentMember={currentMember || null}
+              members={members}
+              moduleName={`Gestión (${selectedProcess?.name || 'Procesos'})`}
+              accentColor="lime"
+            />
+          </motion.div>
         )}
 
-        {/* SUBTAB 4: NOTAS DE REUNIÓN (MARKDOWN) */}
         {activeSubTab === 'notes' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* Lista de Documentos */}
-            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4 h-[600px] flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
-                <div>
-                  <h3 className="text-sm font-black text-slate-900">Hojas de Reuniones</h3>
-                  <p className="text-[10px] font-bold text-slate-400">Documentación del proceso</p>
-                </div>
-                {canEditNotes && (
-                  <button
-                    onClick={handleCreateNewNote}
-                    className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-900 text-white hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all"
-                  >
-                    <Plus size={12} />
-                    Nueva Nota
-                  </button>
-                )}
-              </div>
-
-              {/* Items List grouped by collapsible folders (Obsidian style) */}
-              <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-left">
-                {filteredNotes.length === 0 ? (
-                  <div className="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 mt-6">
-                    <FileText size={28} className="mx-auto text-slate-300 mb-1.5" />
-                    <p className="text-xs font-bold text-slate-400">Sin notas creadas</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">No se han registrado notas. ¡Crea una nueva hoja para iniciar la bitácora!</p>
-                  </div>
-                ) : (
-                  Object.entries(groupedNotes).map(([categoryName, notes]) => {
-                    const isExpanded = expandedCategories[categoryName] !== false; // default to true
-                    const notesArray = notes as ProcessNote[];
-
-                    return (
-                      <div key={categoryName} className="space-y-1">
-                        {/* Folder Header */}
-                        <div 
-                          onClick={() => {
-                            setExpandedCategories(prev => ({
-                              ...prev,
-                              [categoryName]: !isExpanded
-                            }));
-                          }}
-                          className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer transition-all text-slate-700 hover:text-slate-900 font-bold select-none"
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            {isExpanded ? <ChevronDown size={14} className="text-slate-400 shrink-0" /> : <ChevronRight size={14} className="text-slate-400 shrink-0" />}
-                            {isExpanded ? <FolderOpen size={13} className="text-amber-500 fill-amber-100/50 shrink-0" /> : <Folder size={13} className="text-amber-500 fill-amber-100/50 shrink-0" />}
-                            <span className="text-[10px] uppercase tracking-wider font-extrabold truncate">{categoryName}</span>
-                          </div>
-                          <span className="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-bold">{notesArray.length}</span>
-                        </div>
-
-                        {/* Indented Folder Contents */}
-                        {isExpanded && (
-                          <div className="pl-3 ml-2 border-l border-slate-100 space-y-1.5 pt-0.5">
-                            {notesArray.map(note => {
-                              const author = members.find(m => m.id === note.createdByMemberId);
-                              const isSelected = selectedNoteId === note.id;
-                              const sharedCount = note.sharedWith?.length || 0;
-                              const myShare = note.sharedWith?.find(s => s.memberId === currentMember?.id);
-                              const isSharedWithMe = note.createdByMemberId !== currentMember?.id && !!myShare;
-                              const isFromOtherProc = note.processId !== selectedProcessId;
-                              const noteProc = processes.find(p => p.id === note.processId);
-
-                              const canDeleteThisNote = isSystemAdmin || processAccessLevel === 'administrador' || processAccessLevel === 'lider' || note.createdByMemberId === currentMember?.id;
-
-                              return (
-                                <div
-                                  key={note.id}
-                                  onClick={() => handleSelectNote(note)}
-                                  className={`p-2.5 rounded-xl border transition-all cursor-pointer space-y-1.5 relative ${
-                                    isSelected 
-                                      ? 'bg-slate-50 border-slate-200 shadow-sm' 
-                                      : 'bg-white border-slate-100 hover:border-slate-200'
-                                  }`}
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                      <FileText size={11} className="text-slate-400 shrink-0" />
-                                      <h4 className="text-xs font-bold text-slate-800 truncate">{note.title}</h4>
-                                    </div>
-                                    {canDeleteThisNote && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleDeleteNote(note.id);
-                                        }}
-                                        className="p-1 hover:text-red-500 text-slate-400 hover:bg-slate-100 rounded-lg transition-all shrink-0"
-                                        title="Eliminar nota"
-                                      >
-                                        <Trash size={11} />
-                                      </button>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider pl-4 flex-wrap gap-1">
-                                    <div className="flex items-center gap-1 min-w-0">
-                                      <span className="truncate">By: {author?.name || 'Sistema'}</span>
-                                      {isFromOtherProc && noteProc && (
-                                        <span className="text-[7px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded font-black truncate">
-                                          {noteProc.name}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      {isSharedWithMe && (
-                                        <span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase ${
-                                          myShare?.access === 'editar' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
-                                        }`}>
-                                          {myShare?.access === 'editar' ? 'Compartido (Editar)' : 'Compartido (Ver)'}
-                                        </span>
-                                      )}
-                                      {sharedCount > 0 && (
-                                        <span className="flex items-center gap-0.5 text-blue-600 bg-blue-50 px-1 py-0.5 rounded border border-blue-100 font-black text-[7px]" title={`Compartida con ${sharedCount} persona(s)`}>
-                                          <Share2 size={8} /> {sharedCount}
-                                        </span>
-                                      )}
-                                      <span>{note.updatedAt ? new Date(note.updatedAt).toLocaleDateString() : ''}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Visor / Editor del Documento */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm h-[600px] flex flex-col overflow-hidden">
-              {isEditingNote ? (
-                // EDITOR MODE
-                <div className="h-full flex flex-col space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
-                      {selectedNoteId ? 'Editando Nota de Reunión' : 'Creando Nueva Nota'}
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setIsEditingNote(false)}
-                        className="px-3 py-1.5 hover:bg-slate-50 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        onClick={handleSaveNote}
-                        className="flex items-center gap-1 px-4 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
-                      >
-                        <Save size={12} />
-                        Guardar Nota
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Input Título y Categoría */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0 text-left">
-                    <div className="md:col-span-2">
-                      <label htmlFor="note-title-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Título del Documento</label>
-                      <input 
-                        id="note-title-input"
-                        type="text"
-                        placeholder="Ej: Reunión Semanal de Planificación de Contenido"
-                        value={noteTitle}
-                        onChange={(e) => setNoteTitle(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 text-xs font-bold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="note-category-select" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Categoría</label>
-                      <select
-                        id="note-category-select"
-                        value={noteCategory}
-                        onChange={(e) => setNoteCategory(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 text-xs font-bold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime cursor-pointer"
-                      >
-                        <option value="">General</option>
-                        {noteCategories.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                        <option value="custom">+ Crear nueva...</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {noteCategory === 'custom' && (
-                    <div className="shrink-0 text-left">
-                      <label htmlFor="note-custom-category-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Nombre de la Nueva Categoría</label>
-                      <input 
-                        id="note-custom-category-input"
-                        type="text" 
-                        required
-                        placeholder="Ej: Actas, Minutas, Diseños..."
-                        value={customNoteCategory}
-                        onChange={(e) => setCustomNoteCategory(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 text-xs font-bold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime"
-                      />
-                    </div>
-                  )}
-
-                  {/* Monospace Textarea and Markdown Cheat sheet */}
-                  <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden">
-                    <div className="flex-1 flex flex-col h-full">
-                      <label htmlFor="note-content-input" className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Contenido (Soporta Markdown)</label>
-                      <textarea
-                        id="note-content-input"
-                        placeholder="# Mi título&#10;> Un quote especial&#10;- Un elemento de lista&#10;**Texto en negrita**"
-                        value={noteContent}
-                        onChange={(e) => setNoteContent(e.target.value)}
-                        className="w-full flex-1 bg-slate-50 border border-slate-200 p-4 rounded-xl font-mono text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-ng-lime/30 focus:border-ng-lime resize-none h-full overflow-y-auto"
-                      />
-                    </div>
-
-                    {/* Markdown Cheat sheet */}
-                    <div className="w-full md:w-48 bg-slate-50 border border-slate-100 p-4 rounded-xl space-y-3 shrink-0 overflow-y-auto text-left">
-                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-wider border-b pb-1">Atajos Markdown</h4>
-                      <div className="space-y-2 text-[10px] font-bold text-slate-500 leading-relaxed">
-                        <div>
-                          <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800"># Título 1</code>
-                          <span className="block text-[8px] text-slate-400 mt-0.5">Título principal</span>
-                        </div>
-                        <div>
-                          <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800">## Título 2</code>
-                          <span className="block text-[8px] text-slate-400 mt-0.5">Subtítulo secundario</span>
-                        </div>
-                        <div>
-                          <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800">**texto**</code>
-                          <span className="block text-[8px] text-slate-400 mt-0.5">Resaltado en negrita</span>
-                        </div>
-                        <div>
-                          <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800">- item</code>
-                          <span className="block text-[8px] text-slate-400 mt-0.5">Viñetas / Listas</span>
-                        </div>
-                        <div>
-                          <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800">&gt; frase</code>
-                          <span className="block text-[8px] text-slate-400 mt-0.5">Cita o quote destacado</span>
-                        </div>
-                        <div>
-                          <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-800">[txt](url)</code>
-                          <span className="block text-[8px] text-slate-400 mt-0.5">Vincular enlaces</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : activeNote ? (
-                // READ MODE
-                <div className="h-full flex flex-col overflow-hidden">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0 flex-wrap gap-2">
-                    <div className="text-left min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-base font-black text-slate-950 truncate">{activeNote.title}</h3>
-                        {activeNotePermissions.isSharedWithMe && (
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider flex items-center gap-1 ${
-                            activeNotePermissions.accessType === 'editar' 
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
-                            {activeNotePermissions.accessType === 'editar' ? <Pencil size={10} /> : <Eye size={10} />}
-                            {activeNotePermissions.accessType === 'editar' ? 'Compartido (Puede Editar)' : 'Compartido (Solo Lectura)'}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                        Creado por {members.find(m => m.id === activeNote.createdByMemberId)?.name || 'Sistema'} · {new Date(activeNote.updatedAt).toLocaleString()}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {activeNotePermissions.canShare && (
-                        <button
-                          onClick={() => {
-                            setNoteToShare(activeNote);
-                            setIsShareModalOpen(true);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all border border-blue-200/60 shadow-sm"
-                        >
-                          <Share2 size={12} />
-                          Compartir ({activeNote.sharedWith?.length || 0})
-                        </button>
-                      )}
-
-                      {activeNotePermissions.canEdit ? (
-                        <button
-                          onClick={() => setIsEditingNote(true)}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all border border-slate-100"
-                        >
-                          <Edit size={12} />
-                          Editar Nota
-                        </button>
-                      ) : (
-                        <span className="px-2.5 py-1 bg-amber-50/60 text-amber-700 border border-amber-200/60 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
-                          <Lock size={11} /> Solo Lectura
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Markdown content container */}
-                  <div className="flex-1 overflow-y-auto py-4 pr-1 text-left custom-markdown-body">
-                    {renderMarkdown(activeNote.content)}
-                  </div>
-                </div>
-              ) : (
-                // EMPTY STATE
-                <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-slate-50 border border-slate-100 rounded-3xl">
-                  <FileText size={44} className="text-slate-300 mb-2.5" />
-                  <p className="text-sm font-black text-slate-500">Notion de Reuniones</p>
-                  <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
-                    Selecciona una nota de reunión en la lista de la izquierda o crea una nueva hoja en formato Markdown para documentar acuerdos, minutas o actividades.
-                  </p>
-                  {canEditNotes && (
-                    <button
-                      onClick={handleCreateNewNote}
-                      className="mt-4 flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white hover:bg-slate-800 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-slate-900/10"
-                    >
-                      <Plus size={14} />
-                      Crear Primera Nota
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+          <motion.div
+            key="process_notes_view_tab"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="w-full"
+          >
+            <PersonalNotesView
+              currentMember={currentMember || null}
+              members={members}
+              moduleName={`Gestión (${selectedProcess?.name || 'Procesos'})`}
+              accentColor="emerald"
+            />
+          </motion.div>
         )}
       </div>
 
@@ -2218,24 +1783,14 @@ export default function ProcessDashboard({
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                   <div className="sm:col-span-7">
-                    <select
-                      value={selectedShareMemberId}
-                      onChange={(e) => setSelectedShareMemberId(e.target.value)}
-                      className="w-full bg-white border border-slate-200 text-xs font-bold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
-                    >
-                      <option value="">-- Selecciona un integrante --</option>
-                      {members
-                        .filter(m => m.id !== noteToShare.createdByMemberId && !(noteToShare.sharedWith || []).some(s => s.memberId === m.id))
-                        .map(m => {
-                          const memberProc = processes.find(p => p.id === m.processId);
-                          const isSameProc = m.processId === noteToShare.processId;
-                          return (
-                            <option key={m.id} value={m.id}>
-                              {m.name} ({isSameProc ? 'Mismo Proceso' : memberProc ? `Proceso: ${memberProc.name}` : 'Sin proceso'})
-                            </option>
-                          );
-                        })}
-                    </select>
+                    <MemberSearchSelect
+      members={members}
+      selectedId={selectedShareMemberId}
+      onSelect={setSelectedShareMemberId}
+      processes={processes}
+      contextProcessId={noteToShare.processId}
+      excludeMemberIds={[noteToShare.createdByMemberId, ...(noteToShare.sharedWith || []).map(s => s.memberId)]}
+    />
                   </div>
                   <div className="sm:col-span-3">
                     <select
@@ -2252,7 +1807,7 @@ export default function ProcessDashboard({
                       type="button"
                       onClick={handleAddShareMember}
                       disabled={!selectedShareMemberId}
-                      className="w-full h-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1 shadow-sm"
+                      className="w-full h-full py-2.5 px-3 bg-ng-lime hover:bg-[#d4eb3f] disabled:bg-slate-200 text-ng-black font-black text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1 shadow-sm"
                     >
                       <UserPlus size={14} />
                     </button>
@@ -2390,24 +1945,14 @@ export default function ProcessDashboard({
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                   <div className="sm:col-span-7">
-                    <select
-                      value={selectedLinkShareMemberId}
-                      onChange={(e) => setSelectedLinkShareMemberId(e.target.value)}
-                      className="w-full bg-white border border-slate-200 text-xs font-bold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
-                    >
-                      <option value="">-- Selecciona un integrante --</option>
-                      {members
-                        .filter(m => m.id !== linkToShare.createdByMemberId && !(linkToShare.sharedWith || []).some(s => s.memberId === m.id))
-                        .map(m => {
-                          const memberProc = processes.find(p => p.id === m.processId);
-                          const isSameProc = m.processId === linkToShare.processId;
-                          return (
-                            <option key={m.id} value={m.id}>
-                              {m.name} ({isSameProc ? 'Mismo Proceso' : memberProc ? `Proceso: ${memberProc.name}` : 'Sin proceso'})
-                            </option>
-                          );
-                        })}
-                    </select>
+                    <MemberSearchSelect
+      members={members}
+      selectedId={selectedLinkShareMemberId}
+      onSelect={setSelectedLinkShareMemberId}
+      processes={processes}
+      contextProcessId={linkToShare.processId}
+      excludeMemberIds={[linkToShare.createdByMemberId, ...(linkToShare.sharedWith || []).map(s => s.memberId)]}
+    />
                   </div>
                   <div className="sm:col-span-3">
                     <select
@@ -2424,7 +1969,7 @@ export default function ProcessDashboard({
                       type="button"
                       onClick={handleAddShareLinkMember}
                       disabled={!selectedLinkShareMemberId}
-                      className="w-full h-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1 shadow-sm"
+                      className="w-full h-full py-2.5 px-3 bg-ng-lime hover:bg-[#d4eb3f] disabled:bg-slate-200 text-ng-black font-black text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1 shadow-sm"
                     >
                       <UserPlus size={14} />
                     </button>
@@ -2564,24 +2109,14 @@ export default function ProcessDashboard({
                 </label>
                 
                 <div className="space-y-3">
-                  <select
-                    value={selectedCategoryShareMemberId}
-                    onChange={(e) => setSelectedCategoryShareMemberId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 text-xs font-bold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
-                  >
-                    <option value="">-- Selecciona un integrante --</option>
-                    {members
-                      .filter(m => m.id !== currentMember?.id)
-                      .map(m => {
-                        const memberProc = processes.find(p => p.id === m.processId);
-                        const isSameProc = m.processId === selectedProcessId;
-                        return (
-                          <option key={m.id} value={m.id}>
-                            {m.name} ({isSameProc ? 'Mismo Proceso' : memberProc ? `Proceso: ${memberProc.name}` : 'Sin proceso'})
-                          </option>
-                        );
-                      })}
-                  </select>
+                  <MemberSearchSelect
+      members={members}
+      selectedId={selectedCategoryShareMemberId}
+      onSelect={setSelectedCategoryShareMemberId}
+      processes={processes}
+      contextProcessId={selectedProcessId}
+      excludeMemberIds={currentMember ? [currentMember.id] : []}
+    />
 
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
@@ -2757,7 +2292,7 @@ export default function ProcessDashboard({
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm"
+                    className="px-5 py-2 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm"
                   >
                     Guardar Cambios
                   </button>

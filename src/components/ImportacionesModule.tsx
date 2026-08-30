@@ -36,7 +36,12 @@ import {
   ShoppingBag,
   Download,
   LayoutList,
-  LayoutGrid
+  LayoutGrid,
+  SlidersHorizontal,
+  RotateCcw,
+  GripVertical,
+  MoveUp,
+  MoveDown
 } from 'lucide-react';
 import { 
   ImportProduct, 
@@ -55,6 +60,24 @@ import {
   deleteDoc, 
   doc 
 } from 'firebase/firestore';
+
+export interface ProductColumnConfig {
+  id: string;
+  label: string;
+  width: number;
+  align?: 'left' | 'center' | 'right';
+}
+
+const DEFAULT_PRODUCT_COLUMNS: ProductColumnConfig[] = [
+  { id: 'code', label: 'Código', width: 120, align: 'left' },
+  { id: 'name', label: 'Producto', width: 240, align: 'left' },
+  { id: 'supplier', label: 'Proveedor', width: 160, align: 'left' },
+  { id: 'category', label: 'Categoría', width: 140, align: 'left' },
+  { id: 'price', label: 'Precio Unitario', width: 150, align: 'left' },
+  { id: 'hsCode', label: 'Partida Arancelaria', width: 150, align: 'left' },
+  { id: 'status', label: 'Estado', width: 110, align: 'center' },
+  { id: 'actions', label: 'Acciones', width: 140, align: 'right' }
+];
 
 interface ImportacionesModuleProps {
   companies: Company[];
@@ -232,6 +255,79 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
   const [supplierFilter, setSupplierFilter] = useState<string>('');
   const [productViewMode, setProductViewMode] = useState<'list' | 'grid'>('list');
 
+  // Column Configuration State for Product List View
+  const [productColumns, setProductColumns] = useState<ProductColumnConfig[]>(() => {
+    try {
+      const saved = localStorage.getItem('importaciones_product_columns');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === DEFAULT_PRODUCT_COLUMNS.length) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return DEFAULT_PRODUCT_COLUMNS;
+  });
+
+  const [isColumnConfigModalOpen, setIsColumnConfigModalOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('importaciones_product_columns', JSON.stringify(productColumns));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [productColumns]);
+
+  const handleResizeStart = (e: React.MouseEvent, colId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const col = productColumns.find(c => c.id === colId);
+    if (!col) return;
+    const startWidth = col.width;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const currentX = moveEvent.clientX;
+      const diff = currentX - startX;
+      const newWidth = Math.max(60, startWidth + diff);
+      setProductColumns(prev =>
+        prev.map(c => (c.id === colId ? { ...c, width: newWidth } : c))
+      );
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const moveColumn = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === productColumns.length - 1) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const updated = [...productColumns];
+    const [moved] = updated.splice(index, 1);
+    updated.splice(targetIndex, 0, moved);
+    setProductColumns(updated);
+  };
+
+  const handleUpdateColumnWidth = (colId: string, newWidth: number) => {
+    const width = Math.max(50, Math.min(800, newWidth || 100));
+    setProductColumns(prev =>
+      prev.map(c => (c.id === colId ? { ...c, width } : c))
+    );
+  };
+
+  const handleResetColumns = () => {
+    setProductColumns(DEFAULT_PRODUCT_COLUMNS);
+  };
+
   // Modals & Selection
   const [selectedProduct, setSelectedProduct] = useState<ImportProduct | null>(null);
   const [isEditingProduct, setIsEditingProduct] = useState<boolean>(false);
@@ -267,37 +363,25 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
     setLoading(true);
     
     const unsubProducts = onSnapshot(collection(db, 'importation_products'), (snapshot) => {
-      if (!snapshot.empty) {
-        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportProduct));
-        setProducts(list);
-      } else {
-        setProducts(SAMPLE_PRODUCTS);
-      }
-    }, () => {
-      setProducts(SAMPLE_PRODUCTS);
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportProduct));
+      setProducts(list);
+    }, (error) => {
+      console.error('Error fetching importation_products:', error);
     });
 
     const unsubSuppliers = onSnapshot(collection(db, 'importation_suppliers'), (snapshot) => {
-      if (!snapshot.empty) {
-        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportSupplier));
-        setSuppliers(list);
-      } else {
-        setSuppliers(SAMPLE_SUPPLIERS);
-      }
-    }, () => {
-      setSuppliers(SAMPLE_SUPPLIERS);
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportSupplier));
+      setSuppliers(list);
+    }, (error) => {
+      console.error('Error fetching importation_suppliers:', error);
     });
 
     const unsubProformas = onSnapshot(collection(db, 'importation_proformas'), (snapshot) => {
-      if (!snapshot.empty) {
-        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportProforma));
-        setProformas(list);
-      } else {
-        setProformas(SAMPLE_PROFORMAS);
-      }
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportProforma));
+      setProformas(list);
       setLoading(false);
-    }, () => {
-      setProformas(SAMPLE_PROFORMAS);
+    }, (error) => {
+      console.error('Error fetching importation_proformas:', error);
       setLoading(false);
     });
 
@@ -686,6 +770,99 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
 
   const categoriesList = Array.from(new Set(products.map(p => p.category))).filter(Boolean);
 
+  const renderProductCell = (colId: string, product: ImportProduct) => {
+    switch (colId) {
+      case 'code':
+        return (
+          <span className="px-2.5 py-1 bg-blue-50 text-blue-700 font-mono text-[10px] font-extrabold rounded-lg uppercase tracking-wider border border-blue-100 whitespace-nowrap">
+            {product.code}
+          </span>
+        );
+      case 'name':
+        return (
+          <div>
+            <div className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+              {product.name}
+            </div>
+            {product.description && (
+              <div className="text-[11px] text-gray-400 line-clamp-1 mt-0.5">
+                {product.description}
+              </div>
+            )}
+          </div>
+        );
+      case 'supplier':
+        return (
+          <span className="font-semibold text-gray-800 line-clamp-1">
+            {product.supplierName}
+          </span>
+        );
+      case 'category':
+        return (
+          <span className="px-2.5 py-1 bg-gray-100 text-gray-700 font-semibold text-[11px] rounded-lg inline-block truncate max-w-full">
+            {product.category}
+          </span>
+        );
+      case 'price':
+        return (
+          <div className="whitespace-nowrap">
+            <span className="font-black text-gray-900">${product.unitPrice.toFixed(2)} {product.currency}</span>
+            <span className="text-[10px] text-gray-400 font-medium ml-1">/ {product.unit}</span>
+          </div>
+        );
+      case 'hsCode':
+        return (
+          <span className="font-mono text-blue-600 font-bold whitespace-nowrap">
+            {product.hsCode || '-'}
+          </span>
+        );
+      case 'status':
+        return (
+          <span className={`px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-full whitespace-nowrap ${
+            product.status === 'activo' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+          }`}>
+            {product.status}
+          </span>
+        );
+      case 'actions':
+        return (
+          <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+            <button
+              onClick={() => {
+                setSelectedProduct(product);
+                setIsEditingProduct(false);
+              }}
+              className="px-2.5 py-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1 font-bold text-xs"
+              title="Ver Ficha Completa"
+            >
+              <Eye size={14} />
+              <span className="hidden sm:inline">Ficha</span>
+            </button>
+            {canEdit && (
+              <>
+                <button
+                  onClick={() => handleOpenEditProduct(product)}
+                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="Editar"
+                >
+                  <Edit size={14} />
+                </button>
+                <button
+                  onClick={() => handleDeleteProduct(product.id)}
+                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Eliminar"
+                >
+                  <Trash size={14} />
+                </button>
+              </>
+            )}
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* SUBTAB 1: BASE DE DATOS DE PRODUCTOS */}
@@ -730,8 +907,20 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
               </select>
             </div>
 
-            {/* VIEW MODE TOGGLE & ADD BUTTON */}
+            {/* VIEW MODE TOGGLE, COLUMN CONFIG & ADD BUTTON */}
             <div className="flex items-center gap-3">
+              {productViewMode === 'list' && (
+                <button
+                  type="button"
+                  onClick={() => setIsColumnConfigModalOpen(true)}
+                  className="px-3 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 shadow-2xs"
+                  title="Modificar Ancho y Orden de Columnas"
+                >
+                  <SlidersHorizontal size={15} className="text-blue-600" />
+                  <span className="hidden md:inline">Configurar Columnas</span>
+                </button>
+              )}
+
               <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200">
                 <button
                   type="button"
@@ -764,7 +953,7 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
               {canEdit && (
                 <button
                   onClick={handleOpenAddProduct}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
                 >
                   <Plus size={16} />
                   <span>Nuevo Producto</span>
@@ -779,96 +968,46 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-gray-100 text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">
-                      <th className="py-3.5 px-4">Código</th>
-                      <th className="py-3.5 px-4">Producto</th>
-                      <th className="py-3.5 px-4">Proveedor</th>
-                      <th className="py-3.5 px-4">Categoría</th>
-                      <th className="py-3.5 px-4">Precio Unitario</th>
-                      <th className="py-3.5 px-4">Partida Arancelaria</th>
-                      <th className="py-3.5 px-4 text-center">Estado</th>
-                      <th className="py-3.5 px-4 text-right">Acciones</th>
+                    <tr className="bg-slate-50 border-b border-gray-100 text-[11px] font-extrabold text-gray-500 uppercase tracking-wider select-none">
+                      {productColumns.map((col) => (
+                        <th
+                          key={col.id}
+                          style={{ width: `${col.width}px`, minWidth: `${col.width}px` }}
+                          className={`py-3.5 px-4 relative group ${
+                            col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
+                          }`}
+                        >
+                          <span className="truncate block pr-2">{col.label}</span>
+                          {/* Excel style draggable handle */}
+                          <div
+                            onMouseDown={(e) => handleResizeStart(e, col.id)}
+                            className="absolute top-0 right-0 w-3 h-full cursor-col-resize hover:bg-blue-500/40 active:bg-blue-600 transition-colors z-10 group-hover:bg-slate-300"
+                            title="Arrastrar para ajustar ancho de columna"
+                          />
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-xs font-medium text-gray-700">
                     {filteredProducts.map(product => (
                       <tr key={product.id} className="hover:bg-slate-50/80 transition-colors group">
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <span className="px-2.5 py-1 bg-blue-50 text-blue-700 font-mono text-[10px] font-extrabold rounded-lg uppercase tracking-wider border border-blue-100">
-                            {product.code}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                            {product.name}
-                          </div>
-                          {product.description && (
-                            <div className="text-[11px] text-gray-400 line-clamp-1 mt-0.5">
-                              {product.description}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap font-semibold text-gray-800">
-                          {product.supplierName}
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <span className="px-2.5 py-1 bg-gray-100 text-gray-700 font-semibold text-[11px] rounded-lg">
-                            {product.category}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <span className="font-black text-gray-900">${product.unitPrice.toFixed(2)} {product.currency}</span>
-                          <span className="text-[10px] text-gray-400 font-medium ml-1">/ {product.unit}</span>
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap font-mono text-blue-600 font-bold">
-                          {product.hsCode || '-'}
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap text-center">
-                          <span className={`px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-full ${
-                            product.status === 'activo' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                          }`}>
-                            {product.status}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => {
-                                setSelectedProduct(product);
-                                setIsEditingProduct(false);
-                              }}
-                              className="px-2.5 py-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1 font-bold text-xs"
-                              title="Ver Ficha Completa"
-                            >
-                              <Eye size={14} />
-                              <span className="hidden sm:inline">Ficha</span>
-                            </button>
-                            {canEdit && (
-                              <>
-                                <button
-                                  onClick={() => handleOpenEditProduct(product)}
-                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                  title="Editar"
-                                >
-                                  <Edit size={14} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteProduct(product.id)}
-                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Eliminar"
-                                >
-                                  <Trash size={14} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
+                        {productColumns.map(col => (
+                          <td
+                            key={col.id}
+                            style={{ width: `${col.width}px`, minWidth: `${col.width}px` }}
+                            className={`py-3.5 px-4 ${
+                              col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
+                            }`}
+                          >
+                            {renderProductCell(col.id, product)}
+                          </td>
+                        ))}
                       </tr>
                     ))}
 
                     {filteredProducts.length === 0 && (
                       <tr>
-                        <td colSpan={8} className="py-16 text-center">
+                        <td colSpan={productColumns.length} className="py-16 text-center">
                           <Package size={48} className="mx-auto text-gray-300 mb-3" />
                           <h3 className="font-bold text-gray-700 text-lg">No se encontraron productos</h3>
                           <p className="text-xs text-gray-400 max-w-sm mx-auto mt-1">
@@ -1005,7 +1144,7 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
             {canEdit && (
               <button
                 onClick={handleOpenAddSupplier}
-                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
+                className="flex items-center gap-2 px-5 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
               >
                 <Plus size={16} />
                 <span>Nuevo Proveedor</span>
@@ -1338,7 +1477,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
 
                 <button
                   onClick={handleApproveAndSaveProducts}
-                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
+                  className="flex items-center gap-2 px-6 py-3 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
                 >
                   <CheckCircle2 size={16} />
                   <span>Aprobar y Enviar a Base de Productos</span>
@@ -1616,7 +1755,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                 </button>
                 <button
                   onClick={handleSaveProduct}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md"
+                  className="px-6 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md"
                 >
                   Guardar Ficha
                 </button>
@@ -1752,7 +1891,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                 </button>
                 <button
                   onClick={handleSaveSupplier}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md"
+                  className="px-6 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md"
                 >
                   Guardar Proveedor
                 </button>
@@ -2026,6 +2165,113 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                   className="px-6 py-2.5 bg-gray-900 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl"
                 >
                   Cerrar Ficha
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL CONFIGURACIÓN DE COLUMNAS DE PRODUCTOS */}
+      <AnimatePresence>
+        {isColumnConfigModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 bg-slate-50 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl">
+                    <SlidersHorizontal size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-gray-900">Configurar Columnas de Productos</h3>
+                    <p className="text-xs text-gray-500 font-medium">Reordena las columnas o ajusta sus anchos en píxeles (estilo Excel)</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsColumnConfigModalOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200/60 rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto space-y-3 flex-1 custom-scrollbar">
+                <p className="text-xs text-gray-500 font-medium mb-1">
+                  Usa los botones para mover una columna a la izquierda o derecha, o ajusta el ancho en píxeles.
+                </p>
+                
+                {productColumns.map((col, idx) => (
+                  <div
+                    key={col.id}
+                    className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-200/80 hover:border-blue-200 transition-all"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <GripVertical size={16} className="text-gray-400 shrink-0" />
+                      <span className="font-bold text-xs text-gray-800 truncate">{col.label}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Ancho Input */}
+                      <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-xl border border-gray-200">
+                        <span className="text-[10px] text-gray-400 font-extrabold uppercase">Ancho:</span>
+                        <input
+                          type="number"
+                          min="60"
+                          max="600"
+                          value={col.width}
+                          onChange={(e) => handleUpdateColumnWidth(col.id, parseInt(e.target.value) || 100)}
+                          className="w-14 text-xs font-black text-gray-900 bg-transparent text-right focus:outline-none"
+                        />
+                        <span className="text-[10px] text-gray-400 font-bold">px</span>
+                      </div>
+
+                      {/* Mover Arriba / Izquierda */}
+                      <button
+                        type="button"
+                        onClick={() => moveColumn(idx, 'up')}
+                        disabled={idx === 0}
+                        className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:hover:text-gray-600 transition-all"
+                        title="Mover a la izquierda (subir)"
+                      >
+                        <MoveUp size={14} />
+                      </button>
+
+                      {/* Mover Abajo / Derecha */}
+                      <button
+                        type="button"
+                        onClick={() => moveColumn(idx, 'down')}
+                        disabled={idx === productColumns.length - 1}
+                        className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:hover:text-gray-600 transition-all"
+                        title="Mover a la derecha (bajar)"
+                      >
+                        <MoveDown size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-5 bg-slate-50 border-t border-gray-100 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={handleResetColumns}
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                >
+                  <RotateCcw size={14} />
+                  <span>Restablecer Todo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsColumnConfigModalOpen(false)}
+                  className="px-6 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20"
+                >
+                  Guardar y Cerrar
                 </button>
               </div>
             </motion.div>

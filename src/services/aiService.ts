@@ -59,6 +59,8 @@ export async function sendManagementChatMessage(payload: {
   governance: any;
   members: TeamMember[];
   processes: Process[];
+  tasks?: any[];
+  marketing?: any;
 }): Promise<{ text: string; suggestedNote?: any; suggestedAction?: any }> {
   const response = await fetch("/api/ai/management-chat", {
     method: "POST",

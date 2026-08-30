@@ -26,25 +26,26 @@ service cloud.firestore {
     // Check if the user has the 'role-admin' system role
     function isAdmin() {
       let member = getMember();
-      return isSignedIn() && member != null && member.systemRoleId == 'role-admin';
+      return isSignedIn() && member != null && ('systemRoleId' in member) && member.systemRoleId == 'role-admin';
     }
     
     // Note: Sofia Chen's UID should be added to an 'admins' collection for bootstrap
     // or we assume the first user who sets up their profile is an admin.
     // For this app, I'll allow the user from metadata to be an admin if they sign in.
     function isSuperAdmin() {
-      return isSignedIn() && (request.auth.token.email.lower() == 'e.siavichay@novagreen.ec' || isAdmin());
+      return isSignedIn() && (
+        ('email' in request.auth.token && request.auth.token.email.lower() == 'e.siavichay@novagreen.ec') || 
+        isAdmin()
+      );
     }
 
-    // Resolves the member document ID from the authenticated user's email mapping
     function getMemberId() {
-      let email = request.auth.token.email.lower();
+      let email = 'email' in request.auth.token ? request.auth.token.email.lower() : '';
       let mappingPath = /databases/$(database)/documents/user_mappings/$(email);
-      let existsMapping = exists(mappingPath);
+      let existsMapping = email != '' && exists(mappingPath);
       return existsMapping ? get(mappingPath).data.memberId : null;
     }
 
-    // Resolves the logged-in team member data securely (direct or mapped)
     function getMember() {
       let directMemberPath = /databases/$(database)/documents/members/$(request.auth.uid);
       let memberId = getMemberId();
@@ -65,12 +66,14 @@ service cloud.firestore {
       let specificKey = 'tasks_' + processId;
       let specificAccess = specificKey in moduleAccess ? moduleAccess[specificKey] : null;
       let generalAccess = 'tasks' in moduleAccess ? moduleAccess['tasks'] : null;
+      let marketingAccess = 'marketing' in moduleAccess ? moduleAccess['marketing'] : null;
       
       return isSignedIn() && hasMember && (
         isSystemAdmin == true ||
         systemRoleId == 'role-admin' ||
         specificAccess == 'lider' ||
         specificAccess == 'administrador' ||
+        (processId == 'proc-mkt' && (marketingAccess == 'lider' || marketingAccess == 'administrador')) ||
         (
           specificAccess == null && (
             generalAccess == 'lider' ||
@@ -89,9 +92,11 @@ service cloud.firestore {
       let specificKey = 'tasks_' + processId;
       let specificAccess = specificKey in moduleAccess ? moduleAccess[specificKey] : null;
       let generalAccess = 'tasks' in moduleAccess ? moduleAccess['tasks'] : null;
+      let marketingAccess = 'marketing' in moduleAccess ? moduleAccess['marketing'] : null;
       
       return isSignedIn() && hasMember && (
         specificAccess == 'colaborador' ||
+        (processId == 'proc-mkt' && (marketingAccess == 'colaborador')) ||
         (specificAccess == null && generalAccess == 'colaborador')
       );
     }
@@ -106,12 +111,15 @@ service cloud.firestore {
       
       let specificKey = 'projects_' + processId;
       let specificAccess = specificKey in moduleAccess ? moduleAccess[specificKey] : null;
+      let marketingAccess = 'marketing' in moduleAccess ? moduleAccess['marketing'] : null;
       
       return isSignedIn() && hasMember && (
         isSystemAdmin == true ||
         systemRoleId == 'role-admin' ||
         specificAccess == 'lider' ||
-        specificAccess == 'administrador'
+        specificAccess == 'administrador' ||
+        (processId == 'proc-mkt' && (marketingAccess == 'lider' || marketingAccess == 'administrador' || marketingAccess == 'colaborador')) ||
+        (specificAccess == null && ('projects' in moduleAccess && (moduleAccess['projects'] == 'lider' || moduleAccess['projects'] == 'administrador')))
       );
     }
 
@@ -174,12 +182,12 @@ service cloud.firestore {
 
     match /tasks/{taskId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidTask(incoming()) && exists(/databases/$(database)/documents/processes/$(incoming().processId));
+      allow create: if isSignedIn() && isValidTask(incoming()) && (!('processId' in incoming()) || incoming().processId == '' || incoming().processId == 'proc-mkt' || exists(/databases/$(database)/documents/processes/$(incoming().processId)));
       allow update: if isSignedIn() && isValidTask(incoming()) && (
         isSuperAdmin() || 
-        isProcessLeader(existing().processId) ||
+        isProcessLeader('processId' in existing() ? existing().processId : '') ||
         (
-          (isTaskAssignee(existing()) || isProcessCollaborator(existing().processId)) && 
+          (isTaskAssignee(existing()) || isProcessCollaborator('processId' in existing() ? existing().processId : '')) && 
           incoming().diff(existing()).affectedKeys().hasOnly([
             'deliverables', 'actualHours', 'dueDate', 'history', 'status'
           ]) && (
@@ -188,13 +196,13 @@ service cloud.firestore {
           )
         )
       );
-      allow delete: if isSuperAdmin() || isProcessLeader(existing().processId);
+      allow delete: if isSuperAdmin() || isProcessLeader('processId' in existing() ? existing().processId : '');
     }
 
     function isValidTask(data) {
       return data.title is string && data.title.size() <= 200 &&
              data.status in ['backlog', 'todo', 'in_progress', 'blocked', 'review', 'done', 'rejected', 'correction'] &&
-             data.processId is string && isValidId(data.processId);
+             (!('processId' in data) || data.processId == '' || (data.processId is string && isValidId(data.processId)));
     }
 
     match /projects/{projectId} {
@@ -202,9 +210,9 @@ service cloud.firestore {
       allow create: if isSignedIn() && (isSuperAdmin() || isProjectLeader(incoming().processId));
       allow update: if isSignedIn() && (
         isSuperAdmin() || 
-        (isProjectLeader(existing().processId) && isProjectLeader(incoming().processId))
+        (isProjectLeader('processId' in existing() ? existing().processId : '') && isProjectLeader(incoming().processId))
       );
-      allow delete: if isSuperAdmin() || isProjectAdmin(existing().processId);
+      allow delete: if isSuperAdmin() || isProjectAdmin('processId' in existing() ? existing().processId : '');
     }
 
     match /companies/{companyId} {
@@ -223,6 +231,26 @@ service cloud.firestore {
     }
 
     match /process_links/{linkId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /user_personal_links/{linkId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /user_personal_links_prefs/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /user_personal_notes/{noteId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /user_personal_notes_prefs/{userId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
@@ -260,6 +288,49 @@ service cloud.firestore {
     match /importation_proformas/{profId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
+    }
+
+    match /marketing_campaigns/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /marketing_contents/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /marketing_leads/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /marketing_metrics/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /trainers/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /training_spaces/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /training_plans/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /training_managements/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /sales_clients/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /sales_deals/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /sales_quotes/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /acreditation_allies/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /acreditation_certifications/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /products/{id} {
+      allow read, write: if isSignedIn();
     }
   }
 }

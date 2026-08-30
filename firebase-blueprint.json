@@ -176,6 +176,63 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "title", "content", "processId", "createdByMemberId", "createdAt", "updatedAt"]
+    },
+    "AcreditationAlly": {
+      "title": "Acreditation Ally",
+      "description": "Strategic partner or accreditation organization linked to a Company.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "companyId": { "type": "string" },
+        "companyName": { "type": "string" },
+        "contactId": { "type": "string" },
+        "contactName": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "contactPhone": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "in_progress", "inactive"] },
+        "agreementDate": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "companyId", "companyName", "status", "createdAt"]
+    },
+    "AcreditationCertification": {
+      "title": "Acreditation Certification",
+      "description": "Certification or training scheme under OEC, CI, or OC.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "type": { "type": "string", "enum": ["OEC", "CI", "OC"] },
+        "allyId": { "type": "string" },
+        "allyName": { "type": "string" },
+        "companyName": { "type": "string" },
+        "purchasePrice": { "type": "number" },
+        "price1": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "type", "allyId", "allyName", "purchasePrice", "price1", "status", "createdAt"]
+    },
+    "PersonalNote": {
+      "title": "Personal Markdown Note",
+      "description": "Obsidian-like rich markdown note with tags, folders, and sharing permissions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "createdByMemberId": { "type": "string" },
+        "createdByName": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "pinned": { "type": "boolean" }
+      },
+      "required": ["id", "title", "content", "createdByMemberId", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -215,9 +272,29 @@
       "schema": "ProcessLink",
       "description": "Collection of links of interest per process."
     },
+    "user_personal_links": {
+      "schema": "ProcessLink",
+      "description": "Collection of personal links of interest per member/user."
+    },
+    "user_personal_notes": {
+      "schema": "PersonalNote",
+      "description": "Collection of Obsidian markdown notes per member/user."
+    },
     "process_notes": {
       "schema": "ProcessNote",
       "description": "Collection of markdown notes per process."
+    },
+    "acreditation_allies": {
+      "schema": "AcreditationAlly",
+      "description": "Collection of strategic certification partners and allies."
+    },
+    "acreditation_certifications": {
+      "schema": "AcreditationCertification",
+      "description": "Collection of accredited courses and certifications."
+    },
+    "products": {
+      "schema": "ProductItem",
+      "description": "Collection of commercial product catalog items and services."
     }
   }
 }

@@ -3,7 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import ReactMarkdown from 'react-markdown';
 import { 
   Bot, 
   BookOpen, 
@@ -35,7 +38,13 @@ import {
   Shield,
   Layers,
   ChevronRight,
-  Info
+  Info,
+  Mic,
+  MicOff,
+  ArrowLeft,
+  Maximize2,
+  Save,
+  FileCode
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -43,7 +52,8 @@ import {
   Process, 
   ManagementNote, 
   ManagementStrategyData, 
-  ManagementAIGovernanceData, 
+  ManagementAIGovernanceData,  Task,
+  AIStyleProfile, 
   ManagementChatMessage,
   SwotItem,
   OKRGoal,
@@ -52,6 +62,8 @@ import {
   AICalibrationRecord
 } from '../types';
 import { sendManagementChatMessage } from '../services/aiService';
+import { PersonalLinksView } from './common/PersonalLinksView';
+import { PersonalNotesView } from './common/PersonalNotesView';
 
 interface ManagementModuleProps {
   currentMember: TeamMember | null;
@@ -60,12 +72,13 @@ interface ManagementModuleProps {
   notes: ManagementNote[];
   strategy: ManagementStrategyData;
   governance: ManagementAIGovernanceData;
+  tasks?: Task[];
   onUpdateNotes: (notes: ManagementNote[]) => void;
   onUpdateStrategy: (strategy: ManagementStrategyData) => void;
   onUpdateGovernance: (governance: ManagementAIGovernanceData) => void;
   accessLevel: 'ninguno' | 'lector' | 'colaborador' | 'lider' | 'administrador';
-  activeSubTab?: 'consultant' | 'notes' | 'strategy' | 'governance';
-  setActiveSubTab?: (subTab: 'consultant' | 'notes' | 'strategy' | 'governance') => void;
+  activeSubTab?: 'consultant' | 'notes' | 'strategy' | 'governance' | 'links';
+  setActiveSubTab?: (subTab: 'consultant' | 'notes' | 'strategy' | 'governance' | 'links') => void;
 }
 
 export default function ManagementModule({
@@ -75,6 +88,7 @@ export default function ManagementModule({
   notes,
   strategy,
   governance,
+  tasks,
   onUpdateNotes,
   onUpdateStrategy,
   onUpdateGovernance,
@@ -82,7 +96,55 @@ export default function ManagementModule({
   activeSubTab: propActiveSubTab,
   setActiveSubTab: propSetActiveSubTab
 }: ManagementModuleProps) {
-  const [internalSubTab, setInternalSubTab] = useState<'consultant' | 'notes' | 'strategy' | 'governance'>('consultant');
+  
+  const [internalSubTab, setInternalSubTab] = useState<'consultant' | 'notes' | 'strategy' | 'governance' | 'links'>('consultant');
+  
+  const [marketingData, setMarketingData] = useState<any>({
+    campaigns: [],
+    contents: [],
+    leads: [],
+    metrics: []
+  });
+
+  useEffect(() => {
+    let unsubCampaigns = () => {};
+    let unsubContents = () => {};
+    let unsubLeads = () => {};
+    let unsubMetrics = () => {};
+
+    try {
+      const campCol = collection(db, 'marketing_campaigns');
+      unsubCampaigns = onSnapshot(campCol, (snapshot) => {
+        setMarketingData(prev => ({ ...prev, campaigns: snapshot.docs.map(d => ({ id: d.id, ...d.data() })) }));
+      }, () => {});
+
+      const contentCol = collection(db, 'marketing_contents');
+      unsubContents = onSnapshot(contentCol, (snapshot) => {
+        setMarketingData(prev => ({ ...prev, contents: snapshot.docs.map(d => ({ id: d.id, ...d.data() })) }));
+      }, () => {});
+
+      const leadsCol = collection(db, 'marketing_leads');
+      unsubLeads = onSnapshot(leadsCol, (snapshot) => {
+        setMarketingData(prev => ({ ...prev, leads: snapshot.docs.map(d => ({ id: d.id, ...d.data() })) }));
+      }, () => {});
+      
+      const metricsCol = collection(db, 'marketing_metrics');
+      unsubMetrics = onSnapshot(metricsCol, (snapshot) => {
+        setMarketingData(prev => ({ ...prev, metrics: snapshot.docs.map(d => ({ id: d.id, ...d.data() })) }));
+      }, () => {});
+
+    } catch (error) {
+      console.warn("Could not fetch marketing data for AI consultant context");
+    }
+
+    return () => {
+      unsubCampaigns();
+      unsubContents();
+      unsubLeads();
+      unsubMetrics();
+    };
+  }, []);
+
   const activeSubTab = propActiveSubTab !== undefined ? propActiveSubTab : internalSubTab;
   const setActiveSubTab = propSetActiveSubTab || setInternalSubTab;
 
@@ -92,26 +154,126 @@ export default function ManagementModule({
       id: 'msg-welcome',
       sender: 'assistant',
       text: `Saludos, **${currentMember?.name || 'Gerente'}**. Soy su **Consultor y Asistente Ejecutivo de Gerencia** en Novagreen. Estoy configurado bajo su gobernanza en tono *${
-        governance.tone === 'ejecutivo_analitico' ? 'Ejecutivo Analítico' :
-        governance.tone === 'consultor_iso' ? 'Consultor de Gestión Integrada (ISO)' :
-        governance.tone === 'estratega_conservador' ? 'Estratega Conservador de Riesgo' : 'Mentor Innovador'
+        governance.tone === 'estructuracion_descripcion' ? 'Estructuración & Descripción de Empresa' :
+        governance.tone === 'consultor_iso' ? 'Consultor de Gestión Integrada (ISO)' : 'Gobernanza, Riesgos & Estrategia'
       }*. ¿En qué tema estratégico o decisión de dirección trabajamos hoy?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
   const [inputQuery, setInputQuery] = useState('');
+  
+  const chatEndRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (activeSubTab === 'consultant') {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, activeSubTab]);
   const [isSending, setIsSending] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isRefreshingNotes, setIsRefreshingNotes] = useState(false);
+  
+  const handleRefreshNotes = () => {
+    setIsRefreshingNotes(true);
+    // Simular tiempo de sincronización para feedback visual del snapshot de Firebase
+    setTimeout(() => setIsRefreshingNotes(false), 800);
+  };
+
+  const handleToggleListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Su navegador no soporta el dictado por voz directo. Se recomienda usar Google Chrome, Microsoft Edge o Safari.');
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'es-ES';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      // Keep track of the initial query text when dictation starts
+      const baseInputText = inputQuery.trim();
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        let currentSessionTranscript = '';
+        for (let i = 0; i < event.results.length; ++i) {
+          currentSessionTranscript += event.results[i][0].transcript;
+        }
+        
+        const cleanSessionTranscript = currentSessionTranscript.trim();
+        if (cleanSessionTranscript) {
+          setInputQuery(baseInputText ? `${baseInputText} ${cleanSessionTranscript}` : cleanSessionTranscript);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Error de reconocimiento de voz:', event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.error('Error al iniciar el reconocimiento de voz:', err);
+      setIsListening(false);
+    }
+  };
 
   // --- State for Calibration Modal from Chat ---
   const [calibrationModalMessage, setCalibrationModalMessage] = useState<ManagementChatMessage | null>(null);
   const [calibrationCorrectionText, setCalibrationCorrectionText] = useState('');
   const [calibrationTopic, setCalibrationTopic] = useState('');
 
+  // --- Custom Markdown Components for Rich Gemini Formatting ---
+  const markdownComponents = {
+    h1: ({ children }: any) => <h1 className="text-xl font-bold text-slate-900 mt-5 mb-2 pb-1 border-b border-slate-200">{children}</h1>,
+    h2: ({ children }: any) => <h2 className="text-lg font-bold text-slate-800 mt-4 mb-2">{children}</h2>,
+    h3: ({ children }: any) => <h3 className="text-base font-bold text-slate-800 mt-3 mb-1">{children}</h3>,
+    p: ({ children }: any) => <p className="mb-3 leading-relaxed text-slate-700 text-sm whitespace-pre-wrap">{children}</p>,
+    ul: ({ children }: any) => <ul className="list-disc pl-5 my-3 space-y-1.5 text-sm text-slate-700">{children}</ul>,
+    ol: ({ children }: any) => <ol className="list-decimal pl-5 my-3 space-y-1.5 text-sm text-slate-700">{children}</ol>,
+    li: ({ children }: any) => <li className="leading-relaxed">{children}</li>,
+    strong: ({ children }: any) => <strong className="font-semibold text-slate-900">{children}</strong>,
+    blockquote: ({ children }: any) => (
+      <blockquote className="border-l-4 border-indigo-500 pl-4 italic my-3 text-slate-600 bg-indigo-50/50 py-2 rounded-r-xl text-sm">
+        {children}
+      </blockquote>
+    ),
+    code: ({ inline, children }: any) => inline 
+      ? <code className="bg-slate-100 text-indigo-700 px-1.5 py-0.5 rounded text-xs font-mono border border-slate-200">{children}</code>
+      : <code className="block bg-slate-900 text-slate-100 p-4 rounded-2xl text-xs font-mono overflow-x-auto my-3">{children}</code>,
+    table: ({ children }: any) => (
+      <div className="overflow-x-auto my-3 border border-slate-200 rounded-xl">
+        <table className="w-full text-left text-xs text-slate-700 border-collapse">{children}</table>
+      </div>
+    ),
+    thead: ({ children }: any) => <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200">{children}</thead>,
+    th: ({ children }: any) => <th className="p-3 border-r border-slate-200 last:border-r-0">{children}</th>,
+    td: ({ children }: any) => <td className="p-3 border-b border-slate-100 border-r border-slate-200 last:border-r-0">{children}</td>
+  };
+
   // --- State for Notes Subtab ---
   const [noteFilterCategory, setNoteFilterCategory] = useState<string>('todos');
   const [noteSearchQuery, setNoteSearchQuery] = useState('');
-  const [editingNote, setEditingNote] = useState<Partial<ManagementNote> | null>(null);
-  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
+  const [isEditingInline, setIsEditingInline] = useState(false);
+  const [inlineTitle, setInlineTitle] = useState('');
+  const [inlineContent, setInlineContent] = useState('');
+  const [inlineCategory, setInlineCategory] = useState<ManagementNote['category']>('general');
+  const [inlineEditTab, setInlineEditTab] = useState<'editor' | 'preview'>('editor');
 
   // --- State for Strategy Subtab ---
   const [swotTab, setSwotTab] = useState<'fortaleza' | 'oportunidad' | 'debilidad' | 'amenaza'>('fortaleza');
@@ -136,6 +298,40 @@ export default function ManagementModule({
   const [newRiskMitigation, setNewRiskMitigation] = useState('');
 
   // Read-only guard
+  
+  const [editingProfile, setEditingProfile] = useState<AIStyleProfile | null>(null);
+  const [localDirectives, setLocalDirectives] = useState(governance?.systemDirectives || '');
+  
+  const defaultProfiles: AIStyleProfile[] = [
+    {
+      id: 'estructuracion_descripcion',
+      name: 'Estructuración & Descripción de Empresa',
+      description: 'Enfocado en estructurar la empresa, describir sus procesos e interacciones entre áreas.',
+      prompt: 'Enfócate en estructurar la empresa, describir detalladamente lo que hace Novagreen, analizar los procesos corporativos y cómo se interconectan e interactúan sus partes operativas y administrativas.',
+      activeContexts: { notes: true, strategy: true, processes: true, members: true },
+      activeGuardrails: governance.guardrails.map(g => g.id)
+    },
+    {
+      id: 'consultor_iso',
+      name: 'Consultor ISO & Gestión Integrada',
+      description: 'Auditoría de procesos, trazabilidad, calidad y mejora continua bajo normas ISO.',
+      prompt: 'Enmarca cada análisis bajo los principios de la Gestión Integrada de Calidad, Medio Ambiente y Seguridad (ISO 9001/14001/45001), trazabilidad, evidencia auditable y mejora continua.',
+      activeContexts: { notes: true, strategy: false, processes: true, members: false },
+      activeGuardrails: governance.guardrails.map(g => g.id)
+    },
+    {
+      id: 'gobernanza_riesgos',
+      name: 'Gobernanza, Riesgos & Estrategia',
+      description: 'Supervisión de riesgos directivos, resiliencia financiera y control de OKRs.',
+      prompt: 'Prioriza la matriz de riesgos directivos, resiliencia financiera, cumplimiento normativo y seguimiento riguroso de OKRs estratégicos.',
+      activeContexts: { notes: true, strategy: true, processes: false, members: false },
+      activeGuardrails: governance.guardrails.map(g => g.id)
+    }
+  ];
+
+  const currentProfiles = governance.styleProfiles && governance.styleProfiles.length > 0 ? governance.styleProfiles : defaultProfiles;
+
+  React.useEffect(() => { setLocalDirectives(governance?.systemDirectives || ''); }, [governance?.systemDirectives]);
   const isReadOnly = accessLevel === 'lector';
   const canEdit = accessLevel === 'colaborador' || accessLevel === 'lider' || accessLevel === 'administrador';
 
@@ -163,7 +359,9 @@ export default function ManagementModule({
         strategy,
         governance,
         members,
-        processes
+        processes,
+        tasks: tasks || [],
+        marketing: marketingData || {}
       });
 
       const aiMsg: ManagementChatMessage = {
@@ -191,6 +389,15 @@ export default function ManagementModule({
     }
   };
 
+  const handleOpenNote = (note: ManagementNote) => {
+    setExpandedNoteId(note.id);
+    setIsEditingInline(false);
+    setInlineTitle(note.title);
+    setInlineContent(note.content);
+    setInlineCategory(note.category);
+    setInlineEditTab('editor');
+  };
+
   const handleSaveSuggestedNote = (suggested: { title: string; content: string; category: ManagementNote['category'] }) => {
     const newNote: ManagementNote = {
       id: `note-${Date.now()}`,
@@ -205,6 +412,7 @@ export default function ManagementModule({
       updatedAt: new Date().toISOString()
     };
     onUpdateNotes([newNote, ...notes]);
+    handleOpenNote(newNote);
     setActiveSubTab('notes');
   };
 
@@ -285,43 +493,64 @@ export default function ManagementModule({
     setCalibrationTopic('');
   };
 
-  // --- Note Modal Handlers ---
-  const handleSaveNote = () => {
-    if (!editingNote?.title?.trim() || !editingNote?.content?.trim()) return;
+  // --- Inline Bitácora Document Handlers ---
+  const handleCreateNewNoteInline = () => {
+    const newNoteId = `note-${Date.now()}`;
+    const newNote: ManagementNote = {
+      id: newNoteId,
+      title: 'Nueva Bitácora - Descripción de Empresa',
+      content: `## Descripción General y Alcance
+Describa aquí la estructura corporativa, los objetivos principales y los procesos de la empresa...
 
-    if (editingNote.id) {
-      // Update
-      const updated = notes.map(n => n.id === editingNote.id ? {
-        ...n,
-        title: editingNote.title!,
-        content: editingNote.content!,
-        category: (editingNote.category as any) || 'general',
-        tags: editingNote.tags || [],
-        updatedAt: new Date().toISOString()
-      } : n);
-      onUpdateNotes(updated);
-    } else {
-      // Create
-      const newNote: ManagementNote = {
-        id: `note-${Date.now()}`,
-        title: editingNote.title!,
-        content: editingNote.content!,
-        category: (editingNote.category as any) || 'general',
-        tags: editingNote.tags || ['Gerencia'],
-        authorMemberId: currentMember?.id || 'admin',
-        authorName: currentMember?.name || 'Gerente Directivo',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      onUpdateNotes([newNote, ...notes]);
-    }
+### Procesos Principales y Áreas Operativas
+1. **Área Operativa / Producción:** Descripción de funciones e interacción.
+2. **Gestión Directiva & Calidad:** Coordinación de estándares e indicadores.
+3. **Comercial & Servicios:** Relación con clientes y proveedores.
 
-    setShowNoteModal(false);
-    setEditingNote(null);
+---
+> *Nota: Esta información será utilizada automáticamente por el Consultor IA para contextualizar sus recomendaciones.*`,
+      category: 'general',
+      tags: ['Gerencia', 'Estructuración'],
+      authorMemberId: currentMember?.id || 'admin',
+      authorName: currentMember?.name || 'Gerente Directivo',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    onUpdateNotes([newNote, ...notes]);
+    setExpandedNoteId(newNoteId);
+    setIsEditingInline(true);
+    setInlineTitle(newNote.title);
+    setInlineContent(newNote.content);
+    setInlineCategory(newNote.category);
+    setInlineEditTab('editor');
   };
 
-  const handleDeleteNote = (id: string) => {
-    onUpdateNotes(notes.filter(n => n.id !== id));
+  const handleSaveInlineNote = () => {
+    if (!expandedNoteId || !inlineTitle.trim()) return;
+    const updatedNotes = notes.map(n => {
+      if (n.id === expandedNoteId) {
+        return {
+          ...n,
+          title: inlineTitle.trim(),
+          content: inlineContent,
+          category: inlineCategory,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return n;
+    });
+    onUpdateNotes(updatedNotes);
+    setIsEditingInline(false);
+  };
+
+  const handleDeleteInlineNote = (idToDelete?: string) => {
+    const targetId = idToDelete || expandedNoteId;
+    if (!targetId) return;
+    onUpdateNotes(notes.filter(n => n.id !== targetId));
+    if (expandedNoteId === targetId) {
+      setExpandedNoteId(null);
+      setIsEditingInline(false);
+    }
   };
 
   // --- Strategy Handlers ---
@@ -465,98 +694,10 @@ export default function ManagementModule({
   });
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6 pb-12">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden border border-slate-700/50">
-        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-indigo-300 text-xs font-semibold tracking-wider uppercase">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Módulo de Alta Dirección & Gobernanza Novagreen</span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white flex items-center gap-3">
-              Módulo de Gerencia
-              <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 font-medium">
-                Nivel {accessLevel.toUpperCase()}
-              </span>
-            </h1>
-            <p className="text-slate-300 text-sm max-w-2xl">
-              Centro de comando ejecutivo para la toma de decisiones, supervisión estratégica, bitácora directiva y calibración en tiempo real del Consultor de Inteligencia Artificial.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 bg-slate-800/80 backdrop-blur-md px-4 py-3 rounded-xl border border-slate-700">
-            <Bot className="w-6 h-6 text-indigo-400 animate-pulse" />
-            <div className="text-xs">
-              <div className="text-slate-400 font-medium">Estado del Consultor IA</div>
-              <div className="text-emerald-400 font-semibold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-                Calibrado ({governance.guardrails.filter(g => g.isEnabled).length} Guardrails activos)
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation Subtabs */}
-        <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-700/60 pt-4">
-          <button
-            id="tab-gerencia-consultor"
-            onClick={() => setActiveSubTab('consultant')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              activeSubTab === 'consultant'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <Bot className="w-4 h-4" />
-            <span>Consultor & Asistente IA</span>
-          </button>
-
-          <button
-            id="tab-gerencia-bitacora"
-            onClick={() => setActiveSubTab('notes')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              activeSubTab === 'notes'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            <span>Bitácora & Notas Ejecutivas ({notes.length})</span>
-          </button>
-
-          <button
-            id="tab-gerencia-estrategia"
-            onClick={() => setActiveSubTab('strategy')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              activeSubTab === 'strategy'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <Target className="w-4 h-4" />
-            <span>Estrategia & Objetivos</span>
-          </button>
-
-          <button
-            id="tab-gerencia-gobernanza"
-            onClick={() => setActiveSubTab('governance')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              activeSubTab === 'governance'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <Sliders className="w-4 h-4" />
-            <span>Gobernanza & Calibración IA</span>
-          </button>
-        </div>
-      </div>
-
+    <div className={`w-full max-w-7xl mx-auto ${activeSubTab === 'consultant' ? 'h-full flex flex-col' : 'space-y-4 pb-6'}`}>
       {/* --- SUBTAB 1: CONSULTOR & ASISTENTE IA --- */}
       {activeSubTab === 'consultant' && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 min-h-0">
           {/* Left Panel: Active AI Controls & Quick Prompts */}
           <div className="lg:col-span-1 space-y-4">
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
@@ -568,17 +709,27 @@ export default function ManagementModule({
                 <button
                   onClick={() => setActiveSubTab('governance')}
                   className="text-xs text-indigo-600 hover:underline font-medium"
+                  title="Configurar Perfiles"
                 >
-                  Cambiar
+                  Ver Perfiles
                 </button>
               </div>
 
               <div className="space-y-2.5 text-xs">
                 <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100">
-                  <span className="text-slate-500 block mb-0.5">Estilo de Asesoramiento:</span>
-                  <span className="font-semibold text-indigo-900 capitalize">
-                    {governance.tone.replace('_', ' ')}
-                  </span>
+                  <span className="text-slate-500 block mb-1">Perfiles de consultor:</span>
+                  <select
+                    className="w-full bg-white border border-indigo-200 rounded-lg py-1.5 px-2 text-indigo-900 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={governance.tone}
+                    disabled={isReadOnly}
+                    onChange={(e) => {
+                      onUpdateGovernance({ ...governance, tone: e.target.value as any, updatedAt: new Date().toISOString() });
+                    }}
+                  >
+                    {currentProfiles.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
@@ -636,7 +787,7 @@ export default function ManagementModule({
           </div>
 
           {/* Right Panel: Chat Stream */}
-          <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[650px]">
+          <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full min-h-0">
             {/* Chat Header */}
             <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50 rounded-t-2xl">
               <div className="flex items-center gap-3">
@@ -675,7 +826,13 @@ export default function ManagementModule({
                           : 'bg-slate-100 text-slate-800 border border-slate-200/80 rounded-bl-none'
                       }`}
                     >
-                      <div className="whitespace-pre-wrap">{msg.text}</div>
+                      {msg.sender === 'assistant' ? (
+                        <div className="prose prose-indigo max-w-none text-sm leading-relaxed">
+                          <ReactMarkdown components={markdownComponents}>{msg.text}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-wrap">{msg.text}</div>
+                      )}
 
                       <div className={`text-[10px] mt-2 flex items-center gap-1 ${msg.sender === 'user' ? 'text-indigo-200 justify-end' : 'text-slate-400'}`}>
                         <span>{msg.timestamp}</span>
@@ -742,6 +899,7 @@ export default function ManagementModule({
                   </div>
                 </div>
               )}
+              <div ref={chatEndRef} />
             </div>
 
             {/* Chat Input */}
@@ -749,167 +907,78 @@ export default function ManagementModule({
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (isListening) setIsListening(false);
                   handleSendMessage();
                 }}
                 className="flex items-center gap-2"
               >
-                <input
-                  id="input-gerencia-chat"
-                  type="text"
-                  value={inputQuery}
-                  onChange={(e) => setInputQuery(e.target.value)}
-                  placeholder="Escriba su consulta o instrucción ejecutiva..."
-                  disabled={isSending}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                />
+                <div className="relative flex-1 flex items-center">
+                  <input
+                    id="input-gerencia-chat"
+                    type="text"
+                    value={inputQuery}
+                    onChange={(e) => setInputQuery(e.target.value)}
+                    placeholder={isListening ? "Escuchando dictado ejecutivo..." : "Escriba su consulta o dictado ejecutivo..."}
+                    disabled={isSending}
+                    className={`w-full pl-4 pr-11 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 bg-white transition-all ${
+                      isListening
+                        ? 'border-red-400 ring-2 ring-red-300 text-red-900 font-medium placeholder-red-400'
+                        : 'border-slate-300 focus:ring-indigo-500'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    id="btn-voice-dictate-gerencia"
+                    onClick={handleToggleListening}
+                    title={isListening ? "Detener dictado por voz" : "Dictar por voz al Consultor IA"}
+                    className={`absolute right-2 p-1.5 rounded-lg transition-all ${
+                      isListening
+                        ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30'
+                        : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                  </button>
+                </div>
+
                 <button
                   id="btn-send-gerencia-chat"
                   type="submit"
                   disabled={isSending || !inputQuery.trim()}
-                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm disabled:opacity-50 flex items-center gap-1.5 transition-colors shadow-sm"
+                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm disabled:opacity-50 flex items-center gap-1.5 transition-colors shadow-sm shrink-0"
                 >
                   <Send className="w-4 h-4" />
                   <span className="hidden sm:inline">Enviar</span>
                 </button>
               </form>
+
+              {isListening && (
+                <div className="mt-2 text-xs text-red-600 font-medium flex items-center gap-1.5 px-2 animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                  <span>Micrófono activo: Dictando instrucción al Consultor IA... Hable con claridad.</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* --- SUBTAB 2: BITÁCORA & NOTAS EJECUTIVAS --- */}
-      {activeSubTab === 'notes' && (
-        <div className="space-y-6">
-          {/* Action Bar */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              <div className="relative flex-1 md:w-64">
-                <input
-                  id="input-search-notes"
-                  type="text"
-                  value={noteSearchQuery}
-                  onChange={(e) => setNoteSearchQuery(e.target.value)}
-                  placeholder="Buscar en bitácora..."
-                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <FileText className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              </div>
-
-              <select
-                id="select-filter-category"
-                value={noteFilterCategory}
-                onChange={(e) => setNoteFilterCategory(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-700 font-medium"
-              >
-                <option value="todos">Todas las categorías</option>
-                <option value="decisión">Decisiones</option>
-                <option value="estrategia">Estrategia</option>
-                <option value="reunión">Reuniones</option>
-                <option value="análisis">Análisis</option>
-                <option value="acuerdo">Acuerdos</option>
-                <option value="general">General</option>
-              </select>
-            </div>
-
-            {canEdit && (
-              <button
-                id="btn-add-management-note"
-                onClick={() => {
-                  setEditingNote({
-                    title: '',
-                    content: '',
-                    category: 'decisión',
-                    tags: ['Gerencia']
-                  });
-                  setShowNoteModal(true);
-                }}
-                className="w-full md:w-auto px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Nueva Nota de Bitácora</span>
-              </button>
-            )}
-          </div>
-
-          {/* Notes List */}
-          {filteredNotes.length === 0 ? (
-            <div className="bg-white rounded-2xl p-12 border border-slate-200 text-center space-y-3">
-              <BookOpen className="w-12 h-12 text-slate-300 mx-auto" />
-              <h3 className="font-semibold text-slate-700 text-base">No hay notas registradas en este filtro</h3>
-              <p className="text-slate-500 text-xs max-w-md mx-auto">
-                Cree notas para documentar acuerdos estratégicos de la junta o pídale al Consultor IA que sintetice un informe en la bitácora.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredNotes.map(note => (
-                <div
-                  key={note.id}
-                  className="bg-white rounded-2xl p-5 border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all flex flex-col justify-between space-y-4"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className={`text-[10px] uppercase font-bold px-2.5 py-1 rounded-full border ${
-                        note.category === 'decisión' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                        note.category === 'estrategia' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                        note.category === 'acuerdo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        'bg-slate-100 text-slate-700 border-slate-200'
-                      }`}>
-                        {note.category}
-                      </span>
-
-                      {note.isAiGenerated && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium flex items-center gap-1">
-                          <Sparkles className="w-3 h-3 text-amber-500" />
-                          IA
-                        </span>
-                      )}
-                    </div>
-
-                    <h3 className="font-bold text-slate-800 text-base leading-snug">{note.title}</h3>
-                    <p className="text-slate-600 text-xs leading-relaxed line-clamp-4 whitespace-pre-wrap">
-                      {note.content}
-                    </p>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                    <div className="flex items-center gap-1">
-                      <User className="w-3.5 h-3.5" />
-                      <span>{note.authorName}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span>{new Date(note.createdAt).toLocaleDateString()}</span>
-
-                      {canEdit && (
-                        <div className="flex items-center gap-1 ml-2">
-                          <button
-                            id={`btn-edit-note-${note.id}`}
-                            onClick={() => {
-                              setEditingNote(note);
-                              setShowNoteModal(true);
-                            }}
-                            className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-
-                          <button
-                            id={`btn-delete-note-${note.id}`}
-                            onClick={() => handleDeleteNote(note.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* --- SUBTAB 2: BITÁCORA Y NOTAS OBSIDIAN --- */}
+      {activeSubTab === "notes" && (
+        <motion.div
+          key="management_notes_tab"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="w-full"
+        >
+          <PersonalNotesView
+            currentMember={currentMember}
+            members={members}
+            moduleName="Gestión Gerencial"
+            accentColor="indigo"
+          />
+        </motion.div>
       )}
 
       {/* --- SUBTAB 3: ESTRATEGIA & OBJETIVOS --- */}
@@ -1191,39 +1260,78 @@ export default function ManagementModule({
       {/* --- SUBTAB 4: GOBERNANZA & CALIBRACIÓN IA --- */}
       {activeSubTab === 'governance' && (
         <div className="space-y-8">
-          {/* Tone & Style Selection */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-            <div>
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <Sliders className="w-5 h-5 text-indigo-600" />
-                Tono & Estilo del Consultor IA
-              </h3>
-              <p className="text-xs text-slate-500">Seleccione la personalidad con la que el asistente responderá a las consultas ejecutivas</p>
+          {/* Dynamic Tone & Style Selection */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 relative">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-indigo-600" />
+                  Perfiles de Consultores IA
+                </h3>
+                <p className="text-xs text-slate-500">Seleccione el perfil o cree uno nuevo con contextos y reglas específicas</p>
+              </div>
+              {!isReadOnly && (
+                <button
+                  onClick={() => setEditingProfile({
+                    id: `profile-${Date.now()}`,
+                    name: 'Nuevo Consultor',
+                    description: '',
+                    prompt: '',
+                    activeContexts: { strategy: true, processes: true, members: true },
+                    selectedNotes: [],
+                    activeGuardrails: governance.guardrails.map(g => g.id)
+                  })}
+                  className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold hover:bg-indigo-100 flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Nuevo Perfil
+                </button>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-              {[
-                { id: 'ejecutivo_analitico', title: 'Ejecutivo Analítico', desc: 'Enfoque cuantitativo, ROI, brevedad directiva y viñetas.' },
-                { id: 'consultor_iso', title: 'Consultor ISO', desc: 'Sistemas integrados de gestión, auditoría, trazabilidad y procesos.' },
-                { id: 'estratega_conservador', title: 'Estratega Conservador', desc: 'Mitigación de riesgos, cautela en recursos y resiliencia.' },
-                { id: 'mentor_innovador', title: 'Mentor Innovador', desc: 'Transformación digital, agilidad, visión de tecnología e innovación.' }
-              ].map(item => (
-                <button
-                  key={item.id}
-                  disabled={isReadOnly}
-                  onClick={() => onUpdateGovernance({ ...governance, tone: item.id as any, updatedAt: new Date().toISOString() })}
-                  className={`p-4 rounded-2xl text-left border transition-all ${
-                    governance.tone === item.id
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+              {currentProfiles.map(profile => (
+                <div
+                  key={profile.id}
+                  className={`relative flex flex-col p-4 rounded-2xl text-left border transition-all ${
+                    governance.tone === profile.id
                       ? 'bg-indigo-50/80 border-indigo-600 ring-2 ring-indigo-500/20'
                       : 'bg-slate-50 border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-slate-800 text-sm">{item.title}</span>
-                    {governance.tone === item.id && <CheckCircle2 className="w-4 h-4 text-indigo-600" />}
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">{item.desc}</p>
-                </button>
+                  <button
+                    disabled={isReadOnly}
+                    onClick={() => onUpdateGovernance({ ...governance, tone: profile.id, styleProfiles: currentProfiles, updatedAt: new Date().toISOString() })}
+                    className="flex-1 text-left"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-slate-800 text-sm">{profile.name}</span>
+                      {governance.tone === profile.id && <CheckCircle2 className="w-4 h-4 text-indigo-600" />}
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed mb-3">{profile.description || "Sin descripción"}</p>
+                    <div className="flex flex-wrap gap-1 mt-auto">
+                      {profile.activeContexts.strategy && <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Estrategia</span>}
+                      {profile.activeContexts.processes && <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">Procesos</span>}
+                      {profile.activeContexts.members && <span className="text-[10px] bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded">Equipo</span>}
+                      {profile.activeContexts.tasks && <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">Tareas</span>}
+                      {profile.activeContexts.marketing && <span className="text-[10px] bg-pink-100 text-pink-800 px-1.5 py-0.5 rounded">Marketing</span>}
+                      {profile.selectedNotes && profile.selectedNotes.length > 0 && <span className="text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded">{profile.selectedNotes.length} Notas</span>}
+                      <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{profile.activeGuardrails.length} reglas</span>
+                    </div>
+                  </button>
+                  
+                  {!isReadOnly && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingProfile(profile);
+                      }}
+                      className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors opacity-0 group-hover:opacity-100 md:opacity-100"
+                      title="Editar perfil"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -1236,11 +1344,11 @@ export default function ManagementModule({
                 Modelo de Inteligencia Artificial Gemini
               </h3>
               <p className="text-xs text-slate-500">
-                Seleccione la versión del motor Gemini recomendada por Google AI Studio para procesar sus consultas directivas
+                Seleccione la versión del motor Gemini recomendada para procesar sus consultas ejecutivas
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               {[
                 { 
                   id: 'gemini-2.5-flash', 
@@ -1253,12 +1361,6 @@ export default function ManagementModule({
                   title: 'Gemini 2.5 Pro', 
                   badge: 'Razonamiento Complejo', 
                   desc: 'Ideal para auditorías profundas, planificación financiera compleja y síntesis de matrices multidimensionales.' 
-                },
-                { 
-                  id: 'gemini-1.5-flash', 
-                  title: 'Gemini 1.5 Flash', 
-                  badge: 'Estándar', 
-                  desc: 'Modelo ligero estándar de alta velocidad para tareas rápidas y resúmenes ejecutivos rutinarios.' 
                 }
               ].map(modelItem => {
                 const isSelected = (governance.selectedModel || 'gemini-2.5-flash') === modelItem.id;
@@ -1390,71 +1492,7 @@ export default function ManagementModule({
         </div>
       )}
 
-      {/* --- MODAL: Add/Edit Note --- */}
-      {showNoteModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-800">
-              {editingNote?.id ? 'Editar Nota de Bitácora' : 'Nueva Nota de Bitácora Ejecutiva'}
-            </h3>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Título de la Nota</label>
-                <input
-                  type="text"
-                  value={editingNote?.title || ''}
-                  onChange={(e) => setEditingNote(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Ej: Acuerdo de inversión en automatización ISO"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Categoría</label>
-                <select
-                  value={editingNote?.category || 'decisión'}
-                  onChange={(e) => setEditingNote(prev => ({ ...prev, category: e.target.value as any }))}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white"
-                >
-                  <option value="decisión">Decisión</option>
-                  <option value="estrategia">Estrategia</option>
-                  <option value="reunión">Reunión</option>
-                  <option value="análisis">Análisis</option>
-                  <option value="acuerdo">Acuerdo</option>
-                  <option value="general">General</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Contenido de la Nota</label>
-                <textarea
-                  rows={5}
-                  value={editingNote?.content || ''}
-                  onChange={(e) => setEditingNote(prev => ({ ...prev, content: e.target.value }))}
-                  placeholder="Escriba los detalles de la resolución o acuerdo directivo..."
-                  className="w-full p-3 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => { setShowNoteModal(false); setEditingNote(null); }}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSaveNote}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold"
-              >
-                Guardar Nota
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* --- MODAL: Add SWOT Item --- */}
       {showSwotModal && (
@@ -1708,6 +1746,218 @@ export default function ManagementModule({
             </div>
           </div>
         </div>
+      )}
+
+      {/* AI Profile Editor Modal */}
+      {editingProfile && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6">
+            <h3 className="text-xl font-bold text-slate-800 mb-4">
+              {currentProfiles.some(p => p.id === editingProfile.id) ? 'Editar Perfil de Consultor' : 'Nuevo Perfil de Consultor'}
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Nombre del Perfil</label>
+                <input
+                  type="text"
+                  value={editingProfile.name}
+                  onChange={(e) => setEditingProfile({ ...editingProfile, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Descripción Breve</label>
+                <input
+                  type="text"
+                  value={editingProfile.description}
+                  onChange={(e) => setEditingProfile({ ...editingProfile, description: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Prompt / Instrucción Base (Directiva del Asistente)</label>
+                <textarea
+                  value={editingProfile.prompt}
+                  onChange={(e) => setEditingProfile({ ...editingProfile, prompt: e.target.value })}
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono bg-slate-50"
+                  placeholder="Ej: Eres un consultor experto en legal..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">Contextos Base Adicionales</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {Object.keys(editingProfile.activeContexts).map((ctxKey) => {
+                    const labels: any = {
+                      strategy: 'Matriz Estratégica',
+                      processes: 'Procesos',
+                      members: 'Equipo',
+                      tasks: 'Tareas Activas',
+                      marketing: 'Info. Marketing'
+                    };
+                    return (
+                    <label key={ctxKey} className="flex items-center gap-2 p-2 border rounded-lg hover:bg-slate-50 cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={(editingProfile.activeContexts as any)[ctxKey]}
+                        onChange={(e) => setEditingProfile({
+                          ...editingProfile,
+                          activeContexts: { ...editingProfile.activeContexts, [ctxKey]: e.target.checked }
+                        })}
+                        className="rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-xs font-medium truncate">{labels[ctxKey] || ctxKey}</span>
+                    </label>
+                  )
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2 flex items-center justify-between">
+                  <span>Notas de Bitácora Vinculadas</span>
+                  <span className="text-[10px] font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{(editingProfile.selectedNotes || []).length} seleccionadas</span>
+                </label>
+                
+                <div className="mb-3 flex gap-2">
+                  <select 
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 bg-white"
+                    onChange={(e) => {
+                      const noteId = e.target.value;
+                      if (noteId && !(editingProfile.selectedNotes || []).includes(noteId)) {
+                        setEditingProfile({ ...editingProfile, selectedNotes: [...(editingProfile.selectedNotes || []), noteId] });
+                      }
+                      e.target.value = ""; // reset
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>+ Seleccionar una nota de la bitácora para agregar...</option>
+                    {notes.filter(n => !(editingProfile.selectedNotes || []).includes(n.id)).map(note => (
+                      <option key={note.id} value={note.id}>{note.title} ({note.category})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="max-h-40 overflow-y-auto border rounded-xl p-2 bg-slate-50 space-y-1">
+                  {(editingProfile.selectedNotes || []).map(noteId => {
+                    const note = notes.find(n => n.id === noteId);
+                    if (!note) return null;
+                    return (
+                      <div key={noteId} className="flex items-center justify-between gap-2 p-2 bg-white border border-slate-200 rounded-lg shadow-sm">
+                        <div className="flex-1 truncate">
+                          <span className="text-xs font-bold text-slate-800 block truncate">{note.title}</span>
+                          <span className="text-[10px] text-slate-500 truncate block capitalize">{note.category}</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const newNotes = (editingProfile.selectedNotes || []).filter(id => id !== noteId);
+                            setEditingProfile({ ...editingProfile, selectedNotes: newNotes });
+                          }}
+                          className="text-slate-400 hover:text-red-500 p-1 rounded transition-colors"
+                          title="Quitar nota"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {(editingProfile.selectedNotes || []).length === 0 && (
+                    <span className="text-xs text-slate-500 p-2 block text-center">No has agregado ninguna nota a este consultor.</span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">Reglas Anti-alucinación Vinculadas</label>
+                <div className="max-h-40 overflow-y-auto border rounded-xl p-2 bg-slate-50 space-y-1">
+                  {governance.guardrails.map(g => (
+                    <label key={g.id} className="flex items-start gap-2 p-1.5 hover:bg-slate-100 rounded cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={editingProfile.activeGuardrails.includes(g.id)}
+                        onChange={(e) => {
+                          const newGuards = e.target.checked 
+                            ? [...editingProfile.activeGuardrails, g.id]
+                            : editingProfile.activeGuardrails.filter(id => id !== g.id);
+                          setEditingProfile({ ...editingProfile, activeGuardrails: newGuards });
+                        }}
+                        className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-slate-800 block">{g.title}</span>
+                        <span className="text-[10px] text-slate-500 leading-tight block">{g.ruleDescription}</span>
+                      </div>
+                    </label>
+                  ))}
+                  {governance.guardrails.length === 0 && <span className="text-xs text-slate-500 p-2">No hay reglas creadas.</span>}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center mt-6 pt-4 border-t">
+              <button
+                onClick={() => {
+                  if (confirm("¿Eliminar este perfil? Si está en uso, el sistema volverá al primero de la lista.")) {
+                    const newProfiles = currentProfiles.filter(p => p.id !== editingProfile.id);
+                    const newTone = governance.tone === editingProfile.id && newProfiles.length > 0 ? newProfiles[0].id : governance.tone;
+                    onUpdateGovernance({ ...governance, styleProfiles: newProfiles, tone: newTone, updatedAt: new Date().toISOString() });
+                    setEditingProfile(null);
+                  }
+                }}
+                className="text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg text-xs font-medium"
+              >
+                Eliminar
+              </button>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditingProfile(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    const isExisting = currentProfiles.some(p => p.id === editingProfile.id);
+                    const newProfiles = isExisting 
+                      ? currentProfiles.map(p => p.id === editingProfile.id ? editingProfile : p)
+                      : [...currentProfiles, editingProfile];
+                      
+                    onUpdateGovernance({ 
+                      ...governance, 
+                      styleProfiles: newProfiles, 
+                      updatedAt: new Date().toISOString() 
+                    });
+                    setEditingProfile(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold"
+                >
+                  Guardar Perfil
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {activeSubTab === 'links' && (
+        <motion.div
+          key="links"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="w-full"
+        >
+          <PersonalLinksView
+            currentMember={currentMember}
+            members={members}
+            moduleName="Gestión Gerencial"
+            accentColor="indigo"
+          />
+        </motion.div>
       )}
     </div>
   );
