@@ -171,11 +171,11 @@ export const ProductCombobox: React.FC<ProductComboboxProps> = ({
                 </p>
               </div>
             ) : (
-              filteredProducts.map((p) => {
+              filteredProducts.map((p, pIdx) => {
                 const isSelected = p.id === selectedProductId;
                 return (
                   <div
-                    key={p.id}
+                    key={`cbx_prod_${p.id || pIdx}_${pIdx}`}
                     onClick={() => handleSelect(p)}
                     className={`p-3 hover:bg-slate-50 flex items-start justify-between gap-3 cursor-pointer transition-colors ${
                       isSelected ? 'bg-emerald-50/60 hover:bg-emerald-50' : ''

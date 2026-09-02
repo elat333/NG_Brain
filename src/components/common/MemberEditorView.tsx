@@ -285,11 +285,11 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
                 Categorías / Clasificación en el Directorio
               </label>
               <div className="flex flex-wrap gap-2">
-                {availableCategories.map((cat) => {
+                {availableCategories.map((cat, catIdx) => {
                   const isSelected = (newMemberData.categories || []).includes(cat.id);
                   return (
                     <button
-                      key={cat.id}
+                      key={`mem_edit_cat_btn_${cat.id || catIdx}_${catIdx}`}
                       type="button"
                       onClick={() => handleToggleCategory(cat.id)}
                       className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
@@ -351,8 +351,8 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
                 >
                   <option value="">Sin Proceso Asignado (General / Externo)</option>
-                  {processes.map((p) => (
-                    <option key={p.id} value={p.id}>
+                  {processes.map((p, pIdx) => (
+                    <option key={`opt_proc_${p.id || pIdx}_${pIdx}`} value={p.id}>
                       {p.name}
                     </option>
                   ))}
@@ -370,8 +370,8 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
                 >
                   <option value="">Por defecto (Colaborador)</option>
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.id}>
+                  {roles.map((r, rIdx) => (
+                    <option key={`opt_role_${r.id || rIdx}_${rIdx}`} value={r.id}>
                       {r.name} - {r.description?.slice(0, 45)}...
                     </option>
                   ))}
@@ -414,8 +414,8 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
                     className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="">Selecciona una compañía...</option>
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>
+                    {companies.map((c, cIdx) => (
+                      <option key={`opt_comp_${c.id || cIdx}_${cIdx}`} value={c.id}>
                         {c.name} {c.ruc ? `(${c.ruc})` : ''}
                       </option>
                     ))}

@@ -211,8 +211,8 @@ export const ContentCalendarView: React.FC<ContentCalendarViewProps> = ({
             className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold py-2.5 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime"
           >
             <option value="todos">Todos los Canales</option>
-            {channelsList.map(ch => (
-              <option key={ch.id} value={ch.id}>{ch.label}</option>
+            {channelsList.map((ch, chIdx) => (
+              <option key={`mkt_cnt_filter_ch_${ch.id}_${chIdx}`} value={ch.id}>{ch.label}</option>
             ))}
           </select>
 
@@ -244,14 +244,14 @@ export const ContentCalendarView: React.FC<ContentCalendarViewProps> = ({
 
       {/* Grid of Content Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredContents.map((cnt) => {
+        {filteredContents.map((cnt, cntIdx) => {
           const campaign = campaigns.find(c => c.id === cnt.campaignId);
           const author = members.find(m => m.id === cnt.authorMemberId);
           const channelInfo = channelsList.find(c => c.id === cnt.channel);
 
           return (
             <div
-              key={cnt.id}
+              key={`mkt_cnt_card_${cnt.id || cntIdx}_${cntIdx}`}
               className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-xl hover:border-slate-200 transition-all flex flex-col justify-between group space-y-4"
             >
               <div className="space-y-3">
@@ -294,7 +294,7 @@ export const ContentCalendarView: React.FC<ContentCalendarViewProps> = ({
                 {(cnt.tags || []).length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {cnt.tags?.map((t, idx) => (
-                      <span key={idx} className="text-[9px] font-bold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                      <span key={`mkt_cnt_tag_${cnt.id}_${t}_${idx}`} className="text-[9px] font-bold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
                         #{t}
                       </span>
                     ))}
@@ -405,8 +405,8 @@ export const ContentCalendarView: React.FC<ContentCalendarViewProps> = ({
                       onChange={(e) => setEditingContent(prev => ({ ...prev, channel: e.target.value as any }))}
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
                     >
-                      {channelsList.map(ch => (
-                        <option key={ch.id} value={ch.id}>{ch.label}</option>
+                      {channelsList.map((ch, chIdx) => (
+                        <option key={`mkt_cnt_modal_ch_${ch.id}_${chIdx}`} value={ch.id}>{ch.label}</option>
                       ))}
                     </select>
                   </div>
@@ -440,8 +440,8 @@ export const ContentCalendarView: React.FC<ContentCalendarViewProps> = ({
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
                     >
                       <option value="">Sin campaña específica</option>
-                      {campaigns.map(c => (
-                        <option key={c.id} value={c.id}>{c.code}</option>
+                      {campaigns.map((c, cIdx) => (
+                        <option key={`mkt_cnt_modal_camp_${c.id || cIdx}_${cIdx}`} value={c.id}>{c.code}</option>
                       ))}
                     </select>
                   </div>

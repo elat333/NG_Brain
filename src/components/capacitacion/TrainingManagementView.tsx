@@ -129,13 +129,13 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map(mgmt => {
+              {filtered.map((mgmt, mgmtIdx) => {
                 const plan = plans.find(p => p.id === mgmt.planId);
                 const client = clients.find(c => c.id === mgmt.clientId);
                 const camp = campaigns.find(c => c.id === mgmt.marketingCampaignId);
                 
                 return (
-                  <tr key={mgmt.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={`tr_mgmt_row_${mgmt.id || mgmtIdx}_${mgmtIdx}`} className="hover:bg-slate-50/50 transition-colors">
                     <td className="p-4 font-bold text-slate-800">{mgmt.code}</td>
                     <td className="p-4">
                       {plan ? (
@@ -258,8 +258,8 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
                       className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     >
                       <option value="">Seleccione evento agendado...</option>
-                      {plans.map(p => (
-                        <option key={p.id} value={p.id}>{p.title} - {p.date}</option>
+                      {plans.map((p, pIdx) => (
+                        <option key={`tr_mgmt_plan_opt_${p.id || pIdx}_${pIdx}`} value={p.id}>{p.title} - {p.date}</option>
                       ))}
                     </select>
                   </div>
@@ -309,8 +309,8 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
                         className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                       >
                         <option value="">Independiente / Sin Cliente</option>
-                        {clients.filter(c => c.clientType === 'B2B').map(c => (
-                          <option key={c.id} value={c.id}>{`Cliente (${c.id})`}</option>
+                        {clients.filter(c => c.clientType === 'B2B').map((c, cIdx) => (
+                          <option key={`tmgmt_opt_cl_${c.id || cIdx}_${cIdx}`} value={c.id}>{`Cliente (${c.id})`}</option>
                         ))}
                       </select>
                     </div>
@@ -324,8 +324,8 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
                         className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                       >
                         <option value="">Ninguna</option>
-                        {campaigns.map(c => (
-                          <option key={c.id} value={c.id}>[{c.code}] {`Cliente (${c.id})`}</option>
+                        {campaigns.map((c, cIdx) => (
+                          <option key={`tmgmt_opt_camp_${c.id || cIdx}_${cIdx}`} value={c.id}>[{c.code}] {`Cliente (${c.id})`}</option>
                         ))}
                       </select>
                     </div>

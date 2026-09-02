@@ -85,8 +85,8 @@ export const VirtualSpacesView: React.FC<VirtualSpacesViewProps> = ({ spaces, on
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredSpaces.map(space => (
-                <tr key={space.id} className="hover:bg-slate-50/50 transition-colors">
+              {filteredSpaces.map((space, sIdx) => (
+                <tr key={`virt_space_${space.id || sIdx}_${sIdx}`} className="hover:bg-slate-50/50 transition-colors">
                   <td className="p-4 font-bold text-slate-800">{space.name}</td>
                   <td className="p-4 text-slate-600 font-medium">
                     <span className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full text-[10px] uppercase font-black tracking-wider inline-flex">

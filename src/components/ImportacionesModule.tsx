@@ -889,8 +889,8 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                 className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               >
                 <option value="">Todas las Categorías</option>
-                {categoriesList.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
+                {categoriesList.map((cat, cIdx) => (
+                  <option key={`imp_cat_opt_${cat || cIdx}_${cIdx}`} value={cat}>{cat}</option>
                 ))}
               </select>
 
@@ -901,8 +901,8 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                 className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               >
                 <option value="">Todos los Proveedores</option>
-                {suppliers.map(sup => (
-                  <option key={sup.id} value={sup.id}>{sup.companyName}</option>
+                {suppliers.map((sup, sIdx) => (
+                  <option key={`imp_sup_opt_${sup.id || sIdx}_${sIdx}`} value={sup.id}>{sup.companyName}</option>
                 ))}
               </select>
             </div>
@@ -969,9 +969,9 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-gray-100 text-[11px] font-extrabold text-gray-500 uppercase tracking-wider select-none">
-                      {productColumns.map((col) => (
+                      {productColumns.map((col, cIdx) => (
                         <th
-                          key={col.id}
+                          key={`imp_th_${col.id}_${cIdx}`}
                           style={{ width: `${col.width}px`, minWidth: `${col.width}px` }}
                           className={`py-3.5 px-4 relative group ${
                             col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
@@ -989,11 +989,11 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-xs font-medium text-gray-700">
-                    {filteredProducts.map(product => (
-                      <tr key={product.id} className="hover:bg-slate-50/80 transition-colors group">
-                        {productColumns.map(col => (
+                    {filteredProducts.map((product, pIdx) => (
+                      <tr key={`imp_prod_row_${product.id || pIdx}_${pIdx}`} className="hover:bg-slate-50/80 transition-colors group">
+                        {productColumns.map((col, cIdx) => (
                           <td
-                            key={col.id}
+                            key={`imp_prod_cell_${product.id || pIdx}_${col.id}_${cIdx}`}
                             style={{ width: `${col.width}px`, minWidth: `${col.width}px` }}
                             className={`py-3.5 px-4 ${
                               col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
@@ -1023,9 +1023,9 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
           ) : (
             /* PRODUCTS GRID / CARDS VIEW */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredProducts.map(product => (
+              {filteredProducts.map((product, pIdx) => (
                 <motion.div
-                  key={product.id}
+                  key={`imp_prod_card_${product.id || pIdx}_${pIdx}`}
                   layout
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1153,12 +1153,12 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredSuppliers.map(sup => {
+            {filteredSuppliers.map((sup, sIdx) => {
               const linkedCompany = companies.find(c => c.id === sup.companyId);
               const supplierProductsCount = products.filter(p => p.supplierId === sup.id).length;
 
               return (
-                <div key={sup.id} className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all p-6 space-y-4">
+                <div key={`imp_sup_card_${sup.id || sIdx}_${sIdx}`} className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all p-6 space-y-4">
                   <div className="flex items-start justify-between gap-4 pb-4 border-b border-gray-100">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-lg shadow-sm">
@@ -1181,7 +1181,7 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                     <div className="flex items-center gap-1 text-amber-400">
                       {[...Array(5)].map((_, i) => (
                         <Star
-                          key={i}
+                          key={`imp_sup_star_${sup.id || sIdx}_${i}`}
                           size={14}
                           className={i < (sup.rating || 5) ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}
                         />
@@ -1301,8 +1301,8 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-xs font-medium">
-                {filteredProformas.map(pf => (
-                  <tr key={pf.id} className="hover:bg-slate-50/50 transition-colors">
+                {filteredProformas.map((pf, pfIdx) => (
+                  <tr key={`imp_pf_row_${pf.id || pfIdx}_${pfIdx}`} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 font-mono font-black text-blue-600">
                       {pf.proformaNumber}
                     </td>
@@ -1381,8 +1381,8 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
                 >
                   <option value="">Seleccionar Proveedor...</option>
-                  {suppliers.map(sup => (
-                    <option key={sup.id} value={sup.id}>{sup.companyName} ({sup.country})</option>
+                  {suppliers.map((sup, sIdx) => (
+                    <option key={`imp_upload_sup_opt_${sup.id || sIdx}_${sIdx}`} value={sup.id}>{sup.companyName} ({sup.country})</option>
                   ))}
                 </select>
               </div>
@@ -1512,7 +1512,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
 
                   return (
                     <div
-                      key={item.id}
+                      key={`imp_extr_item_${item.id || idx}_${idx}`}
                       className={`p-5 rounded-2xl border transition-all ${
                         isValidated 
                           ? 'bg-emerald-50/30 border-emerald-200' 
@@ -1686,8 +1686,8 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                     className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold"
                   >
                     <option value="">Seleccionar Proveedor...</option>
-                    {suppliers.map(s => (
-                      <option key={s.id} value={s.id}>{s.companyName}</option>
+                    {suppliers.map((s, sIdx) => (
+                      <option key={`import_supplier_opt_${s.id || sIdx}_${sIdx}`} value={s.id}>{s.companyName}</option>
                     ))}
                   </select>
                 </div>
@@ -1803,8 +1803,8 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                     className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold"
                   >
                     <option value="">Seleccionar del Directorio de Compañías...</option>
-                    {companies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} (RUC: {c.ruc})</option>
+                    {companies.map((c, cIdx) => (
+                      <option key={`imp_comp_${c.id || cIdx}_${cIdx}`} value={c.id}>{c.name} (RUC: {c.ruc})</option>
                     ))}
                   </select>
                 </div>
@@ -1959,8 +1959,8 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                   <div>
                     <span className="text-[10px] font-black uppercase text-gray-400 block mb-2">Especificaciones Técnicas</span>
                     <div className="space-y-1 bg-gray-50 p-3 rounded-2xl">
-                      {Object.entries(selectedProduct.specifications).map(([k, v]) => (
-                        <div key={k} className="flex justify-between border-b border-gray-200/50 py-1 last:border-none">
+                      {Object.entries(selectedProduct.specifications).map(([k, v], specIdx) => (
+                        <div key={`imp_prod_spec_${k}_${specIdx}`} className="flex justify-between border-b border-gray-200/50 py-1 last:border-none">
                           <span className="font-bold text-gray-600">{k}:</span>
                           <span className="font-semibold text-gray-900">{v}</span>
                         </div>
@@ -2049,8 +2049,8 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 font-medium">
-                      {selectedProforma.items?.map(it => (
-                        <tr key={it.id}>
+                      {selectedProforma.items?.map((it, itIdx) => (
+                        <tr key={`imp_prof_item_${it.id || itIdx}_${itIdx}`}>
                           <td className="p-3 font-mono font-bold text-gray-700">{it.code}</td>
                           <td className="p-3 font-bold text-gray-900">{it.name}</td>
                           <td className="p-3 text-center font-bold">{it.quantity}</td>
@@ -2136,8 +2136,8 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                     Productos Ofrecidos por este Proveedor ({products.filter(p => p.supplierId === selectedSupplier.id).length})
                   </h4>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {products.filter(p => p.supplierId === selectedSupplier.id).map(p => (
-                      <div key={p.id} className="p-3 bg-gray-50 rounded-xl flex items-center justify-between border border-gray-100">
+                    {products.filter(p => p.supplierId === selectedSupplier.id).map((p, pIdx) => (
+                      <div key={`imp_supprod_${p.id || pIdx}_${pIdx}`} className="p-3 bg-gray-50 rounded-xl flex items-center justify-between border border-gray-100">
                         <div>
                           <span className="font-bold text-gray-900 block">{p.name}</span>
                           <span className="text-[10px] font-mono text-gray-400">{p.code}</span>
@@ -2207,7 +2207,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                 
                 {productColumns.map((col, idx) => (
                   <div
-                    key={col.id}
+                    key={`imp_col_cfg_${col.id}_${idx}`}
                     className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-200/80 hover:border-blue-200 transition-all"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">

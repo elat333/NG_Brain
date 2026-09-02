@@ -173,10 +173,10 @@ export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, o
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredTrainers.map(trainer => {
+              {filteredTrainers.map((trainer, trIdx) => {
                 const member = getMemberInfo(trainer.directoryId);
                 return (
-                  <tr key={trainer.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={`trainer_row_${trainer.id || trIdx}_${trIdx}`} className="hover:bg-slate-50/50 transition-colors">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center font-bold text-lg text-indigo-700">
@@ -307,8 +307,8 @@ export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, o
                       className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     >
                       <option value="">Seleccione una persona del directorio...</option>
-                      {members.map(m => (
-                        <option key={m.id} value={m.id}>
+                      {members.map((m, mIdx) => (
+                        <option key={`trainers_modal_m_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>
                           {m.name} {m.role ? `(${m.role})` : ''}
                         </option>
                       ))}

@@ -125,12 +125,12 @@ const MemberSearchSelect: React.FC<MemberSearchSelectProps> = ({
           {filtered.length === 0 ? (
             <div className="px-3 py-2 text-xs text-slate-400 italic">No se encontraron integrantes</div>
           ) : (
-            filtered.map(m => {
+            filtered.map((m, mIdx) => {
               const memberProc = processes.find(p => p.id === m.processId);
               const isSameProc = m.processId === contextProcessId;
               return (
                 <button
-                  key={m.id}
+                  key={`p_dash_member_opt_${m.id || mIdx}_${mIdx}`}
                   type="button"
                   className="w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors flex items-center justify-between group"
                   onClick={() => {
@@ -1094,7 +1094,7 @@ export default function ProcessDashboard({
         }
         renderedElements.push(
           <li key={`md_li_disc_${index}`} className="ml-6 list-disc text-slate-700 my-1.5 text-sm font-medium leading-relaxed marker:text-slate-400 pl-1">
-            {parseInlineMarkdown(trimmed.slice(2))}
+            {parseInlineMarkdown(trimmed.slice(2), `li_disc_${index}`)}
           </li>
         );
       }
@@ -1105,7 +1105,7 @@ export default function ProcessDashboard({
         }
         renderedElements.push(
           <li key={`md_li_dec_${index}`} className="ml-6 list-decimal text-slate-700 my-1.5 text-sm font-medium leading-relaxed marker:text-slate-500 pl-1">
-            {parseInlineMarkdown(numberedMatch[2])}
+            {parseInlineMarkdown(numberedMatch[2], `li_dec_${index}`)}
           </li>
         );
       }
@@ -1119,7 +1119,7 @@ export default function ProcessDashboard({
         inList = false;
         renderedElements.push(
           <p key={`md_p_${index}`} className="text-slate-700 leading-relaxed my-2.5 text-sm font-medium">
-            {parseInlineMarkdown(trimmed)}
+            {parseInlineMarkdown(trimmed, `p_${index}`)}
           </p>
         );
       }
@@ -1129,10 +1129,10 @@ export default function ProcessDashboard({
   };
 
   // Parse **bold**, [text](url), and `code` inline
-  const parseInlineMarkdown = (text: string): React.ReactNode[] => {
+  const parseInlineMarkdown = (text: string, keyPrefix: string = 'inline'): React.ReactNode[] => {
     const parts: React.ReactNode[] = [];
     let currentText = text;
-    let key = 0;
+    let keyIdx = 0;
 
     while (currentText.length > 0) {
       // Bold search: **text**
@@ -1150,7 +1150,7 @@ export default function ProcessDashboard({
       ].filter(x => x.index !== -1).sort((a, b) => a.index - b.index);
 
       if (indices.length === 0) {
-        parts.push(<span key={key++}>{currentText}</span>);
+        parts.push(<span key={`${keyPrefix}_txt_${keyIdx++}`}>{currentText}</span>);
         break;
       }
 
@@ -1158,24 +1158,24 @@ export default function ProcessDashboard({
       
       // Push plain text before formatting
       if (next.index > 0) {
-        parts.push(<span key={key++}>{currentText.slice(0, next.index)}</span>);
+        parts.push(<span key={`${keyPrefix}_pre_${keyIdx++}`}>{currentText.slice(0, next.index)}</span>);
       }
 
       if (next.type === 'bold') {
         const remaining = currentText.slice(next.index + 2);
         const closeIndex = remaining.indexOf('**');
         if (closeIndex !== -1) {
-          parts.push(<strong key={key++} className="font-extrabold text-slate-900">{remaining.slice(0, closeIndex)}</strong>);
+          parts.push(<strong key={`${keyPrefix}_bold_${keyIdx++}`} className="font-extrabold text-slate-900">{remaining.slice(0, closeIndex)}</strong>);
           currentText = remaining.slice(closeIndex + 2);
         } else {
-          parts.push(<span key={key++}>**</span>);
+          parts.push(<span key={`${keyPrefix}_star_${keyIdx++}`}>**</span>);
           currentText = remaining;
         }
       } else if (next.type === 'link' && linkMatch) {
         const [fullMatch, linkText, linkUrl] = linkMatch;
         parts.push(
           <a 
-            key={key++} 
+            key={`${keyPrefix}_link_${keyIdx++}`} 
             href={linkUrl} 
             target="_blank" 
             rel="noopener noreferrer" 
@@ -1190,10 +1190,10 @@ export default function ProcessDashboard({
         const remaining = currentText.slice(next.index + 1);
         const closeIndex = remaining.indexOf('`');
         if (closeIndex !== -1) {
-          parts.push(<code key={key++} className="bg-slate-100 text-pink-600 px-1.5 py-0.5 rounded font-mono text-xs font-bold">{remaining.slice(0, closeIndex)}</code>);
+          parts.push(<code key={`${keyPrefix}_code_${keyIdx++}`} className="bg-slate-100 text-pink-600 px-1.5 py-0.5 rounded font-mono text-xs font-bold">{remaining.slice(0, closeIndex)}</code>);
           currentText = remaining.slice(closeIndex + 1);
         } else {
-          parts.push(<span key={key++}>`</span>);
+          parts.push(<span key={`${keyPrefix}_tick_${keyIdx++}`}>`</span>);
           currentText = remaining;
         }
       }
@@ -1241,7 +1241,7 @@ export default function ProcessDashboard({
                   <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">Objetivos Clave del Proceso:</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {selectedProcess.goals.map((g, idx) => (
-                      <div key={idx} className="flex items-start gap-2 text-xs font-semibold text-slate-200">
+                      <div key={`p_dash_proc_goal_${selectedProcess.id}_${idx}`} className="flex items-start gap-2 text-xs font-semibold text-slate-200">
                         <span className="w-1.5 h-1.5 rounded-full bg-ng-lime mt-1.5 shrink-0" />
                         <span>{g}</span>
                       </div>
@@ -1280,13 +1280,13 @@ export default function ProcessDashboard({
               </div>
             ) : (
               <div className="space-y-4">
-                {memberMetrics.map(({ member, totalTasks, completedTasks, plannedHours, actualHours }) => {
+                {memberMetrics.map(({ member, totalTasks, completedTasks, plannedHours, actualHours }, mIdx) => {
                   const ratio = plannedHours > 0 ? (actualHours / plannedHours) * 100 : 0;
                   const isOver = actualHours > plannedHours && plannedHours > 0;
                   const isSelected = viewingMemberId === member.id;
                   
                   return (
-                    <div key={member.id} className="space-y-3">
+                    <div key={`p_dash_member_metric_${member.id || mIdx}_${mIdx}`} className="space-y-3">
                       <div 
                         onClick={() => setViewingMemberId(isSelected ? null : member.id)}
                         className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${
@@ -1426,13 +1426,13 @@ export default function ProcessDashboard({
                                       <p className="text-xs text-slate-400 font-bold">No hay tareas planificadas en semanas.</p>
                                     </div>
                                   ) : (
-                                    memberTasksGrouped.weeks.map(week => {
+                                    memberTasksGrouped.weeks.map((week, wIdx) => {
                                       const weekOver = week.actual > week.planned && week.planned > 0;
                                       const weekRatio = week.planned > 0 ? (week.actual / week.planned) * 100 : 0;
                                       const isExpanded = !!expandedWeeks[week.key];
 
                                       return (
-                                        <div key={week.key} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden transition-all">
+                                        <div key={`p_dash_week_${member.id || wIdx}_${week.key}_${wIdx}`} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden transition-all">
                                           <div 
                                             onClick={() => setExpandedWeeks(prev => ({ ...prev, [week.key]: !prev[week.key] }))}
                                             className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${isExpanded ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}
@@ -1526,8 +1526,8 @@ export default function ProcessDashboard({
                                       <p className="text-[10px] text-red-400/80 font-bold text-center py-2">No hay tareas expiradas.</p>
                                     ) : (
                                       <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
-                                        {memberTasksGrouped.expiredTasks.map(t => (
-                                          <div key={t.id} className="p-3 bg-white rounded-xl border border-red-200 shadow-sm text-xs group relative overflow-hidden">
+                                        {memberTasksGrouped.expiredTasks.map((t, tIdx) => (
+                                          <div key={`p_dash_exp_task_${t.id || tIdx}_${tIdx}`} className="p-3 bg-white rounded-xl border border-red-200 shadow-sm text-xs group relative overflow-hidden">
                                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500"></div>
                                             <div className="pl-2">
                                               <p className="font-bold text-slate-800 line-clamp-2 mb-2">{t.title}</p>
@@ -1583,9 +1583,9 @@ export default function ProcessDashboard({
                                       <p className="text-[10px] text-slate-400 font-bold text-center py-2">Todas las tareas tienen fecha.</p>
                                     ) : (
                                       <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                                        {memberTasksGrouped.unscheduledTasks.map(t => (
+                                        {memberTasksGrouped.unscheduledTasks.map((t, tIdx) => (
                                           <div 
-                                            key={t.id}
+                                            key={`p_dash_unsched_task_${t.id || tIdx}_${tIdx}`}
                                             onClick={() => onOpenTask && onOpenTask(t)} 
                                             className="p-2.5 bg-white hover:border-blue-300 rounded-lg border border-slate-200 text-xs transition-all cursor-pointer shadow-sm flex items-center justify-between group"
                                           >
@@ -1631,7 +1631,7 @@ export default function ProcessDashboard({
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {processProjects.map(project => {
+                {processProjects.map((project, prIdx) => {
                   const projectTasks = tasks.filter(t => t.projectId === project.id);
                   const completedCount = projectTasks.filter(t => t.status === 'done').length;
                   const progressPct = projectTasks.length > 0 ? (completedCount / projectTasks.length) * 100 : 0;
@@ -1642,7 +1642,7 @@ export default function ProcessDashboard({
                   const todoCount = projectTasks.filter(t => t.status === 'todo' || t.status === 'backlog').length;
 
                   return (
-                    <div key={project.id} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all space-y-4">
+                    <div key={`p_dash_proj_${project.id || prIdx}_${prIdx}`} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all space-y-4">
                       {/* Header */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="space-y-1">
@@ -1844,13 +1844,13 @@ export default function ProcessDashboard({
                       Esta nota no ha sido compartida con ningún integrante individual aún.
                     </p>
                   ) : (
-                    noteToShare.sharedWith.map(s => {
+                    noteToShare.sharedWith.map((s, sIdx) => {
                       const member = members.find(m => m.id === s.memberId);
                       const memberProc = processes.find(p => p.id === member?.processId);
                       const isSameProc = member?.processId === noteToShare.processId;
 
                       return (
-                        <div key={s.memberId} className="flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-200/80 hover:border-slate-300 transition-all shadow-sm">
+                        <div key={`pdash_note_share_mem_${s.memberId || sIdx}_${sIdx}`} className="flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-200/80 hover:border-slate-300 transition-all shadow-sm">
                           <div className="flex items-center gap-2.5 min-w-0 pr-2">
                             <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-black shrink-0">
                               {member?.name ? member.name.substring(0, 2).toUpperCase() : 'MB'}
@@ -2006,13 +2006,13 @@ export default function ProcessDashboard({
                       Este enlace no ha sido compartido con ningún integrante individual aún.
                     </p>
                   ) : (
-                    linkToShare.sharedWith.map(s => {
+                    linkToShare.sharedWith.map((s, sIdx) => {
                       const member = members.find(m => m.id === s.memberId);
                       const memberProc = processes.find(p => p.id === member?.processId);
                       const isSameProc = member?.processId === linkToShare.processId;
 
                       return (
-                        <div key={s.memberId} className="flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-200/80 hover:border-slate-300 transition-all shadow-sm">
+                        <div key={`pdash_link_share_mem_${s.memberId || sIdx}_${sIdx}`} className="flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-200/80 hover:border-slate-300 transition-all shadow-sm">
                           <div className="flex items-center gap-2.5 min-w-0 pr-2">
                             <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-black shrink-0">
                               {member?.name ? member.name.substring(0, 2).toUpperCase() : 'MB'}
@@ -2148,8 +2148,8 @@ export default function ProcessDashboard({
                   Enlaces que se compartirán ({categoryToShare.links.length})
                 </h4>
                 <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
-                  {categoryToShare.links.map(link => (
-                    <div key={link.id} className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between gap-2 text-xs font-bold text-slate-700">
+                  {categoryToShare.links.map((link, lIdx) => (
+                    <div key={`proc_share_link_${link.id || lIdx}_${lIdx}`} className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between gap-2 text-xs font-bold text-slate-700">
                       <span className="truncate">{link.title}</span>
                       <span className="text-[9px] text-emerald-600 font-mono truncate">{link.url}</span>
                     </div>
@@ -2245,8 +2245,8 @@ export default function ProcessDashboard({
                       className="w-full bg-white border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
                     >
                       <option value="">General</option>
-                      {linkCategories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
+                      {linkCategories.map((cat, cIdx) => (
+                        <option key={`p_dash_cat_opt_${cat}_${cIdx}`} value={cat}>{cat}</option>
                       ))}
                       <option value="custom">+ Crear nueva...</option>
                     </select>

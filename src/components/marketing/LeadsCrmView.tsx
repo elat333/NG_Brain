@@ -204,8 +204,8 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
             className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime"
           >
             <option value="todos">Todas las Campañas</option>
-            {campaigns.map(c => (
-              <option key={c.id} value={c.id}>{c.code}</option>
+            {campaigns.map((c, cIdx) => (
+              <option key={`mkt_leads_filter_camp_${c.id || cIdx}_${cIdx}`} value={c.id}>{c.code}</option>
             ))}
           </select>
 
@@ -223,13 +223,13 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
 
       {/* KANBAN CRM BOARD */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4 overflow-x-auto pb-4">
-        {stages.map((stage) => {
+        {stages.map((stage, stIdx) => {
           const stageLeads = filteredLeads.filter(l => l.stage === stage.id);
           const stageTotal = stageLeads.reduce((acc, l) => acc + (l.estimatedValue || 0), 0);
 
           return (
             <div
-              key={stage.id}
+              key={`mkt_lead_stage_col_${stage.id}_${stIdx}`}
               className="bg-slate-50/75 rounded-3xl p-3 border border-slate-200/70 flex flex-col min-w-[240px] max-h-[750px]"
             >
               {/* Stage Column Header */}
@@ -261,14 +261,14 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
 
               {/* Leads Cards Container */}
               <div className="space-y-3 overflow-y-auto flex-1 pr-1 custom-scrollbar">
-                {stageLeads.map((lead) => {
+                {stageLeads.map((lead, lIdx) => {
                   const campaign = campaigns.find(c => c.id === lead.campaignId);
                   const assigned = members.find(m => m.id === lead.assignedMemberId);
                   const cleanPhone = (lead.phone || '').replace(/\D/g, '');
 
                   return (
                     <div
-                      key={lead.id}
+                      key={`mkt_lead_card_${lead.id || lIdx}_${lIdx}`}
                       className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all space-y-2.5 text-left"
                     >
                       {/* Lead Name & Value */}
@@ -342,8 +342,8 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
                               onChange={(e) => onUpdateLeadStage(lead.id, e.target.value as any)}
                               className="text-[9px] font-black uppercase bg-slate-100 text-slate-700 border-none rounded py-0.5 px-1 cursor-pointer focus:ring-1 focus:ring-ng-lime"
                             >
-                              {stages.map(s => (
-                                <option key={s.id} value={s.id}>{s.title}</option>
+                              {stages.map((s, sIdx) => (
+                                <option key={`mkt_lead_card_st_${lead.id}_${s.id}_${sIdx}`} value={s.id}>{s.title}</option>
                               ))}
                             </select>
                           </div>
@@ -456,8 +456,8 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
                       onChange={(e) => setEditingLead(prev => ({ ...prev, stage: e.target.value as any }))}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
                     >
-                      {stages.map(s => (
-                        <option key={s.id} value={s.id}>{s.title}</option>
+                      {stages.map((s, sIdx) => (
+                        <option key={`mkt_lead_modal_st_${s.id}_${sIdx}`} value={s.id}>{s.title}</option>
                       ))}
                     </select>
                   </div>
@@ -507,8 +507,8 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
                     >
                       <option value="">Sin campaña específica</option>
-                      {campaigns.map(c => (
-                        <option key={c.id} value={c.id}>{c.code}</option>
+                      {campaigns.map((c, cIdx) => (
+                        <option key={`mkt_lead_modal_camp_${c.id || cIdx}_${cIdx}`} value={c.id}>{c.code}</option>
                       ))}
                     </select>
                   </div>
@@ -523,8 +523,8 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
                     >
                       <option value="">Seleccionar responsable...</option>
-                      {members.map(m => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
+                      {members.map((m, mIdx) => (
+                        <option key={`mkt_lead_modal_resp_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
                       ))}
                     </select>
                   </div>

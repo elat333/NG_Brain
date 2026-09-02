@@ -726,8 +726,8 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
                       onUpdateGovernance({ ...governance, tone: e.target.value as any, updatedAt: new Date().toISOString() });
                     }}
                   >
-                    {currentProfiles.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                    {currentProfiles.map((p, pIdx) => (
+                      <option key={`mgmt_prof_opt_${p.id || pIdx}_${pIdx}`} value={p.id}>{p.name}</option>
                     ))}
                   </select>
                 </div>
@@ -807,9 +807,9 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
 
             {/* Chat Body */}
             <div className="flex-1 p-4 overflow-y-auto space-y-4">
-              {chatMessages.map(msg => (
+              {chatMessages.map((msg, mIdx) => (
                 <div
-                  key={msg.id}
+                  key={`mgmt_chat_msg_${msg.id || mIdx}_${mIdx}`}
                   className={`flex gap-3 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   {msg.sender === 'assistant' && (
@@ -1018,8 +1018,8 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
                   </h4>
                 </div>
                 <div className="space-y-2">
-                  {strategy.swotItems.filter(s => s.category === 'fortaleza').map(item => (
-                    <div key={item.id} className="p-3 bg-white rounded-xl border border-emerald-100 shadow-2xs flex items-start justify-between gap-2">
+                  {strategy.swotItems.filter(s => s.category === 'fortaleza').map((item, idx) => (
+                    <div key={`mgmt_swot_f_${item.id || idx}_${idx}`} className="p-3 bg-white rounded-xl border border-emerald-100 shadow-2xs flex items-start justify-between gap-2">
                       <div className="text-xs text-slate-700 leading-relaxed">
                         <span className="font-semibold block">{item.text}</span>
                         {item.strategy && <span className="text-[11px] text-emerald-700 block mt-1">Estrategia: {item.strategy}</span>}
@@ -1043,8 +1043,8 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
                   </h4>
                 </div>
                 <div className="space-y-2">
-                  {strategy.swotItems.filter(s => s.category === 'oportunidad').map(item => (
-                    <div key={item.id} className="p-3 bg-white rounded-xl border border-sky-100 shadow-2xs flex items-start justify-between gap-2">
+                  {strategy.swotItems.filter(s => s.category === 'oportunidad').map((item, idx) => (
+                    <div key={`mgmt_swot_o_${item.id || idx}_${idx}`} className="p-3 bg-white rounded-xl border border-sky-100 shadow-2xs flex items-start justify-between gap-2">
                       <div className="text-xs text-slate-700 leading-relaxed">
                         <span className="font-semibold block">{item.text}</span>
                         {item.strategy && <span className="text-[11px] text-sky-700 block mt-1">Estrategia: {item.strategy}</span>}
@@ -1068,8 +1068,8 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
                   </h4>
                 </div>
                 <div className="space-y-2">
-                  {strategy.swotItems.filter(s => s.category === 'debilidad').map(item => (
-                    <div key={item.id} className="p-3 bg-white rounded-xl border border-amber-100 shadow-2xs flex items-start justify-between gap-2">
+                  {strategy.swotItems.filter(s => s.category === 'debilidad').map((item, idx) => (
+                    <div key={`mgmt_swot_d_${item.id || idx}_${idx}`} className="p-3 bg-white rounded-xl border border-amber-100 shadow-2xs flex items-start justify-between gap-2">
                       <div className="text-xs text-slate-700 leading-relaxed">
                         <span className="font-semibold block">{item.text}</span>
                         {item.strategy && <span className="text-[11px] text-amber-700 block mt-1">Plan de Mejora: {item.strategy}</span>}
@@ -1093,8 +1093,8 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
                   </h4>
                 </div>
                 <div className="space-y-2">
-                  {strategy.swotItems.filter(s => s.category === 'amenaza').map(item => (
-                    <div key={item.id} className="p-3 bg-white rounded-xl border border-rose-100 shadow-2xs flex items-start justify-between gap-2">
+                  {strategy.swotItems.filter(s => s.category === 'amenaza').map((item, idx) => (
+                    <div key={`mgmt_swot_a_${item.id || idx}_${idx}`} className="p-3 bg-white rounded-xl border border-rose-100 shadow-2xs flex items-start justify-between gap-2">
                       <div className="text-xs text-slate-700 leading-relaxed">
                         <span className="font-semibold block">{item.text}</span>
                         {item.strategy && <span className="text-[11px] text-rose-700 block mt-1">Mitigación: {item.strategy}</span>}
@@ -1135,8 +1135,8 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {strategy.okrGoals.map(okr => (
-                <div key={okr.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+              {strategy.okrGoals.map((okr, oIdx) => (
+                <div key={`mgmt_okr_${okr.id || oIdx}_${oIdx}`} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
@@ -1222,8 +1222,8 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {strategy.strategicRisks.map(risk => (
-                <div key={risk.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+              {strategy.strategicRisks.map((risk, rIdx) => (
+                <div key={`mgmt_risk_${risk.id || rIdx}_${rIdx}`} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <h4 className="font-bold text-slate-800 text-sm">{risk.title}</h4>
                     <div className="flex gap-1 text-[10px]">
@@ -1289,9 +1289,9 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-              {currentProfiles.map(profile => (
+              {currentProfiles.map((profile, pIdx) => (
                 <div
-                  key={profile.id}
+                  key={`mgmt_prof_card_${profile.id || pIdx}_${pIdx}`}
                   className={`relative flex flex-col p-4 rounded-2xl text-left border transition-all ${
                     governance.tone === profile.id
                       ? 'bg-indigo-50/80 border-indigo-600 ring-2 ring-indigo-500/20'
@@ -1362,11 +1362,11 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
                   badge: 'Razonamiento Complejo', 
                   desc: 'Ideal para auditorías profundas, planificación financiera compleja y síntesis de matrices multidimensionales.' 
                 }
-              ].map(modelItem => {
+              ].map((modelItem, mIdx) => {
                 const isSelected = (governance.selectedModel || 'gemini-2.5-flash') === modelItem.id;
                 return (
                   <button
-                    key={modelItem.id}
+                    key={`mgmt_model_${modelItem.id}_${mIdx}`}
                     disabled={isReadOnly}
                     onClick={() => onUpdateGovernance({ ...governance, selectedModel: modelItem.id, updatedAt: new Date().toISOString() })}
                     className={`p-4 rounded-2xl text-left border transition-all ${
@@ -1438,8 +1438,8 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
             </div>
 
             <div className="space-y-3">
-              {governance.guardrails.map(guard => (
-                <div key={guard.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-start justify-between gap-4">
+              {governance.guardrails.map((guard, gIdx) => (
+                <div key={`mgmt_guard_${guard.id || gIdx}_${gIdx}`} className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-start justify-between gap-4">
                   <div>
                     <h4 className="font-bold text-slate-800 text-sm">{guard.title}</h4>
                     <p className="text-xs text-slate-600 mt-0.5">{guard.ruleDescription}</p>
@@ -1477,8 +1477,8 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
               <p className="text-xs text-slate-400 italic">No hay registros de calibración directiva guardados.</p>
             ) : (
               <div className="space-y-3">
-                {governance.calibrationHistory.map(rec => (
-                  <div key={rec.id} className="p-4 bg-amber-50/60 rounded-xl border border-amber-200 space-y-1 text-xs">
+                {governance.calibrationHistory.map((rec, recIdx) => (
+                  <div key={`mgmt_calib_${rec.id || recIdx}_${recIdx}`} className="p-4 bg-amber-50/60 rounded-xl border border-amber-200 space-y-1 text-xs">
                     <div className="flex items-center justify-between text-amber-900 font-semibold">
                       <span>{rec.promptOrTopic}</span>
                       <span className="text-[10px] text-amber-700">{rec.timestamp}</span>
@@ -1791,7 +1791,7 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-2">Contextos Base Adicionales</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {Object.keys(editingProfile.activeContexts).map((ctxKey) => {
+                  {Object.keys(editingProfile.activeContexts).map((ctxKey, cIdx) => {
                     const labels: any = {
                       strategy: 'Matriz Estratégica',
                       processes: 'Procesos',
@@ -1800,7 +1800,7 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
                       marketing: 'Info. Marketing'
                     };
                     return (
-                    <label key={ctxKey} className="flex items-center gap-2 p-2 border rounded-lg hover:bg-slate-50 cursor-pointer">
+                    <label key={`mgmt_ctx_${ctxKey}_${cIdx}`} className="flex items-center gap-2 p-2 border rounded-lg hover:bg-slate-50 cursor-pointer">
                       <input 
                         type="checkbox"
                         checked={(editingProfile.activeContexts as any)[ctxKey]}
@@ -1836,18 +1836,18 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
                     defaultValue=""
                   >
                     <option value="" disabled>+ Seleccionar una nota de la bitácora para agregar...</option>
-                    {notes.filter(n => !(editingProfile.selectedNotes || []).includes(n.id)).map(note => (
-                      <option key={note.id} value={note.id}>{note.title} ({note.category})</option>
+                    {notes.filter(n => !(editingProfile.selectedNotes || []).includes(n.id)).map((note, nIdx) => (
+                      <option key={`mgmt_note_opt_${note.id || nIdx}_${nIdx}`} value={note.id}>{note.title} ({note.category})</option>
                     ))}
                   </select>
                 </div>
 
                 <div className="max-h-40 overflow-y-auto border rounded-xl p-2 bg-slate-50 space-y-1">
-                  {(editingProfile.selectedNotes || []).map(noteId => {
+                  {(editingProfile.selectedNotes || []).map((noteId, nIdx) => {
                     const note = notes.find(n => n.id === noteId);
                     if (!note) return null;
                     return (
-                      <div key={noteId} className="flex items-center justify-between gap-2 p-2 bg-white border border-slate-200 rounded-lg shadow-sm">
+                      <div key={`mgmt_note_sel_${noteId}_${nIdx}`} className="flex items-center justify-between gap-2 p-2 bg-white border border-slate-200 rounded-lg shadow-sm">
                         <div className="flex-1 truncate">
                           <span className="text-xs font-bold text-slate-800 block truncate">{note.title}</span>
                           <span className="text-[10px] text-slate-500 truncate block capitalize">{note.category}</span>
@@ -1874,8 +1874,8 @@ Describa aquí la estructura corporativa, los objetivos principales y los proces
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-2">Reglas Anti-alucinación Vinculadas</label>
                 <div className="max-h-40 overflow-y-auto border rounded-xl p-2 bg-slate-50 space-y-1">
-                  {governance.guardrails.map(g => (
-                    <label key={g.id} className="flex items-start gap-2 p-1.5 hover:bg-slate-100 rounded cursor-pointer">
+                  {governance.guardrails.map((g, gIdx) => (
+                    <label key={`mgmt_modal_guard_${g.id || gIdx}_${gIdx}`} className="flex items-start gap-2 p-1.5 hover:bg-slate-100 rounded cursor-pointer">
                       <input 
                         type="checkbox"
                         checked={editingProfile.activeGuardrails.includes(g.id)}

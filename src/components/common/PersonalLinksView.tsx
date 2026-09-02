@@ -798,10 +798,10 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                 className="py-1 px-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               >
                 <option value="all">Todas las categorías ({links.length})</option>
-                {categoriesList.map((cat) => {
+                {categoriesList.map((cat, cIdx) => {
                   const count = links.filter((l) => (l.category || 'General').toLowerCase() === cat.toLowerCase()).length;
                   return (
-                    <option key={cat} value={cat}>
+                    <option key={`personal_links_filter_cat_${cat}_${cIdx}`} value={cat}>
                       {cat} ({count})
                     </option>
                   );
@@ -969,7 +969,7 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
 
                       return (
                         <div
-                          key={link.id}
+                          key={`link_card_${link.id || linkIndex}_${linkIndex}`}
                           className="bg-slate-50/60 hover:bg-white border border-slate-200/90 hover:border-slate-300 rounded-xl p-2.5 transition-all duration-150 flex flex-col justify-between group shadow-none hover:shadow-xs text-left"
                         >
                           <div>
@@ -1193,8 +1193,8 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                     <option value="">Seleccionar miembro del equipo...</option>
                     {teamMembers
                       .filter((m) => m.id !== memberId)
-                      .map((m) => (
-                        <option key={m.id} value={m.id}>
+                      .map((m, mIdx) => (
+                        <option key={`personal_links_share_m_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>
                           {m.name || m.email} ({m.role || 'Miembro'})
                         </option>
                       ))}
@@ -1265,11 +1265,11 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
 
                   {/* Shared Members for Link */}
                   {shareTargetType === 'link' && sharingLink?.sharedWith && sharingLink.sharedWith.length > 0 ? (
-                    sharingLink.sharedWith.map((shareItem) => {
+                    sharingLink.sharedWith.map((shareItem, sIdx) => {
                       const member = teamMembers.find((m) => m.id === shareItem.memberId);
                       return (
                         <div
-                          key={shareItem.memberId}
+                          key={`plink_share_mem_${shareItem.memberId || sIdx}_${sIdx}`}
                           className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200 text-xs"
                         >
                           <div className="flex items-center gap-2">
@@ -1301,11 +1301,11 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                       );
                     })
                   ) : shareTargetType === 'category' && categorySharedMembers.length > 0 ? (
-                    categorySharedMembers.map((shareItem) => {
+                    categorySharedMembers.map((shareItem, sIdx) => {
                       const member = teamMembers.find((m) => m.id === shareItem.memberId);
                       return (
                         <div
-                          key={shareItem.memberId}
+                          key={`plink_cat_share_mem_${shareItem.memberId || sIdx}_${sIdx}`}
                           className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200 text-xs"
                         >
                           <div className="flex items-center gap-2">
@@ -1444,8 +1444,8 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                       onChange={(e) => setCategory(e.target.value)}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                     >
-                      {categoriesList.map((cat) => (
-                        <option key={cat} value={cat}>
+                      {categoriesList.map((cat, cIdx) => (
+                        <option key={`personal_links_modal_cat_${cat}_${cIdx}`} value={cat}>
                           {cat}
                         </option>
                       ))}

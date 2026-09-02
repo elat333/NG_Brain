@@ -81,10 +81,10 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({ plan
             No hay planificaciones agendadas.
           </div>
         ) : (
-          sortedPlans.map(plan => {
+          sortedPlans.map((plan, pIdx) => {
             const space = getSpaceDetails(plan.spaceId);
             return (
-              <div key={plan.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div key={`tr_cal_plan_${plan.id || pIdx}_${pIdx}`} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
@@ -229,8 +229,8 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({ plan
                       className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     >
                       <option value="">Seleccione capacitador...</option>
-                      {trainers.map(t => (
-                        <option key={t.id} value={t.id}>{getTrainerName(t.id)} - {t.type}</option>
+                      {trainers.map((t, tIdx) => (
+                        <option key={`tr_cal_trainer_opt_${t.id || tIdx}_${tIdx}`} value={t.id}>{getTrainerName(t.id)} - {t.type}</option>
                       ))}
                     </select>
                   </div>
@@ -263,8 +263,8 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({ plan
                       className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     >
                       <option value="">Seleccione espacio {selectedSpaceType === 'fisico' ? 'físico' : 'virtual'}...</option>
-                      {spaces.filter(s => s.type === selectedSpaceType).map(s => (
-                        <option key={s.id} value={s.id}>{s.name} {s.city ? `(${s.city})` : ''}</option>
+                      {spaces.filter(s => s.type === selectedSpaceType).map((s, sIdx) => (
+                        <option key={`tr_cal_space_opt_${s.id || sIdx}_${sIdx}`} value={s.id}>{s.name} {s.city ? `(${s.city})` : ''}</option>
                       ))}
                     </select>
                   </div>

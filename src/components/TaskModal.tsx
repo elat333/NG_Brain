@@ -11,6 +11,10 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { processAndCompressImage } from '../lib/imageUtils';
 import { Task, TeamMember, Role, Process, Project } from '../types';
+import { isTaskBlocked as checkTaskBlocked } from '../lib/permissions';
+import { TaskDeliverablesSection } from './tasks/modal/TaskDeliverablesSection';
+import { TaskDependenciesSection } from './tasks/modal/TaskDependenciesSection';
+import { TaskHistorySection } from './tasks/modal/TaskHistorySection';
 interface TaskModalProps {
   isOpen: boolean;
   editingTask: Task | null;
@@ -68,28 +72,10 @@ export default function TaskModal({
 
   const [showAddAuxDropdown, setShowAddAuxDropdown] = useState(false);
   const [auxSearchQuery, setAuxSearchQuery] = useState('');
-  const [showAddBlockerDropdown, setShowAddBlockerDropdown] = useState(false);
-  const [blockerSearchQuery, setBlockerSearchQuery] = useState('');
-  const [blockerSelectedProjectId, setBlockerSelectedProjectId] = useState('all');
-  const [blockerSelectedProcessId, setBlockerSelectedProcessId] = useState('all');
-  const [showAddBlocksDropdown, setShowAddBlocksDropdown] = useState(false);
-  const [blocksSearchQuery, setBlocksSearchQuery] = useState('');
-  const [blocksSelectedProjectId, setBlocksSelectedProjectId] = useState('all');
-  const [blocksSelectedProcessId, setBlocksSelectedProcessId] = useState('all');
 
   const sortedMembers = React.useMemo(() => {
     return [...members].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [members]);
-
-  const isTaskBlocked = (id: string, allTasks: Task[]): { isBlocked: boolean; blockers: Task[] } => {
-    const task = allTasks.find(t => t.id === id);
-    if (!task || !task.blockedByTaskIds || task.blockedByTaskIds.length === 0) return { isBlocked: false, blockers: [] };
-    const activeBlockers = allTasks.filter(t => task.blockedByTaskIds?.includes(t.id) && t.status !== 'done');
-    return {
-      isBlocked: activeBlockers.length > 0,
-      blockers: activeBlockers
-    };
-  };
 
   const isPrimaryAssignee = currentMember?.id === (editingTask?.memberId || newTaskData?.memberId);
   const taskAccess: string = 'administrador'; // full edit within modal if user opened it
@@ -230,16 +216,38 @@ export default function TaskModal({
                         />
                       </div>
                     </div>
-                    <button 
-                      type="button"
-                      onClick={onClose}
-                      className="p-3 shrink-0 hover:bg-gray-100 rounded-2xl transition-all text-gray-400 hover:text-gray-900 border border-transparent hover:border-gray-200 shadow-sm hover:shadow-md"
-                      title="Cerrar"
-                    >
-                      <X size={24} />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {editingTask && (
+                        <button
+                          type="button"
+                          onClick={() => setShowTaskHistory(!showTaskHistory)}
+                          className={`p-3 rounded-2xl transition-all border shadow-sm hover:shadow-md flex items-center gap-1.5 text-xs font-bold ${
+                            showTaskHistory
+                              ? 'bg-blue-50 text-blue-600 border-blue-200'
+                              : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-200'
+                          }`}
+                          title="Historial de actividad"
+                        >
+                          <History size={18} />
+                          <span className="hidden sm:inline">Historial</span>
+                        </button>
+                      )}
+                      <button 
+                        type="button"
+                        onClick={onClose}
+                        className="p-3 shrink-0 hover:bg-gray-100 rounded-2xl transition-all text-gray-400 hover:text-gray-900 border border-transparent hover:border-gray-200 shadow-sm hover:shadow-md"
+                        title="Cerrar"
+                      >
+                        <X size={24} />
+                      </button>
+                    </div>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    {showTaskHistory && editingTask ? (
+                      <div className="p-4 bg-gray-50/50 rounded-3xl border border-gray-100 mb-6">
+                        <TaskHistorySection task={editingTask} />
+                      </div>
+                    ) : null}
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
                     {/* Left Column: Metadata */}
                     <div className="lg:col-span-3 space-y-6">
@@ -523,9 +531,9 @@ export default function TaskModal({
                             onChange={e => {
                                const newStatus = e.target.value as any;
                                if (newStatus === 'in_progress' && editingTask) {
-                                 const { isBlocked, blockers } = isTaskBlocked(editingTask.id, tasks);
+                                 const { isBlocked, blockers } = checkTaskBlocked(editingTask.id, tasks);
                                  if (isBlocked) {
-                                   alert(`ESTA TAREA ESTÁ BLOQUEADAPara poder iniciar esta tarea se debe terminar primero:• ${blockers.map(t => t.title).join('• ')}`);
+                                   alert(`ESTA TAREA ESTÁ BLOQUEADA\n\nPara poder iniciar esta tarea se debe terminar primero:\n• ${blockers.map(t => t.title).join('\n• ')}`);
                                    return;
                                  }
                                }
@@ -543,8 +551,8 @@ export default function TaskModal({
                                 { value: 'blocked', label: '🚫 Bloqueada' }
                               ];
                               if (isNewTask || isProcessLeader) {
-                                return allOptions.map(opt => (
-                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                return allOptions.map((opt, optIdx) => (
+                                  <option key={`task_st_opt_${opt.value}_${optIdx}`} value={opt.value}>{opt.label}</option>
                                 ));
                               }
                               if (taskAccess === 'colaborador') {
@@ -554,13 +562,13 @@ export default function TaskModal({
                                   opt.value === 'review' || 
                                   opt.value === newTaskData.status
                                 );
-                                return filtered.map(opt => (
-                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                return filtered.map((opt, optIdx) => (
+                                  <option key={`task_st_filt_opt_${opt.value}_${optIdx}`} value={opt.value}>{opt.label}</option>
                                 ));
                               }
                               // Otherwise, they shouldn't be editing, but if they view it:
-                              return allOptions.filter(opt => opt.value === newTaskData.status).map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              return allOptions.filter(opt => opt.value === newTaskData.status).map((opt, optIdx) => (
+                                <option key={`task_st_view_opt_${opt.value}_${optIdx}`} value={opt.value}>{opt.label}</option>
                               ));
                             })()}
                           </select>
@@ -582,416 +590,16 @@ export default function TaskModal({
                             <option value="meteoric_crash">☄️ Meteoric Crash (ALERTA MÁXIMA)</option>
                           </select>
                         </div>
-                        <div className="space-y-4 pt-4 border-t-2 border-dashed border-gray-100 mt-4">
-                            <div className="bg-gray-50/50 p-4 rounded-[2rem] border border-gray-100/50 space-y-4">
-                              {/* ¿Quién bloquea esta tarea? */}
-                              <div className="space-y-2 relative">
-                                <div className="flex items-center justify-between gap-4">
-                                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2 flex-shrink-0">
-                                    <Ban size={10} className="text-red-500" /> BLOQUEADA POR
-                                  </label>
-                                  
-                                  <div className="relative">
-                                    {canEditMetadataField && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setShowAddBlockerDropdown(!showAddBlockerDropdown);
-                                          setShowAddBlocksDropdown(false);
-                                        }}
-                                        className="px-3 py-1.5 bg-red-50 hover:bg-red-100/80 border border-red-200 text-red-700 rounded-xl focus:outline-none text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all flex items-center gap-1"
-                                      >
-                                        <Plus size={10} strokeWidth={3} /> {showAddBlockerDropdown ? 'Cerrar' : 'Añadir'}
-                                      </button>
-                                    )}
-                                    {showAddBlockerDropdown && (
-                                      <div className="absolute left-0 lg:left-full lg:-ml-4 mt-2 lg:mt-0 w-72 bg-white rounded-2xl border border-gray-200 shadow-xl p-3 z-50 space-y-2 animate-in fade-in zoom-in-95">
-                                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Buscar Bloqueo</div>
-                                        
-                                        {/* Buscador de texto */}
-                                        <input
-                                          type="text"
-                                          placeholder="Buscar por título..."
-                                          value={blockerSearchQuery}
-                                          onChange={e => setBlockerSearchQuery(e.target.value)}
-                                          className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-red-400/20"
-                                        />
-                                        {/* Filtros rápidos: Proyecto y Proceso */}
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <select
-                                            value={blockerSelectedProjectId}
-                                            onChange={e => setBlockerSelectedProjectId(e.target.value)}
-                                            className="w-full px-2 py-1 bg-gray-50 border border-gray-200 text-[10px] rounded-lg text-gray-600 focus:outline-none"
-                                          >
-                                            <option value="all">Todos los Proy.</option>
-                                            {projects.map((p, pIdx) => (
-                                              <option key={`blocker_p_${p.id || pIdx}_${pIdx}`} value={p.id}>{p.name}</option>
-                                            ))}
-                                          </select>
-                                          <select
-                                            value={blockerSelectedProcessId}
-                                            onChange={e => setBlockerSelectedProcessId(e.target.value)}
-                                            className="w-full px-2 py-1 bg-gray-50 border border-gray-200 text-[10px] rounded-lg text-gray-600 focus:outline-none"
-                                          >
-                                            <option value="all">Todos los Proc.</option>
-                                            {processes.map((p, pIdx) => (
-                                              <option key={`blocker_proc_${p.id || pIdx}_${pIdx}`} value={p.id}>{p.name}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                        {/* Resultados de tareas */}
-                                        <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar pt-1">
-                                          {(() => {
-                                            const filteredTasks = tasks.filter(t => {
-                                              if (t.id === newTaskData.id) return false;
-                                              if (newTaskData.blockedByTaskIds?.includes(t.id)) return false;
-                                              
-                                              // Filtro por texto
-                                              if (blockerSearchQuery && !t.title.toLowerCase().includes(blockerSearchQuery.toLowerCase())) {
-                                                return false;
-                                              }
-                                              // Filtro por proyecto
-                                              if (blockerSelectedProjectId !== 'all' && t.projectId !== blockerSelectedProjectId) {
-                                                return false;
-                                              }
-                                              // Filtro por proceso
-                                              if (blockerSelectedProcessId !== 'all' && t.processId !== blockerSelectedProcessId) {
-                                                return false;
-                                              }
-                                              return true;
-                                            }).sort((a, b) => {
-                                              const sameProjA = newTaskData.projectId && a.projectId === newTaskData.projectId;
-                                              const sameProcA = newTaskData.processId && a.processId === newTaskData.processId;
-                                              const sameProjB = newTaskData.projectId && b.projectId === newTaskData.projectId;
-                                              const sameProcB = newTaskData.processId && b.processId === newTaskData.processId;
-                                              const getScore = (sameProj: any, sameProc: any) => {
-                                                if (sameProj && sameProc) return 1;
-                                                if (sameProj) return 2;
-                                                if (sameProc) return 3;
-                                                return 4;
-                                              };
-                                              const scoreA = getScore(sameProjA, sameProcA);
-                                              const scoreB = getScore(sameProjB, sameProcB);
-                                              if (scoreA !== scoreB) {
-                                                return scoreA - scoreB;
-                                              }
-                                              const nameA_Proc = (processes.find(p => p.id === a.processId)?.name || '').toLowerCase();
-                                              const nameB_Proc = (processes.find(p => p.id === b.processId)?.name || '').toLowerCase();
-                                              if (nameA_Proc && !nameB_Proc) return -1;
-                                              if (!nameA_Proc && nameB_Proc) return 1;
-                                              const procCompare = nameA_Proc.localeCompare(nameB_Proc, 'es', { sensitivity: 'base' });
-                                              if (procCompare !== 0) return procCompare;
-                                              const nameA_Proj = (projects.find(p => p.id === a.projectId)?.name || '').toLowerCase();
-                                              const nameB_Proj = (projects.find(p => p.id === b.projectId)?.name || '').toLowerCase();
-                                              if (nameA_Proj && !nameB_Proj) return -1;
-                                              if (!nameA_Proj && nameB_Proj) return 1;
-                                              const projCompare = nameA_Proj.localeCompare(nameB_Proj, 'es', { sensitivity: 'base' });
-                                              if (projCompare !== 0) return projCompare;
-                                              return a.title.localeCompare(b.title, 'es', { sensitivity: 'base' });
-                                            });
-                                            if (filteredTasks.length === 0) {
-                                              return (
-                                                <div className="text-center py-4 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                                                  No se encontraron tareas
-                                                </div>
-                                              );
-                                            }
-                                            return filteredTasks.map((t, tIdx) => {
-                                              const tProj = projects.find(p => p.id === t.projectId)?.name;
-                                              const tProc = processes.find(p => p.id === t.processId)?.name;
-                                              return (
-                                                <button
-                                                  type="button"
-                                                  key={`blocker_cand_${t.id || tIdx}_${tIdx}`}
-                                                  onClick={() => {
-                                                    setNewTaskData({
-                                                      ...newTaskData,
-                                                      blockedByTaskIds: [...(newTaskData.blockedByTaskIds || []), t.id]
-                                                    });
-                                                    setBlockerSearchQuery('');
-                                                    setShowAddBlockerDropdown(false);
-                                                  }}
-                                                  className="w-full text-left p-2 rounded-xl hover:bg-red-50/50 transition-colors border border-transparent hover:border-red-100 flex flex-col gap-0.5"
-                                                >
-                                                  <span className="text-xs font-semibold text-gray-800 line-clamp-1">{t.title}</span>
-                                                  <div className="flex flex-wrap gap-1 items-center">
-                                                    {tProj && (
-                                                      <span className="text-[8px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded font-black uppercase">
-                                                        {tProj}
-                                                      </span>
-                                                    )}
-                                                    {tProc && (
-                                                      <span className="text-[8px] bg-purple-50 text-purple-600 px-1 py-0.5 rounded font-black uppercase">
-                                                        {tProc}
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                </button>
-                                              );
-                                            });
-                                          })()}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                
-                                <div className="flex flex-wrap gap-2">
-                                    {newTaskData.blockedByTaskIds?.map((id, bIdx) => {
-                                      const blockedByTask = tasks.find(t => t.id === id);
-                                      return (
-                                        <div key={`task_blocked_by_${id}_${bIdx}`} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-red-700 rounded-xl text-[10px] font-black border border-red-100 shadow-sm group animate-in fade-in slide-in-from-left-2">
-                                          <span className="truncate max-w-[120px]" title={blockedByTask?.title}>{blockedByTask?.title}</span>
-                                          <div className="flex items-center gap-0.5 ml-auto">
-                                            <button 
-                                              type="button"
-                                              onClick={() => {
-                                                if (blockedByTask?.title) {
-                                                  navigator.clipboard.writeText(blockedByTask.title);
-                                                }
-                                              }}
-                                              className="hover:text-red-900 p-1 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                                              title="Copiar nombre"
-                                            >
-                                              <Copy size={11} />
-                                            </button>
-                                            {canEditMetadataField && (
-                                              <button 
-                                                type="button"
-                                                onClick={() => setNewTaskData({
-                                                  ...newTaskData, 
-                                                  blockedByTaskIds: newTaskData.blockedByTaskIds?.filter(tid => tid !== id)
-                                                })}
-                                                className="hover:text-red-900 p-1 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                              >
-                                                <X size={11} />
-                                              </button>
-                                            )}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                    {(!newTaskData.blockedByTaskIds || newTaskData.blockedByTaskIds.length === 0) && (
-                                      <div className="w-full py-2 text-center border border-dashed border-gray-200 rounded-xl">
-                                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Sin bloqueos activos</p>
-                                      </div>
-                                    )}
-                                </div>
-                              </div>
-     
-                              {/* ¿A quién bloquea esta tarea? */}
-                              <div className="space-y-2 pt-3 border-t border-gray-100 relative">
-                                <div className="flex items-center justify-between gap-4">
-                                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2 flex-shrink-0">
-                                    <Activity size={10} className="text-blue-500" /> BLOQUEA A
-                                  </label>
-                                  
-                                  <div className="relative">
-                                    {canEditMetadataField && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setShowAddBlocksDropdown(!showAddBlocksDropdown);
-                                          setShowAddBlockerDropdown(false);
-                                        }}
-                                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-blue-700 rounded-xl focus:outline-none text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all flex items-center gap-1"
-                                      >
-                                        <Plus size={10} strokeWidth={3} /> {showAddBlocksDropdown ? 'Cerrar' : 'Añadir'}
-                                      </button>
-                                    )}
-                                    {showAddBlocksDropdown && (
-                                      <div className="absolute left-0 lg:left-full lg:-ml-4 mt-2 lg:mt-0 w-72 bg-white rounded-2xl border border-gray-200 shadow-xl p-3 z-50 space-y-2 animate-in fade-in zoom-in-95">
-                                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Buscar Tarea a Bloquear</div>
-                                        
-                                        {/* Buscador de texto */}
-                                        <input
-                                          type="text"
-                                          placeholder="Buscar por título..."
-                                          value={blocksSearchQuery}
-                                          onChange={e => setBlocksSearchQuery(e.target.value)}
-                                          className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-400/20"
-                                        />
-                                        {/* Filtros rápidos: Proyecto y Proceso */}
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <select
-                                            value={blocksSelectedProjectId}
-                                            onChange={e => setBlocksSelectedProjectId(e.target.value)}
-                                            className="w-full px-2 py-1 bg-gray-50 border border-gray-200 text-[10px] rounded-lg text-gray-600 focus:outline-none"
-                                          >
-                                            <option value="all">Todos los Proy.</option>
-                                            {projects.map(p => (
-                                              <option key={p.id} value={p.id}>{p.name}</option>
-                                            ))}
-                                          </select>
-                                          <select
-                                            value={blocksSelectedProcessId}
-                                            onChange={e => setBlocksSelectedProcessId(e.target.value)}
-                                            className="w-full px-2 py-1 bg-gray-50 border border-gray-200 text-[10px] rounded-lg text-gray-600 focus:outline-none"
-                                          >
-                                            <option value="all">Todos los Proc.</option>
-                                            {processes.map(p => (
-                                              <option key={p.id} value={p.id}>{p.name}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                        {/* Resultados de tareas */}
-                                        <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar pt-1">
-                                          {(() => {
-                                            const filteredTasks = tasks.filter(t => {
-                                              if (t.id === newTaskData.id) return false;
-                                              if ((t.blockedByTaskIds || []).includes(newTaskData.id)) return false;
-                                              
-                                              // Filtro por texto
-                                              if (blocksSearchQuery && !t.title.toLowerCase().includes(blocksSearchQuery.toLowerCase())) {
-                                                return false;
-                                              }
-                                              // Filtro por proyecto
-                                              if (blocksSelectedProjectId !== 'all' && t.projectId !== blocksSelectedProjectId) {
-                                                return false;
-                                              }
-                                              // Filtro por proceso
-                                              if (blocksSelectedProcessId !== 'all' && t.processId !== blocksSelectedProcessId) {
-                                                return false;
-                                              }
-                                              return true;
-                                            }).sort((a, b) => {
-                                              const sameProjA = newTaskData.projectId && a.projectId === newTaskData.projectId;
-                                              const sameProcA = newTaskData.processId && a.processId === newTaskData.processId;
-                                              const sameProjB = newTaskData.projectId && b.projectId === newTaskData.projectId;
-                                              const sameProcB = newTaskData.processId && b.processId === newTaskData.processId;
-                                              const getScore = (sameProj: any, sameProc: any) => {
-                                                if (sameProj && sameProc) return 1;
-                                                if (sameProj) return 2;
-                                                if (sameProc) return 3;
-                                                return 4;
-                                              };
-                                              const scoreA = getScore(sameProjA, sameProcA);
-                                              const scoreB = getScore(sameProjB, sameProcB);
-                                              if (scoreA !== scoreB) {
-                                                return scoreA - scoreB;
-                                              }
-                                              const nameA_Proc = (processes.find(p => p.id === a.processId)?.name || '').toLowerCase();
-                                              const nameB_Proc = (processes.find(p => p.id === b.processId)?.name || '').toLowerCase();
-                                              if (nameA_Proc && !nameB_Proc) return -1;
-                                              if (!nameA_Proc && nameB_Proc) return 1;
-                                              const procCompare = nameA_Proc.localeCompare(nameB_Proc, 'es', { sensitivity: 'base' });
-                                              if (procCompare !== 0) return procCompare;
-                                              const nameA_Proj = (projects.find(p => p.id === a.projectId)?.name || '').toLowerCase();
-                                              const nameB_Proj = (projects.find(p => p.id === b.projectId)?.name || '').toLowerCase();
-                                              if (nameA_Proj && !nameB_Proj) return -1;
-                                              if (!nameA_Proj && nameB_Proj) return 1;
-                                              const projCompare = nameA_Proj.localeCompare(nameB_Proj, 'es', { sensitivity: 'base' });
-                                              if (projCompare !== 0) return projCompare;
-                                              return a.title.localeCompare(b.title, 'es', { sensitivity: 'base' });
-                                            });
-                                            if (filteredTasks.length === 0) {
-                                              return (
-                                                <div className="text-center py-4 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                                                  No se encontraron tareas
-                                                </div>
-                                              );
-                                            }
-                                            return filteredTasks.map((t, tIdx) => {
-                                              const tProj = projects.find(p => p.id === t.projectId)?.name;
-                                              const tProc = processes.find(p => p.id === t.processId)?.name;
-                                              return (
-                                                <button
-                                                  type="button"
-                                                  key={`blocks_cand_${t.id || tIdx}_${tIdx}`}
-                                                  onClick={() => {
-                                                    // Bloquear en estado local
-                                                    setTasks?.(prev => prev.map(pt => {
-                                                      if (pt.id === t.id) {
-                                                        const currentBlockedBy = pt.blockedByTaskIds || [];
-                                                        if (!currentBlockedBy.includes(newTaskData.id)) {
-                                                          return { ...pt, blockedByTaskIds: [...currentBlockedBy, newTaskData.id] };
-                                                        }
-                                                      }
-                                                      return pt;
-                                                    }));
-                                                    // Realizar actualización a DB
-                                                    const currentBlockedBy = t.blockedByTaskIds || [];
-                                                    if (!currentBlockedBy.includes(newTaskData.id)) {
-                                                      updateDoc(doc(db, 'tasks', t.id), {
-                                                        blockedByTaskIds: [...currentBlockedBy, newTaskData.id]
-                                                      }).catch(err => console.error(err));
-                                                    }
-                                                    setBlocksSearchQuery('');
-                                                    setShowAddBlocksDropdown(false);
-                                                  }}
-                                                  className="w-full text-left p-2 rounded-xl hover:bg-blue-50/50 transition-colors border border-transparent hover:border-blue-100 flex flex-col gap-0.5"
-                                                >
-                                                  <span className="text-xs font-semibold text-gray-800 line-clamp-1">{t.title}</span>
-                                                  <div className="flex flex-wrap gap-1 items-center">
-                                                    {tProj && (
-                                                      <span className="text-[8px] bg-blue-50 text-blue-600 px-1 py-0.5 rounded font-black uppercase">
-                                                        {tProj}
-                                                      </span>
-                                                    )}
-                                                    {tProc && (
-                                                      <span className="text-[8px] bg-purple-50 text-purple-600 px-1 py-0.5 rounded font-black uppercase">
-                                                        {tProc}
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                </button>
-                                              );
-                                            });
-                                          })()}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {tasks.filter(t => t.blockedByTaskIds?.includes(newTaskData.id)).length > 0 ? (
-                                      tasks.filter(t => t.blockedByTaskIds?.includes(newTaskData.id)).map((t, tIdx) => (
-                                        <div key={`task_blocks_out_${t.id || tIdx}_${tIdx}`} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-blue-700 rounded-xl text-[10px] font-black border border-blue-100 shadow-sm group animate-in fade-in slide-in-from-left-2">
-                                          <span className="truncate max-w-[120px]" title={t.title}>{t.title}</span>
-                                          <div className="flex items-center gap-0.5 ml-auto">
-                                            <button 
-                                              type="button"
-                                              onClick={() => {
-                                                navigator.clipboard.writeText(t.title);
-                                              }}
-                                              className="hover:text-blue-900 p-1 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                                              title="Copiar nombre"
-                                            >
-                                              <Copy size={11} />
-                                            </button>
-                                            {canEditMetadataField && (
-                                              <button 
-                                                type="button"
-                                                onClick={() => {
-                                                  // Quitar el bloqueo de la otra tarea en listado local
-                                                  setTasks?.(prev => prev.map(pt => pt.id === t.id ? {
-                                                    ...pt,
-                                                    blockedByTaskIds: pt.blockedByTaskIds?.filter(id => id !== newTaskData.id)
-                                                  } : pt));
-                                                  
-                                                  // Realizar actualización a DB
-                                                  updateDoc(doc(db, 'tasks', t.id), {
-                                                    blockedByTaskIds: (t.blockedByTaskIds || []).filter(id => id !== newTaskData.id)
-                                                  }).catch(err => console.error(err));
-                                                }}
-                                                className="hover:text-blue-900 p-1 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
-                                              >
-                                                <X size={11} />
-                                              </button>
-                                            )}
-                                          </div>
-                                        </div>
-                                      ))
-                                    ) : (
-                                      <div className="w-full py-2 text-center border border-dashed border-gray-200 rounded-xl">
-                                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">No bloquea a ninguna tarea</p>
-                                      </div>
-                                    )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <TaskDependenciesSection
+                          newTaskData={newTaskData}
+                          setNewTaskData={setNewTaskData}
+                          tasks={tasks}
+                          projects={projects}
+                          processes={processes}
+                          canEditMetadataField={canEditMetadataField}
+                          setTasks={setTasks}
+                        />
+                      </div>
                       {editingTask && (
                         <button 
                           type="button"
@@ -1056,8 +664,8 @@ export default function TaskModal({
               onChange={e => setNewTaskData({...newTaskData, plannedHours: parseFloat(e.target.value) || 0})}
             >
               <option value="0">Sin horas</option>
-              {[0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 40].map(num => (
-                <option key={num} value={num}>
+              {[0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 40].map((num, nIdx) => (
+                <option key={`task_hours_opt_${num}_${nIdx}`} value={num}>
                   {num === 0.5 ? '0.5 horas' : num === 1 ? '1 hora' : `${num} horas`}
                 </option>
               ))}
@@ -1214,99 +822,13 @@ export default function TaskModal({
                               />
                             </div>
                             {/* Section: Deliverables */}
-                            <div className="space-y-4 pt-6 border-t border-gray-100">
-                              <div className="flex items-center justify-between">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] ml-1 flex items-center gap-2">
-                                  <LinkIcon size={14} className="text-blue-500" /> Links para entrega de productos
-                                </label>
-                                {canEditExecution && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const newDeliverables = [...(newTaskData.deliverables || []), { id: Date.now().toString(), url: '', description: '' }];
-                                      setNewTaskData({ ...newTaskData, deliverables: newDeliverables });
-                                    }}
-                                    className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-bold uppercase tracking-tight hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2"
-                                  >
-                                    <Plus size={14} /> Añadir Link
-                                  </button>
-                                )}
-                              </div>
-                              {(newTaskData.deliverables && newTaskData.deliverables.length > 0) ? (
-                                <div className="space-y-3">
-                                  {newTaskData.deliverables.map((del, idx) => (
-                                    <div key={del.id || `del_${idx}`} className="flex gap-3 items-start bg-gray-50/50 p-3 rounded-2xl border border-gray-100">
-                                      <div className="flex-1 space-y-3">
-                                        <div className="flex flex-col sm:flex-row gap-3">
-                                          <div className="flex items-center gap-2 flex-1">
-                                            <FolderKanban size={12} className="text-orange-400 shrink-0" />
-                                            <input
-                                              type="text"
-                                              placeholder="Ubicación en Drive (Ruta o carpeta)..."
-                                              disabled={!canEditExecution}
-                                              className={`w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs ${!canEditExecution ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white'}`}
-                                              value={del.folderLocation || ''}
-                                              onChange={e => {
-                                                const newDel = [...newTaskData.deliverables];
-                                                newDel[idx].folderLocation = e.target.value;
-                                                setNewTaskData({ ...newTaskData, deliverables: newDel });
-                                              }}
-                                            />
-                                          </div>
-                                          <div className="flex items-center gap-2 flex-1">
-                                            <LinkIcon size={12} className="text-blue-400 shrink-0" />
-                                            <input
-                                              type="text"
-                                              placeholder="URL del entregable (ej. Figma, Docs...)"
-                                              disabled={!canEditExecution}
-                                              className={`w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs ${!canEditExecution ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white'}`}
-                                              value={del.url}
-                                              onChange={e => {
-                                                const newDel = [...newTaskData.deliverables];
-                                                newDel[idx].url = e.target.value;
-                                                setNewTaskData({ ...newTaskData, deliverables: newDel });
-                                              }}
-                                            />
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <AlignLeft size={12} className="text-gray-400 shrink-0" />
-                                          <input
-                                            type="text"
-                                            placeholder="Descripción breve (opcional)..."
-                                            disabled={!canEditExecution}
-                                            className={`w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs ${!canEditExecution ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white'}`}
-                                            value={del.description || ''}
-                                            onChange={e => {
-                                              const newDel = [...newTaskData.deliverables];
-                                              newDel[idx].description = e.target.value;
-                                              setNewTaskData({ ...newTaskData, deliverables: newDel });
-                                            }}
-                                          />
-                                        </div>
-                                      </div>
-                                      {canEditExecution && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const newDel = newTaskData.deliverables.filter((_, i) => i !== idx);
-                                            setNewTaskData({ ...newTaskData, deliverables: newDel });
-                                          }}
-                                          className="p-2 text-red-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors mt-1 shrink-0"
-                                          title="Eliminar entregable"
-                                        >
-                                          <Trash2 size={16} />
-                                        </button>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="text-center py-6 bg-gray-50/50 rounded-2xl border border-gray-100 border-dashed">
-                                  <p className="text-xs font-medium text-gray-400">No hay links de entrega añadidos.</p>
-                                </div>
-                              )}
-                            </div>
+                            <TaskDeliverablesSection
+                              deliverables={newTaskData.deliverables}
+                              canEditExecution={canEditExecution}
+                              onUpdateDeliverables={(newDeliverables) => {
+                                setNewTaskData({ ...newTaskData, deliverables: newDeliverables });
+                              }}
+                            />
                             {(newTaskData.taskTemplate === 'design_post' || newTaskData.taskTemplate === 'design_carousel' || newTaskData.taskTemplate === 'design_video') && (
                               <div className="space-y-6 pt-4 border-t border-gray-100">
                                 {(newTaskData.taskTemplate === 'design_post' || newTaskData.taskTemplate === 'design_carousel') && (() => {
@@ -1315,11 +837,11 @@ export default function TaskModal({
                                   
                                   return (
                                     <>
-                                      {slides.map(slideIdx => {
+                                      {slides.map((slideIdx, sIdx) => {
                                         const slideElements = newTaskData.designData?.elements?.filter((e: any) => (e.slideIndex || 1) === slideIdx) || [];
                                         
                                         return (
-                                          <div key={slideIdx} className="space-y-3">
+                                          <div key={`modal_slide_${slideIdx}_${sIdx}`} className="space-y-3">
                                             <div className="flex items-center justify-between">
                                               <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] ml-1 flex items-center gap-2">
                                                 <Layers size={14} className="text-purple-500" /> Elementos del Diseño {newTaskData.taskTemplate === 'design_carousel' ? `- Imagen ${slideIdx}` : ''}
@@ -1441,7 +963,7 @@ export default function TaskModal({
                                                   {newTaskData.designData?.elements?.map((el, originalIndex) => {
                                                     if ((el.slideIndex || 1) !== slideIdx) return null;
                                                     return (
-                                                      <tr key={el.id || `design_el_${originalIndex}`} className="group hover:bg-gray-50/50">
+                                                      <tr key={`modal_slide_${slideIdx}_el_${el.id || originalIndex}_${originalIndex}`} className="group hover:bg-gray-50/50">
                                                         <td className="p-1 border-r border-gray-100/50 align-top">
                                                           <textarea
                                                             rows={1}
@@ -1657,7 +1179,7 @@ export default function TaskModal({
                                               <tbody className="divide-y divide-gray-100 bg-white">
                                                 
                                                 {(newTaskData.designData?.videoScenes?.length ? newTaskData.designData.videoScenes : [{ id: 'default-scene', time: '', stage: '', visual: '', onScreenText: '', voiceOver: '' }]).map((scene, originalIndex) => (
-                                                  <tr key={scene.id || `video_scene_${originalIndex}`} className="group hover:bg-gray-50/50">
+                                                  <tr key={`modal_video_scene_${scene.id || originalIndex}_${originalIndex}`} className="group hover:bg-gray-50/50">
                                                     <td className="p-1 border-r border-gray-100/50 align-top">
                                                       <textarea
                                                         rows={1}
@@ -1760,8 +1282,8 @@ export default function TaskModal({
                                                         onPaste={(e) => handleVideoTablePaste(e as any, originalIndex, 'observations')}
                                                       />
                                                     </td>
-                                                    {newTaskData.designData?.customVideoColumns?.map(col => (
-                                                      <td key={col.id} className="p-1 border-r border-gray-100/50 align-top">
+                                                    {newTaskData.designData?.customVideoColumns?.map((col, cIdx) => (
+                                                      <td key={`scene_${scene.id || originalIndex}_col_${col.id || cIdx}_${cIdx}`} className="p-1 border-r border-gray-100/50 align-top">
                                                         <textarea
                                                           rows={1}
                                                           placeholder="..."
@@ -1859,7 +1381,7 @@ export default function TaskModal({
                                     {newTaskData.designData?.references && newTaskData.designData.references.length > 0 && (
                                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
                                         {newTaskData.designData.references.map((ref, refIdx) => (
-                                          <div key={ref.id || refIdx} className="relative group bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden p-2 flex flex-col gap-2">
+                                          <div key={`modal_ref_${ref.id || refIdx}_${refIdx}`} className="relative group bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden p-2 flex flex-col gap-2">
                                             {ref.type === 'image' ? (
                                               <img src={ref.url} alt="Referencia" className="w-full h-24 object-cover rounded-xl" />
                                             ) : (

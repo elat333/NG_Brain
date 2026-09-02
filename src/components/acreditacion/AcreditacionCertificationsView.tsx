@@ -421,8 +421,8 @@ export const AcreditacionCertificationsView: React.FC<AcreditacionCertifications
             className="w-full py-2.5 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 shadow-sm"
           >
             <option value="all">Todos los aliados</option>
-            {allies.map((ally) => (
-              <option key={ally.id} value={ally.id}>
+            {allies.map((ally, aIdx) => (
+              <option key={`acred_cert_ally_opt_${ally.id || aIdx}_${aIdx}`} value={ally.id}>
                 {ally.name}
               </option>
             ))}
@@ -476,7 +476,7 @@ export const AcreditacionCertificationsView: React.FC<AcreditacionCertifications
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
-                {filteredCertifications.map((cert) => {
+                {filteredCertifications.map((cert, certIdx) => {
                   const badge = getTypeBadge(cert.type);
                   const margin = (cert.price1 || 0) - (cert.purchasePrice || 0);
                   const marginPercent = cert.price1 > 0 ? ((margin / cert.price1) * 100).toFixed(0) : 0;
@@ -484,7 +484,7 @@ export const AcreditacionCertificationsView: React.FC<AcreditacionCertifications
 
                   return (
                     <tr 
-                      key={cert.id} 
+                      key={`cert_row_${cert.id || certIdx}_${certIdx}`} 
                       className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
                       onClick={() => setSelectedDetailCert(cert)}
                     >
@@ -993,8 +993,8 @@ export const AcreditacionCertificationsView: React.FC<AcreditacionCertifications
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                     >
                       <option value="">Selecciona el aliado emisor...</option>
-                      {allies.map((ally) => (
-                        <option key={ally.id} value={ally.id}>
+                      {allies.map((ally, allyIdx) => (
+                        <option key={`cert_opt_ally_${ally.id || allyIdx}_${allyIdx}`} value={ally.id}>
                           {ally.name} {ally.companyName ? `(${ally.companyName})` : ''}
                         </option>
                       ))}

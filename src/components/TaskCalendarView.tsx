@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Task, TeamMember, Process, Project } from '../types';
+import { parseLocalDate } from '../lib/dateUtils';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -72,27 +73,11 @@ function TaskCalendarView({
     if (dateStr instanceof Date) {
       return isNaN(dateStr.getTime()) ? new Date() : dateStr;
     }
-    if (typeof dateStr !== 'string') {
-      try {
-        const d = new Date(dateStr);
-        if (!isNaN(d.getTime())) return d;
-      } catch (e) {}
-      return new Date();
+    const parsed = parseLocalDate(typeof dateStr === 'string' ? dateStr : String(dateStr));
+    if (parsed && !isNaN(parsed.getTime())) {
+      return parsed;
     }
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      const y = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10) - 1;
-      const d = parseInt(parts[2], 10);
-      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-        return new Date(y, m, d, 12, 0, 0);
-      }
-    }
-    const fallback = new Date(dateStr);
-    if (isNaN(fallback.getTime())) {
-      return new Date(2026, 6, 8, 12, 0, 0);
-    }
-    return fallback;
+    return new Date();
   };
 
   // Helper: format date to YYYY-MM-DD safely
@@ -421,10 +406,10 @@ function TaskCalendarView({
               onChange={e => setMemberFilter(e.target.value)}
             >
               <option value="">TODOS LOS RESPONSABLES</option>
-              {safeMembers.map(m => {
+              {safeMembers.map((m, mIdx) => {
                 if (!m) return null;
                 return (
-                  <option key={m.id} value={m.id}>{((m.name) || 'Sin Nombre').toUpperCase()}</option>
+                  <option key={`cal_filter_m_${m.id || mIdx}_${mIdx}`} value={m.id}>{((m.name) || 'Sin Nombre').toUpperCase()}</option>
                 );
               })}
             </select>
@@ -438,8 +423,8 @@ function TaskCalendarView({
               onChange={e => setStatusFilter(e.target.value)}
             >
               <option value="">TODOS LOS ESTADOS</option>
-              {Object.entries(STATUS_CONFIG).map(([val, conf]) => (
-                <option key={val} value={val}>{conf.label.toUpperCase()}</option>
+              {Object.entries(STATUS_CONFIG).map(([val, conf], stIdx) => (
+                <option key={`cal_filter_st_${val}_${stIdx}`} value={val}>{conf.label.toUpperCase()}</option>
               ))}
             </select>
           </div>
@@ -473,7 +458,7 @@ function TaskCalendarView({
             {/* Days short names headers */}
             {DAYS_SHORT_SPANISH.map((day, idx) => (
               <div 
-                key={day} 
+                key={`cal_day_header_${day}_${idx}`} 
                 className={`py-3 text-center text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50/75 border-r border-b border-slate-100 ${
                   idx === 5 || idx === 6 ? 'text-slate-400/80' : ''
                 }`}
@@ -519,13 +504,13 @@ function TaskCalendarView({
 
                   {/* Tasks List inside cell (limit to 2 or 3) */}
                   <div className="mt-1 flex-1 overflow-hidden space-y-1 custom-scrollbar max-h-[60px]">
-                    {dayTasks.slice(0, 2).map(task => {
+                    {dayTasks.slice(0, 2).map((task, taskIdx) => {
                       if (!task) return null;
                       const conf = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
                       const process = safeProcesses.find(p => p && p.id === task.processId);
                       return (
                         <div
-                          key={task.id}
+                          key={`month_cell_task_${task.id || taskIdx}_${taskIdx}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             onEdit(task);
@@ -566,14 +551,14 @@ function TaskCalendarView({
         ) : (
           /* WEEKLY VIEW COLUMN GRID */
           <div className="flex-1 grid grid-cols-1 md:grid-cols-7 gap-3 mt-1.5 h-full min-h-[420px]">
-            {weekDaysGrid.map(day => {
+            {weekDaysGrid.map((day, idx) => {
               const dayTasks = getTasksForDate(day.dateStr);
               const isSelected = selectedDateStr === day.dateStr;
               const isWeekend = day.dateObj.getDay() === 0 || day.dateObj.getDay() === 6;
 
               return (
                 <div
-                  key={day.dateStr}
+                  key={`cal_week_col_${day.dateStr}_${idx}`}
                   onClick={() => setSelectedDateStr(day.dateStr)}
                   className={`flex flex-col rounded-2xl border p-4.5 transition-all cursor-pointer min-h-[350px] relative group ${
                     day.isToday 
@@ -604,7 +589,7 @@ function TaskCalendarView({
 
                   {/* Tasks list inside day column */}
                   <div className="flex-1 space-y-2.5 overflow-y-auto custom-scrollbar pr-0.5 max-h-[300px]">
-                    {dayTasks.map(task => {
+                    {dayTasks.map((task, taskIdx) => {
                       if (!task) return null;
                       const conf = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
                       const process = safeProcesses.find(p => p && p.id === task.processId);
@@ -612,7 +597,7 @@ function TaskCalendarView({
                       
                       return (
                         <div
-                          key={task.id}
+                          key={`week_task_${day.dateStr}_${task.id || taskIdx}_${taskIdx}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             onEdit(task);
@@ -711,7 +696,7 @@ function TaskCalendarView({
                 )}
               </div>
             ) : (
-              selectedDateTasks.map(task => {
+              selectedDateTasks.map((task, taskIdx) => {
                 if (!task) return null;
                 const conf = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
                 const process = safeProcesses.find(p => p && p.id === task.processId);
@@ -720,7 +705,7 @@ function TaskCalendarView({
 
                 return (
                   <div
-                    key={task.id}
+                    key={`cal_selected_${task.id || taskIdx}_${taskIdx}`}
                     onClick={() => onEdit(task)}
                     className="bg-white p-4 rounded-2xl border border-slate-200/50 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:border-slate-300 relative"
                   >
@@ -804,14 +789,14 @@ function TaskCalendarView({
                 <p className="text-[9px] text-slate-400 mt-0.5">Todas tus tareas activas tienen una fecha planificada.</p>
               </div>
             ) : (
-              unscheduledTasks.map(task => {
+              unscheduledTasks.map((task, taskIdx) => {
                 if (!task) return null;
                 const conf = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
                 const process = safeProcesses.find(p => p && p.id === task.processId);
 
                 return (
                   <div
-                    key={task.id}
+                    key={`cal_unsched_${task.id || taskIdx}_${taskIdx}`}
                     onClick={() => onEdit(task)}
                     className="bg-white p-3.5 rounded-xl border border-slate-200/50 shadow-sm hover:shadow hover:border-slate-300 transition-all cursor-pointer flex flex-col gap-1"
                   >

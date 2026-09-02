@@ -2,14 +2,9 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Building2, Plus, X, Trash, Check } from 'lucide-react';
 import { Company, Industry } from '../../types';
+import { normalizeText } from '../../lib/textUtils';
 
-export const normalizeText = (text: string): string => {
-  return (text || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-};
+export { normalizeText };
 
 export const cleanFirestoreData = <T extends Record<string, any>>(obj: T): Partial<T> => {
   const result: any = {};
@@ -153,9 +148,9 @@ export const CompanyEditorView: React.FC<CompanyEditorViewProps> = ({
                   Industrias / Sectores
                 </label>
                 <div className="flex flex-wrap gap-2 p-2 bg-gray-50 border border-transparent rounded-[1.5rem] focus-within:ring-4 focus-within:ring-slate-50 focus-within:bg-white focus-within:border-slate-100 transition-all min-h-[58px]">
-                  {(newCompanyData.industries || []).map((ind: string) => (
+                  {(newCompanyData.industries || []).map((ind: string, indIdx: number) => (
                     <span
-                      key={ind}
+                      key={`ind_${ind}_${indIdx}`}
                       className="bg-slate-200 text-slate-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 group"
                     >
                       {ind}
@@ -191,9 +186,9 @@ export const CompanyEditorView: React.FC<CompanyEditorViewProps> = ({
 
                 {showSuggestions && (industryInput || filteredSuggestions.length > 0) && (
                   <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 max-h-48 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-200">
-                    {filteredSuggestions.map((ind) => (
+                    {filteredSuggestions.map((ind, indIdx) => (
                       <button
-                        key={ind.id}
+                        key={`sug_ind_${ind.id || indIdx}_${indIdx}`}
                         type="button"
                         onClick={() => addIndustry(ind.name)}
                         className="w-full text-left px-4 py-3 hover:bg-slate-50 rounded-xl text-sm font-bold text-gray-700 transition-all flex items-center justify-between group cursor-pointer"
@@ -279,7 +274,7 @@ export const CompanyEditorView: React.FC<CompanyEditorViewProps> = ({
               </div>
               <div className="space-y-3">
                 {(newCompanyData.branchAddresses || []).map((branch: string, idx: number) => (
-                  <div key={idx} className="flex items-center gap-2">
+                  <div key={`company_edit_branch_${idx}`} className="flex items-center gap-2">
                     <input
                       type="text"
                       placeholder={`Sucursal ${idx + 1}`}

@@ -197,7 +197,7 @@ export const MetricsAnalyticsView: React.FC<MetricsAnalyticsViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-              {campaigns.map((camp) => {
+              {campaigns.map((camp, cIdx) => {
                 const campLeads = leads.filter(l => l.campaignId === camp.id);
                 const campWon = campLeads.filter(l => l.stage === 'ganado');
                 const campRevenue = campWon.reduce((acc, l) => acc + (l.estimatedValue || 0), 0);
@@ -205,7 +205,7 @@ export const MetricsAnalyticsView: React.FC<MetricsAnalyticsViewProps> = ({
                 const roas = camp.spent > 0 ? (campRevenue / camp.spent) : 0;
 
                 return (
-                  <tr key={camp.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={`mkt_metric_camp_row_${camp.id || cIdx}_${cIdx}`} className="hover:bg-slate-50/50 transition-colors">
                     <td className="py-4 px-6">
                       <div className="font-black text-slate-900">{camp.name}</div>
                       <div className="font-mono text-[10px] text-blue-600">{camp.code}</div>
@@ -245,8 +245,8 @@ export const MetricsAnalyticsView: React.FC<MetricsAnalyticsViewProps> = ({
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
         <h4 className="text-base font-black text-slate-900">Historial de Registros de Pauta & Canales</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {metrics.map((m) => (
-            <div key={m.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-2">
+          {metrics.map((m, mIdx) => (
+            <div key={`mkt_metric_card_${m.id || mIdx}_${mIdx}`} className="p-4 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-2">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
@@ -310,8 +310,9 @@ export const MetricsAnalyticsView: React.FC<MetricsAnalyticsViewProps> = ({
                       onChange={(e) => setEditingMetric(prev => ({ ...prev, campaignId: e.target.value }))}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
                     >
-                      {campaigns.map(c => (
-                        <option key={c.id} value={c.id}>{c.code}</option>
+                      <option value="">Sin campaña específica</option>
+                      {campaigns.map((c, cIdx) => (
+                        <option key={`mkt_metric_form_camp_${c.id || cIdx}_${cIdx}`} value={c.id}>{c.code}</option>
                       ))}
                     </select>
                   </div>

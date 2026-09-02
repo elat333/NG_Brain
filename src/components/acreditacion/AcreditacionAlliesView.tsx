@@ -502,9 +502,9 @@ export const AcreditacionAlliesView: React.FC<AcreditacionAlliesViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
-                {filteredAllies.map((ally) => {
+                {filteredAllies.map((ally, allyIdx) => {
                   return (
-                    <tr key={ally.id} className="hover:bg-slate-50/70 transition-colors group">
+                    <tr key={`ally_row_${ally.id || allyIdx}_${allyIdx}`} className="hover:bg-slate-50/70 transition-colors group">
                       {/* Name */}
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
@@ -760,9 +760,9 @@ export const AcreditacionAlliesView: React.FC<AcreditacionAlliesViewProps> = ({
                           />
                           <div className="absolute z-20 left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto p-1.5 divide-y divide-slate-100">
                             {filteredCompanies.length > 0 ? (
-                              filteredCompanies.map((comp) => (
+                              filteredCompanies.map((comp, compIdx) => (
                                 <button
-                                  key={comp.id}
+                                  key={`acred_ally_comp_btn_${comp.id || compIdx}_${compIdx}`}
                                   type="button"
                                   onClick={() => handleSelectCompany(comp)}
                                   className="w-full text-left p-2 hover:bg-indigo-50/70 rounded-lg transition-colors flex items-center justify-between group cursor-pointer"
@@ -849,8 +849,8 @@ export const AcreditacionAlliesView: React.FC<AcreditacionAlliesViewProps> = ({
                     <option value="">Sin persona de contacto asignada (Opcional)</option>
                     {categorizedContacts.companyContacts.length > 0 && (
                       <optgroup label="Contactos vinculados a la Empresa">
-                        {categorizedContacts.companyContacts.map((contact) => (
-                          <option key={contact.id} value={contact.id}>
+                        {categorizedContacts.companyContacts.map((contact, cIdx) => (
+                          <option key={`ally_co_cnt_${contact.id || cIdx}_${cIdx}`} value={contact.id}>
                             ⭐ {contact.name} {contact.role ? `(${contact.role})` : ''}
                           </option>
                         ))}
@@ -858,8 +858,8 @@ export const AcreditacionAlliesView: React.FC<AcreditacionAlliesViewProps> = ({
                     )}
                     {categorizedContacts.otherContacts.length > 0 && (
                       <optgroup label="Otras personas del Directorio General">
-                        {categorizedContacts.otherContacts.map((contact) => (
-                          <option key={contact.id} value={contact.id}>
+                        {categorizedContacts.otherContacts.map((contact, cIdx) => (
+                          <option key={`ally_oth_cnt_${contact.id || cIdx}_${cIdx}`} value={contact.id}>
                             {contact.name} {contact.role ? `(${contact.role})` : ''}
                           </option>
                         ))}

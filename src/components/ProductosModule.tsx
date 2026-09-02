@@ -390,9 +390,9 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
                 { val: 'activo', label: 'Activos' },
                 { val: 'en_desarrollo', label: 'En Desarrollo' },
                 { val: 'inactivo', label: 'Inactivos' }
-              ].map(st => (
+              ].map((st, stIdx) => (
                 <button
-                  key={st.val}
+                  key={`prod_filter_st_${st.val}_${stIdx}`}
                   onClick={() => setStatusFilter(st.val)}
                   className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
                     statusFilter === st.val
@@ -454,12 +454,12 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
-                {filteredProducts.map(prod => {
+                {filteredProducts.map((prod, pIdx) => {
                   const catCfg = CATEGORY_CONFIG[prod.category] || CATEGORY_CONFIG.certificacion;
 
                   return (
                     <tr
-                      key={prod.id}
+                      key={`prod_row_${prod.id || pIdx}_${pIdx}`}
                       onClick={() => setSelectedProduct(prod)}
                       className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
                     >
@@ -684,7 +684,7 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
                     <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Beneficios Clave</h4>
                     <div className="space-y-1.5">
                       {selectedProduct.benefits.map((b, idx) => (
-                        <div key={idx} className="flex items-start gap-2 text-xs text-slate-700 font-medium">
+                        <div key={`prod_detail_b_${idx}`} className="flex items-start gap-2 text-xs text-slate-700 font-medium">
                           <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
                           <span>{b}</span>
                         </div>
@@ -699,7 +699,7 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
                     <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Normativas / Estándares</h4>
                     <div className="flex flex-wrap gap-1.5">
                       {selectedProduct.certificationsOrNorms.map((n, idx) => (
-                        <span key={idx} className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-wider border border-blue-200/60">
+                        <span key={`prod_detail_norm_${idx}`} className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-wider border border-blue-200/60">
                           {n}
                         </span>
                       ))}
@@ -945,8 +945,8 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800"
                     >
                       <option value="">-- Sin especialista asignado --</option>
-                      {members.map(m => (
-                        <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
+                      {members.map((m, mIdx) => (
+                        <option key={`prod_form_m_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name} ({m.role})</option>
                       ))}
                     </select>
                   </div>
@@ -961,8 +961,8 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800"
                     >
                       <option value="">-- Interno (Novagreen) --</option>
-                      {companies.map(c => (
-                        <option key={c.id} value={c.id}>{c.name} ({c.ruc})</option>
+                      {companies.map((c, cIdx) => (
+                        <option key={`prod_form_c_${c.id || cIdx}_${cIdx}`} value={c.id}>{c.name} ({c.ruc})</option>
                       ))}
                     </select>
                   </div>

@@ -989,7 +989,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
           </span>
         </button>
 
-        {categoriesList.map(cat => {
+        {categoriesList.map((cat, catIdx) => {
           const catNotes = notes.filter(n => (n.category || 'General') === cat);
           const count = catNotes.length;
           const isSelected = selectedCategoryFilter === cat;
@@ -997,7 +997,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
 
           return (
             <div
-              key={cat}
+              key={`note_cat_btn_${cat}_${catIdx}`}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 ${
                 isSelected
                   ? 'bg-indigo-600 text-white shadow-xs'
@@ -1076,7 +1076,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
               const isLastCat = catIndex === visibleCategories.length - 1;
 
               return (
-                <div key={cat} className="space-y-2.5">
+                <div key={`note_cat_sec_${cat}_${catIndex}`} className="space-y-2.5">
                   {/* Category Header with Folder Sharing, Edit, Reorder and Add button */}
                   <div className="flex items-center justify-between px-1">
                     <div className="flex items-center gap-2">
@@ -1185,7 +1185,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
 
                         return (
                           <div
-                            key={note.id}
+                            key={`note_card_${note.id || noteIndex}_${noteIndex}`}
                             onClick={() => handleOpenNote(note)}
                             className={`group relative bg-white border ${
                               note.pinned ? 'border-indigo-300 ring-1 ring-indigo-200 shadow-2xs' : 'border-slate-200/90 hover:border-indigo-300 shadow-2xs hover:shadow-sm'
@@ -1560,8 +1560,8 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                       onChange={(e) => setFormCategory(e.target.value)}
                       className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700"
                     >
-                      {categoriesList.map(c => (
-                        <option key={c} value={c}>{c}</option>
+                      {categoriesList.map((c, cIdx) => (
+                        <option key={`pnote_form_cat_opt_${c || cIdx}_${cIdx}`} value={c}>{c}</option>
                       ))}
                       <option value="custom">+ Nueva Carpeta...</option>
                     </select>
@@ -1935,8 +1935,8 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                     <option value="">Selecciona un integrante...</option>
                     {teamMembers
                       .filter(m => m.id !== memberId)
-                      .map(m => (
-                        <option key={m.id} value={m.id}>{m.name} ({m.email || 'Sin email'})</option>
+                      .map((m, mIdx) => (
+                        <option key={`personal_notes_share_m_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name} ({m.email || 'Sin email'})</option>
                       ))}
                   </select>
                   <div className="flex items-center gap-2 shrink-0">
@@ -1976,10 +1976,10 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                   </div>
 
                   {/* If sharing single note */}
-                  {shareTargetType === 'note' && sharingNote?.sharedWith?.map(s => {
+                  {shareTargetType === 'note' && sharingNote?.sharedWith?.map((s, sIdx) => {
                     const memberObj = teamMembers.find(m => m.id === s.memberId);
                     return (
-                      <div key={s.memberId} className="p-3 flex items-center justify-between text-xs">
+                      <div key={`pnote_share_mem_${s.memberId || sIdx}_${sIdx}`} className="p-3 flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">
                             {(memberObj?.name || s.memberId).charAt(0).toUpperCase()}
@@ -2006,10 +2006,10 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                   })}
 
                   {/* If sharing entire category */}
-                  {shareTargetType === 'category' && categorySharedMembers.map(s => {
+                  {shareTargetType === 'category' && categorySharedMembers.map((s, sIdx) => {
                     const memberObj = teamMembers.find(m => m.id === s.memberId);
                     return (
-                      <div key={s.memberId} className="p-3 flex items-center justify-between text-xs">
+                      <div key={`pcat_share_mem_${s.memberId || sIdx}_${sIdx}`} className="p-3 flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">
                             {(memberObj?.name || s.memberId).charAt(0).toUpperCase()}

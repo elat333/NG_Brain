@@ -149,10 +149,10 @@ export const SalesCrmView: React.FC<SalesCrmViewProps> = ({ clients, companies, 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredClients.map(client => {
+              {filteredClients.map((client, cIdx) => {
                 const info = getEntityInfo(client);
                 return (
-                  <tr key={client.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={`sales_crm_cli_row_${client.id || cIdx}_${cIdx}`} className="hover:bg-slate-50/50 transition-colors">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center font-bold text-lg">
@@ -300,8 +300,8 @@ export const SalesCrmView: React.FC<SalesCrmViewProps> = ({ clients, companies, 
                       >
                         <option value="">Seleccione...</option>
                         {editingClient.clientType === 'B2B' 
-                          ? companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)
-                          : members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)
+                          ? companies.map((c, cIdx) => <option key={`sales_crm_comp_opt_${c.id || cIdx}_${cIdx}`} value={c.id}>{c.name}</option>)
+                          : members.map((m, mIdx) => <option key={`sales_crm_memb_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>)
                         }
                       </select>
                     </div>

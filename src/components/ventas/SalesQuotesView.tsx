@@ -142,7 +142,7 @@ export const SalesQuotesView: React.FC<SalesQuotesViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredQuotes.map((quote) => {
+              {filteredQuotes.map((quote, qIdx) => {
                 const client = clients.find((c) => c.id === quote.clientId);
                 let clientName = "Cliente no encontrado";
                 if (client) {
@@ -158,7 +158,7 @@ export const SalesQuotesView: React.FC<SalesQuotesViewProps> = ({
                 }
                 return (
                   <tr
-                    key={quote.id}
+                    key={`sales_quote_row_${quote.id || qIdx}_${qIdx}`}
                     className="hover:bg-slate-50/50 transition-colors"
                   >
                     <td className="p-4">
@@ -320,12 +320,12 @@ export const SalesQuotesView: React.FC<SalesQuotesViewProps> = ({
 
                       {clients
                         .filter((c) => c.clientType === "B2B")
-                        .map((c) => {
+                        .map((c, cIdx) => {
                           const cName =
                             companies.find((comp) => comp.id === c.directoryId)
                               ?.name || "Empresa";
                           return (
-                            <option key={c.id} value={c.id}>
+                            <option key={`sales_quote_client_opt_${c.id || cIdx}_${cIdx}`} value={c.id}>
                               {cName}
                             </option>
                           );

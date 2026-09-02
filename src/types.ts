@@ -40,6 +40,8 @@ export interface Role {
   createdAt: string;
 }
 
+export type SystemRole = Role;
+
 export interface CompanyAssociation {
   companyId: string;
   role: string; // Specific role/relationship with this company

@@ -81,8 +81,8 @@ export const PhysicalSpacesView: React.FC<PhysicalSpacesViewProps> = ({ spaces, 
               className="w-full sm:w-48 bg-white border border-slate-200 text-xs font-bold p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             >
               <option value="">Todas las ciudades</option>
-              {cities.map(city => (
-                <option key={city as string} value={city as string}>{city}</option>
+              {cities.map((city, cIdx) => (
+                <option key={`phys_space_city_opt_${city || cIdx}_${cIdx}`} value={city as string}>{city}</option>
               ))}
             </select>
           </div>
@@ -99,8 +99,8 @@ export const PhysicalSpacesView: React.FC<PhysicalSpacesViewProps> = ({ spaces, 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredSpaces.map(space => (
-                <tr key={space.id} className="hover:bg-slate-50/50 transition-colors">
+              {filteredSpaces.map((space, sIdx) => (
+                <tr key={`phys_space_${space.id || sIdx}_${sIdx}`} className="hover:bg-slate-50/50 transition-colors">
                   <td className="p-4 font-bold text-slate-800">{space.name}</td>
                   <td className="p-4 text-slate-600">{space.city || '-'}</td>
                   <td className="p-4">

@@ -258,6 +258,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
         description: '',
         memberId: selectedCampaign.leaderMemberId || currentMember?.id || '',
         category: 'diseno',
+        taskTemplate: 'standard',
         priority: 'media',
         dueDate: selectedCampaign.endDate || new Date().toISOString().split('T')[0]
       });
@@ -557,7 +558,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
 
       {/* Campaigns Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCampaigns.map((camp) => {
+        {filteredCampaigns.map((camp, cIdx) => {
           const campTasks = getCampaignTasks(camp);
           const completedTasks = campTasks.filter(t => t.status === 'done').length;
           const taskProgress = campTasks.length > 0 ? Math.round((completedTasks / campTasks.length) * 100) : 0;
@@ -575,7 +576,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
 
           return (
             <div
-              key={camp.id}
+              key={`mkt_camp_card_${camp.id || cIdx}_${cIdx}`}
               onClick={() => setSelectedCampaign(camp)}
               className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-xl hover:border-slate-200 transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden"
             >
@@ -867,7 +868,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
 
                   {/* Tasks List */}
                   <div className="space-y-2">
-                    {getCampaignTasks(selectedCampaign).map((t) => {
+                    {getCampaignTasks(selectedCampaign).map((t, tIdx) => {
                       const assignee = members.find(m => m.id === t.memberId);
                       const priorityColor: Record<string, string> = {
                         meteoric_crash: 'bg-red-500 text-white',
@@ -878,7 +879,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
 
                       return (
                         <div
-                          key={t.id}
+                          key={`mkt_camp_task_${t.id || tIdx}_${tIdx}`}
                           onClick={() => onOpenTask && onOpenTask(t)}
                           className="flex items-center justify-between p-3.5 bg-white border border-slate-200/80 rounded-2xl hover:border-ng-lime hover:shadow-sm transition-all cursor-pointer"
                         >
@@ -1050,8 +1051,8 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
                     >
                       <option value="">Seleccionar responsable...</option>
-                      {members.map(m => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
+                      {members.map((m, mIdx) => (
+                        <option key={`mkt_camp_resp_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
                       ))}
                     </select>
                   </div>
@@ -1266,8 +1267,8 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
                     >
                       <option value="">Seleccionar miembro...</option>
-                      {members.map(m => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
+                      {members.map((m, mIdx) => (
+                        <option key={`mkt_camp_task_m_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
                       ))}
                     </select>
                   </div>

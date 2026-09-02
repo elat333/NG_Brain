@@ -125,7 +125,7 @@ export const SalesPipelineView: React.FC<SalesPipelineViewProps> = ({
       </div>
 
       <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
-        {STAGES.map((stage) => {
+        {STAGES.map((stage, stageIdx) => {
           const stageDeals = deals.filter((d) => {
             if (d.stage !== stage.id) return false;
             const c = clients.find((cl) => cl.id === d.clientId);
@@ -138,7 +138,7 @@ export const SalesPipelineView: React.FC<SalesPipelineViewProps> = ({
 
           return (
             <div
-              key={stage.id}
+              key={`pipe_stage_${stage.id || stageIdx}_${stageIdx}`}
               className="min-w-[300px] w-[300px] flex-shrink-0 flex flex-col bg-slate-50/50 rounded-3xl border border-slate-100"
             >
               <div className="p-4 border-b border-slate-100">
@@ -161,7 +161,7 @@ export const SalesPipelineView: React.FC<SalesPipelineViewProps> = ({
               </div>
 
               <div className="p-3 flex-1 overflow-y-auto space-y-3 min-h-[400px]">
-                {stageDeals.map((deal) => {
+                {stageDeals.map((deal, dealIdx) => {
                   const client = clients.find((c) => c.id === deal.clientId);
                   let clientName = "Sin cliente";
                   if (client) {
@@ -181,8 +181,8 @@ export const SalesPipelineView: React.FC<SalesPipelineViewProps> = ({
 
                   return (
                     <motion.div
-                      key={deal.id}
-                      layoutId={deal.id}
+                      key={`pipe_deal_${deal.id || dealIdx}_${dealIdx}`}
+                      layoutId={`pipe_deal_layout_${deal.id || dealIdx}`}
                       className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group cursor-pointer"
                       onClick={() => handleOpenModal(deal)}
                     >
@@ -236,8 +236,8 @@ export const SalesPipelineView: React.FC<SalesPipelineViewProps> = ({
                             onClick={(e) => e.stopPropagation()}
                             className="text-[9px] font-black uppercase bg-slate-100 text-slate-600 border border-slate-200 rounded-lg py-1 px-2 focus:outline-none focus:ring-1 focus:ring-slate-300"
                           >
-                            {STAGES.map((s) => (
-                              <option key={s.id} value={s.id}>
+                            {STAGES.map((s, sIdx) => (
+                              <option key={`sales_pipe_stage_${deal.id}_${s.id}_${sIdx}`} value={s.id}>
                                 {s.label}
                               </option>
                             ))}
@@ -319,12 +319,12 @@ export const SalesPipelineView: React.FC<SalesPipelineViewProps> = ({
 
                         {clients
                           .filter((c) => c.clientType === "B2C")
-                          .map((c) => {
+                          .map((c, cIdx) => {
                             const cName =
                               members.find((m) => m.id === c.directoryId)
                                 ?.name || "Persona";
                             return (
-                              <option key={c.id} value={c.id}>
+                              <option key={`sales_pipe_client_opt_${c.id || cIdx}_${cIdx}`} value={c.id}>
                                 {cName}
                               </option>
                             );
@@ -368,8 +368,8 @@ export const SalesPipelineView: React.FC<SalesPipelineViewProps> = ({
                         }
                         className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                       >
-                        {STAGES.map((s) => (
-                          <option key={s.id} value={s.id}>
+                        {STAGES.map((s, sIdx) => (
+                          <option key={`sales_pipe_modal_st_${s.id}_${sIdx}`} value={s.id}>
                             {s.label}
                           </option>
                         ))}
@@ -410,8 +410,8 @@ export const SalesPipelineView: React.FC<SalesPipelineViewProps> = ({
                       className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                     >
                       <option value="">Seleccione...</option>
-                      {members.map((m) => (
-                        <option key={m.id} value={m.id}>
+                      {members.map((m, mIdx) => (
+                        <option key={`sales_pipe_modal_resp_${m.id || mIdx}_${mIdx}`} value={m.id}>
                           {m.name}
                         </option>
                       ))}

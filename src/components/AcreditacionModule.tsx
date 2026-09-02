@@ -18,14 +18,16 @@ import { PersonalNotesView } from './common/PersonalNotesView';
 import { AcreditacionAlliesView } from './acreditacion/AcreditacionAlliesView';
 import { AcreditacionCertificationsView } from './acreditacion/AcreditacionCertificationsView';
 
+export type AcreditacionSubTab = 'links' | 'notes' | 'allies' | 'certifications';
+
 interface AcreditacionModuleProps {
   currentMember: TeamMember | null;
   members: TeamMember[];
   companies: Company[];
   industries?: Industry[];
   products?: ProductItem[];
-  activeSubTab?: 'links' | 'notes' | 'allies' | 'certifications';
-  onSubTabChange?: (tab: 'links' | 'notes' | 'allies' | 'certifications') => void;
+  activeSubTab?: AcreditacionSubTab;
+  onSubTabChange?: (tab: AcreditacionSubTab) => void;
 }
 
 export const AcreditacionModule: React.FC<AcreditacionModuleProps> = ({
