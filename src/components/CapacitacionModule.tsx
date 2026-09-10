@@ -16,7 +16,10 @@ import {
   TrainingManagement,
   TeamMember,
   SalesClient,
-  MarketingCampaign
+  MarketingCampaign,
+  Company,
+  Process,
+  Role
 } from '../types';
 
 import { TrainersView } from './capacitacion/TrainersView';
@@ -31,6 +34,9 @@ export type CapacitacionSubTab = 'trainers' | 'physical_spaces' | 'virtual_space
 
 interface CapacitacionModuleProps {
   members?: TeamMember[];
+  companies?: Company[];
+  processes?: Process[];
+  roles?: Role[];
   clients?: SalesClient[];
   campaigns?: MarketingCampaign[]; // Usually App.tsx might not have this in state, we'll fetch them here if not passed.
   activeSubTab?: CapacitacionSubTab;
@@ -41,6 +47,9 @@ interface CapacitacionModuleProps {
 
 export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
   members = [],
+  companies = [],
+  processes = [],
+  roles = [],
   clients = [],
   campaigns = [],
   activeSubTab = 'calendar',
@@ -129,6 +138,11 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
               <TrainersView 
                 trainers={trainers} 
                 members={members} 
+                companies={companies}
+                processes={processes}
+                roles={roles}
+                plans={plans}
+                spaces={spaces}
                 onSaveTrainer={handleSaveTrainer} 
                 onDeleteTrainer={handleDeleteTrainer}
                 onCreateMember={onCreateMember}

@@ -3,6 +3,7 @@ import { AnimatePresence } from 'motion/react';
 import TaskModal from '../TaskModal';
 import UnsavedChangesModal from './UnsavedChangesModal';
 import ConfirmDeleteTaskModal from './ConfirmDeleteTaskModal';
+import { ExportTasksModal } from './ExportTasksModal';
 import { Task, TeamMember, Role, Process, Project } from '../../types';
 
 interface TaskModalsContainerProps {
@@ -20,6 +21,7 @@ interface TaskModalsContainerProps {
   projects: Project[];
   members: TeamMember[];
   tasks: Task[];
+  filteredTasks?: Task[];
   isNewTask: boolean;
   isProcessLeader: boolean;
   canEditMetadataField: boolean;
@@ -37,6 +39,8 @@ interface TaskModalsContainerProps {
   isDeletingTask: boolean;
   confirmDeleteTask: () => Promise<void>;
   setTaskToDelete: React.Dispatch<React.SetStateAction<Task | null>>;
+  isExportModalOpen?: boolean;
+  setIsExportModalOpen?: (open: boolean) => void;
 }
 
 export const TaskModalsContainer: React.FC<TaskModalsContainerProps> = ({
@@ -54,6 +58,7 @@ export const TaskModalsContainer: React.FC<TaskModalsContainerProps> = ({
   projects,
   members,
   tasks,
+  filteredTasks = tasks,
   isNewTask,
   isProcessLeader,
   canEditMetadataField,
@@ -70,10 +75,25 @@ export const TaskModalsContainer: React.FC<TaskModalsContainerProps> = ({
   taskToDelete,
   isDeletingTask,
   confirmDeleteTask,
-  setTaskToDelete
+  setTaskToDelete,
+  isExportModalOpen = false,
+  setIsExportModalOpen
 }) => {
   return (
     <AnimatePresence>
+      {/* Modal de Exportación Avanzada de Tareas */}
+      {isExportModalOpen && (
+        <ExportTasksModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen?.(false)}
+          tasks={tasks}
+          filteredTasks={filteredTasks}
+          members={members}
+          processes={processes}
+          projects={projects}
+        />
+      )}
+
       {/* Task Modal (Standard & Design Templates) */}
       <TaskModal
         isOpen={isAddingTask || !!editingTask}
@@ -105,11 +125,15 @@ export const TaskModalsContainer: React.FC<TaskModalsContainerProps> = ({
       <UnsavedChangesModal
         isOpen={showUnsavedTaskChangesModal}
         isEditing={!!editingTask}
-        onSaveAndClose={(e) => {
-          if (editingTask) {
-            handleUpdateTask(e);
-          } else {
-            handleAddTask(e);
+        onSaveAndClose={async (e) => {
+          try {
+            if (editingTask) {
+              await handleUpdateTask(e);
+            } else {
+              await handleAddTask(e);
+            }
+          } finally {
+            setShowUnsavedTaskChangesModal(false);
           }
         }}
         onDiscard={handleForceCloseTaskModal}

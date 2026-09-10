@@ -4,11 +4,12 @@ import {
   Plus, Search, X, ArrowUp, ArrowDown, ArrowUpDown, 
   Edit, Trash2 as Trash, Calendar, Clock 
 } from 'lucide-react';
-import { Task, TeamMember, Process, Project } from '../../types';
+import { Task, TeamMember, Process, Project, Role } from '../../types';
 import { parseLocalDate as defaultParseLocalDate } from '../../lib/dateUtils';
 import { TaskCard } from './TaskCard';
 import { TasksPermissionsView } from './TasksPermissionsView';
 import TaskCalendarView from '../TaskCalendarView';
+import { TaskCommentsDashboard } from './dashboard/TaskCommentsDashboard';
 
 export interface TasksViewProps {
   tasks: Task[];
@@ -18,8 +19,10 @@ export interface TasksViewProps {
   sortedMembers: TeamMember[];
   processes: Process[];
   projects: Project[];
+  roles?: Role[];
+  currentMember?: TeamMember | null;
   tasksSubTab: 'board' | 'permissions';
-  taskViewMode: 'board' | 'list' | 'calendar';
+  taskViewMode: 'board' | 'list' | 'calendar' | 'summary';
   tableFilters: {
     title: string;
     status: string;
@@ -66,6 +69,8 @@ export const TasksView: React.FC<TasksViewProps> = ({
   sortedMembers,
   processes,
   projects,
+  roles = [],
+  currentMember,
   tasksSubTab,
   taskViewMode,
   tableFilters,
@@ -95,7 +100,22 @@ export const TasksView: React.FC<TasksViewProps> = ({
       className="flex flex-col h-[calc(100vh-80px)] relative"
     >
       {tasksSubTab === 'permissions' ? (
-        <TasksPermissionsView />
+        <TasksPermissionsView 
+          currentMember={currentMember}
+          processes={processes}
+          roles={roles}
+        />
+      ) : taskViewMode === 'summary' ? (
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-1 pb-6">
+          <TaskCommentsDashboard
+            tasks={tasks}
+            members={members}
+            processes={processes}
+            projects={projects}
+            currentMember={currentMember || null}
+            onOpenTask={(task) => openEditTask(task)}
+          />
+        </div>
       ) : taskViewMode === 'board' ? (
         <div 
           className={`flex overflow-x-auto gap-6 pb-4 h-full custom-scrollbar select-none ${
@@ -130,7 +150,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
             { id: 'backlog', label: 'Product Backlog', color: 'text-slate-400', bg: 'bg-slate-50' },
             { id: 'todo', label: 'Por Hacer', color: 'text-gray-500', bg: 'bg-gray-50' },
             { id: 'in_progress', label: 'En Progreso', color: 'text-blue-500', bg: 'bg-blue-50' },
-            { id: 'review', label: 'En Revisión', color: 'text-purple-500', bg: 'bg-purple-50' },
+            { id: 'review', label: 'Para Revisión', color: 'text-purple-500', bg: 'bg-purple-50' },
             { id: 'correction', label: 'Para Corrección', color: 'text-amber-500', bg: 'bg-amber-50' },
             { id: 'done', label: 'Completada', color: 'text-green-500', bg: 'bg-green-50', collapsible: true },
             { id: 'blocked', label: 'Bloqueada', color: 'text-red-500', bg: 'bg-red-50', collapsible: true }
@@ -362,7 +382,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                       <option value="backlog" className="font-sans text-slate-700 font-bold">Product Backlog</option>
                       <option value="todo" className="font-sans text-gray-700 font-bold">Por Hacer</option>
                       <option value="in_progress" className="font-sans text-blue-700 font-bold">En Progreso</option>
-                      <option value="review" className="font-sans text-purple-700 font-bold">En Revisión</option>
+                      <option value="review" className="font-sans text-purple-700 font-bold">Para Revisión</option>
                       <option value="correction" className="font-sans text-amber-700 font-bold">Para Corrección</option>
                       <option value="done" className="font-sans text-green-700 font-bold">Completada</option>
                       <option value="blocked" className="font-sans text-red-700 font-bold">Bloqueada</option>
@@ -620,7 +640,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                         <option value="backlog">Product Backlog</option>
                         <option value="todo">Por Hacer</option>
                         <option value="in_progress">En Progreso</option>
-                        <option value="review">En Revisión</option>
+                        <option value="review">Para Revisión</option>
                         <option value="correction">Para Corrección</option>
                         <option value="done">Completada</option>
                         <option value="blocked">Bloqueada</option>

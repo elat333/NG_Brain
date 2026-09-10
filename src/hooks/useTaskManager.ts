@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Task, TeamMember, Role, Project, Process, Deliverable, SuggestedActivity } from '../types';
-import { db, doc, setDoc, updateDoc, deleteDoc, OperationType, handleFirestoreError } from '../lib/firebase';
+import { db, doc, setDoc, updateDoc, deleteDoc, OperationType, handleFirestoreError, sanitizeForFirestore } from '../lib/firebase';
 import { getModuleAccess as defaultGetModuleAccess, isTaskBlocked as defaultIsTaskBlocked } from '../lib/permissions';
 
 interface UseTaskManagerProps {
@@ -58,6 +58,9 @@ export function useTaskManager({
     plannedStartTime: '',
     plannedEndTime: '',
     actualEndDate: '',
+    actualStartDate: '',
+    actualStartTime: '',
+    actualEndTime: '',
     memberId: '',
     auxiliaryId: '',
     auxiliaryIds: [] as string[],
@@ -72,6 +75,7 @@ export function useTaskManager({
     } as Task['designData'],
     status: 'backlog' as Task['status'],
     deliverables: [] as Deliverable[],
+    comments: [] as any[],
     plannedHours: 0,
     actualHours: 0,
     dueDate: '',
@@ -92,6 +96,9 @@ export function useTaskManager({
         plannedStartTime: newTaskData.plannedStartTime || '',
         plannedEndTime: newTaskData.plannedEndTime || '',
         actualEndDate: newTaskData.actualEndDate || '',
+        actualStartDate: newTaskData.actualStartDate || '',
+        actualStartTime: newTaskData.actualStartTime || '',
+        actualEndTime: newTaskData.actualEndTime || '',
         memberId: newTaskData.memberId || '',
         auxiliaryId: newTaskData.auxiliaryId || '',
         auxiliaryIds: newTaskData.auxiliaryIds || [],
@@ -105,7 +112,8 @@ export function useTaskManager({
         dueDate: newTaskData.dueDate || '',
         blockedByTaskIds: newTaskData.blockedByTaskIds || [],
         designData: newTaskData.designData || {},
-        deliverables: newTaskData.deliverables || []
+        deliverables: newTaskData.deliverables || [],
+        comments: newTaskData.comments || []
       };
       const initial = {
         title: (initialTaskSnapshotRef.current.title || '').trim(),
@@ -118,6 +126,9 @@ export function useTaskManager({
         plannedStartTime: initialTaskSnapshotRef.current.plannedStartTime || '',
         plannedEndTime: initialTaskSnapshotRef.current.plannedEndTime || '',
         actualEndDate: initialTaskSnapshotRef.current.actualEndDate || '',
+        actualStartDate: initialTaskSnapshotRef.current.actualStartDate || '',
+        actualStartTime: initialTaskSnapshotRef.current.actualStartTime || '',
+        actualEndTime: initialTaskSnapshotRef.current.actualEndTime || '',
         memberId: initialTaskSnapshotRef.current.memberId || '',
         auxiliaryId: initialTaskSnapshotRef.current.auxiliaryId || '',
         auxiliaryIds: initialTaskSnapshotRef.current.auxiliaryIds || [],
@@ -131,7 +142,8 @@ export function useTaskManager({
         dueDate: initialTaskSnapshotRef.current.dueDate || '',
         blockedByTaskIds: initialTaskSnapshotRef.current.blockedByTaskIds || [],
         designData: initialTaskSnapshotRef.current.designData || {},
-        deliverables: initialTaskSnapshotRef.current.deliverables || []
+        deliverables: initialTaskSnapshotRef.current.deliverables || [],
+        comments: initialTaskSnapshotRef.current.comments || []
       };
       return JSON.stringify(current) !== JSON.stringify(initial);
     } catch {
@@ -176,6 +188,9 @@ export function useTaskManager({
       plannedStartTime: '',
       plannedEndTime: '',
       actualEndDate: '',
+      actualStartDate: '',
+      actualStartTime: '',
+      actualEndTime: '',
       plannedEndDate: '',
       memberId: '',
       auxiliaryId: '',
@@ -191,6 +206,7 @@ export function useTaskManager({
       },
       status,
       deliverables: [] as Deliverable[],
+      comments: [] as any[],
       plannedHours: 0,
       actualHours: 0,
       dueDate: '',
@@ -215,6 +231,9 @@ export function useTaskManager({
       plannedStartTime: task.plannedStartTime || '',
       plannedEndTime: task.plannedEndTime || '',
       actualEndDate: task.actualEndDate || '',
+      actualStartDate: task.actualStartDate || '',
+      actualStartTime: task.actualStartTime || '',
+      actualEndTime: task.actualEndTime || '',
       plannedEndDate: task.plannedEndDate || '',
       processId: task.processId,
       memberId: task.memberId || '',
@@ -230,6 +249,7 @@ export function useTaskManager({
       actualHours: task.actualHours || 0,
       dueDate: task.dueDate || '',
       blockedByTaskIds: task.blockedByTaskIds || [],
+      comments: task.comments || [],
       id: task.id
     };
     setNewTaskData(data);
@@ -249,6 +269,9 @@ export function useTaskManager({
       plannedStartTime: '',
       plannedEndTime: '',
       actualEndDate: '',
+      actualStartDate: '',
+      actualStartTime: '',
+      actualEndTime: '',
       plannedEndDate: '',
       revisorId: '',
       status: 'backlog',
@@ -264,6 +287,7 @@ export function useTaskManager({
         elements: []
       },
       deliverables: [],
+      comments: [],
       plannedHours: 0,
       actualHours: 0,
       dueDate: '',
@@ -274,8 +298,8 @@ export function useTaskManager({
     setActiveTab('tasks');
   };
 
-  const handleAddTask = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddTask = async (e?: React.FormEvent) => {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (!newTaskData.title || !newTaskData.processId) return;
     const taskAccess = getModuleAccess(currentMember, roles, `tasks_${newTaskData.processId}`);
     if (taskAccess !== 'colaborador' && taskAccess !== 'lider' && taskAccess !== 'administrador') {
@@ -303,6 +327,12 @@ export function useTaskManager({
         priority: newTaskData.priority || 'media',
         plannedDate: newTaskData.plannedDate || '',
         plannedEndDate: newTaskData.plannedEndDate || '',
+        plannedStartTime: newTaskData.plannedStartTime || '',
+        plannedEndTime: newTaskData.plannedEndTime || '',
+        actualEndDate: newTaskData.actualEndDate || '',
+        actualStartDate: newTaskData.actualStartDate || '',
+        actualStartTime: newTaskData.actualStartTime || '',
+        actualEndTime: newTaskData.actualEndTime || '',
         status: newTaskData.status,
         processId: newTaskData.processId,
         memberId: newTaskData.memberId || '',
@@ -317,16 +347,19 @@ export function useTaskManager({
         actualHours: newTaskData.actualHours || 0,
         dueDate: newTaskData.dueDate || '',
         blockedByTaskIds: newTaskData.blockedByTaskIds,
+        comments: newTaskData.comments || [],
         createdAt: new Date().toISOString(),
         history: [initialHistoryItem]
       };
 
-      await setDoc(doc(db, 'tasks', id), newTask);
+      await setDoc(doc(db, 'tasks', id), sanitizeForFirestore(newTask));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'tasks');
     }
 
     setIsAddingTask(false);
+    setShowUnsavedTaskChangesModal(false);
+    initialTaskSnapshotRef.current = null;
     if (lastTab) {
       setActiveTab(lastTab as any);
       setLastTab(null);
@@ -342,6 +375,9 @@ export function useTaskManager({
       plannedStartTime: '',
       plannedEndTime: '',
       actualEndDate: '',
+      actualStartDate: '',
+      actualStartTime: '',
+      actualEndTime: '',
       plannedEndDate: '',
       memberId: '',
       auxiliaryId: '',
@@ -357,6 +393,7 @@ export function useTaskManager({
       },
       status: 'backlog',
       deliverables: [],
+      comments: [],
       plannedHours: 0,
       actualHours: 0,
       dueDate: '',
@@ -364,26 +401,31 @@ export function useTaskManager({
     });
   };
 
-  const handleUpdateTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingTask || !newTaskData.title || !newTaskData.processId) return;
+  const handleUpdateTask = async (e?: React.FormEvent) => {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (!editingTask || !newTaskData.title) return;
     
-    let taskProcessId = newTaskData.processId;
+    let taskProcessId = newTaskData.processId || (editingTask && editingTask.processId) || '';
     if (!taskProcessId && newTaskData.projectId) {
       const proj = projects.find(p => p.id === newTaskData.projectId);
-      if (proj) {
+      if (proj && proj.processId) {
         taskProcessId = proj.processId;
       }
     }
 
-    let taskAccess = getModuleAccess(currentMember, roles, `tasks_${taskProcessId}`);
-    if (taskProcessId === 'proc-mkt') {
-      taskAccess = getModuleAccess(currentMember, roles, 'marketing');
+    let taskAccess = getModuleAccess(currentMember, roles, taskProcessId ? `tasks_${taskProcessId}` : 'tasks');
+    if (taskProcessId === 'proc-mkt' || (taskProcessId && taskProcessId.includes('mkt'))) {
+      const mktAccess = getModuleAccess(currentMember, roles, 'marketing');
+      if (mktAccess !== 'ninguno') taskAccess = mktAccess;
+    } else if (taskProcessId === 'proc-acred' || taskProcessId === 'acreditacion' || (taskProcessId && taskProcessId.includes('acred'))) {
+      const acredAccess = getModuleAccess(currentMember, roles, 'acreditacion');
+      if (acredAccess !== 'ninguno') taskAccess = acredAccess;
     }
 
     const isDirectAssignee = currentMember && (
       editingTask.memberId === currentMember.id || 
       editingTask.auxiliaryId === currentMember.id ||
+      editingTask.revisorId === currentMember.id ||
       (editingTask.auxiliaryIds && editingTask.auxiliaryIds.includes(currentMember.id))
     );
     if (taskAccess !== 'colaborador' && taskAccess !== 'lider' && taskAccess !== 'administrador' && !isDirectAssignee) {
@@ -474,22 +516,33 @@ export function useTaskManager({
       const isProcessLeader = !!(isUserAdmin || taskAccess === 'lider' || taskAccess === 'administrador');
 
       if (!isProcessLeader) {
-        await updateDoc(doc(db, 'tasks', editingTask.id), {
+        await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({
           status: newTaskData.status as any,
-          deliverables: newTaskData.deliverables,
+          deliverables: newTaskData.deliverables || [],
           actualHours: newTaskData.actualHours || 0,
-          dueDate: newTaskData.dueDate || '',
+          actualStartDate: newTaskData.actualStartDate || '',
+          actualEndDate: newTaskData.actualEndDate || '',
+          actualStartTime: newTaskData.actualStartTime || '',
+          actualEndTime: newTaskData.actualEndTime || '',
+          comments: newTaskData.comments || [],
           history: updatedHistory
-        });
+        }));
       } else {
-        await updateDoc(doc(db, 'tasks', editingTask.id), { 
+        await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({ 
           title: newTaskData.title,
           description: newTaskData.description || '',
           storyDescription: newTaskData.storyDescription || '',
           acceptanceCriteria: newTaskData.acceptanceCriteria || '',
           priority: newTaskData.priority || 'media',
+          processId: taskProcessId,
           plannedDate: newTaskData.plannedDate || '',
           plannedEndDate: newTaskData.plannedEndDate || '',
+          plannedStartTime: newTaskData.plannedStartTime || '',
+          plannedEndTime: newTaskData.plannedEndTime || '',
+          actualEndDate: newTaskData.actualEndDate || '',
+          actualStartDate: newTaskData.actualStartDate || '',
+          actualStartTime: newTaskData.actualStartTime || '',
+          actualEndTime: newTaskData.actualEndTime || '',
           memberId: newTaskData.memberId || '',
           auxiliaryId: newTaskData.auxiliaryId || '',
           auxiliaryIds: newTaskData.auxiliaryIds || [],
@@ -503,8 +556,9 @@ export function useTaskManager({
           actualHours: newTaskData.actualHours || 0,
           dueDate: newTaskData.dueDate || '',
           blockedByTaskIds: newTaskData.blockedByTaskIds,
+          comments: newTaskData.comments || [],
           history: updatedHistory
-        });
+        }));
       }
     } catch (error: any) {
       console.error("Error updating task: ", error);
@@ -514,6 +568,8 @@ export function useTaskManager({
 
     setEditingTask(null);
     setIsAddingTask(false);
+    setShowUnsavedTaskChangesModal(false);
+    initialTaskSnapshotRef.current = null;
     if (lastTab) {
       setActiveTab(lastTab as any);
       setLastTab(null);
@@ -529,6 +585,9 @@ export function useTaskManager({
       plannedStartTime: '',
       plannedEndTime: '',
       actualEndDate: '',
+      actualStartDate: '',
+      actualStartTime: '',
+      actualEndTime: '',
       plannedEndDate: '',
       memberId: '',
       auxiliaryId: '',
@@ -544,6 +603,7 @@ export function useTaskManager({
       },
       status: 'backlog',
       deliverables: [],
+      comments: [],
       plannedHours: 0,
       actualHours: 0,
       dueDate: '',
@@ -564,15 +624,19 @@ export function useTaskManager({
     }
     
     let taskAccess = getModuleAccess(currentMember, roles, taskProcessId ? `tasks_${taskProcessId}` : 'tasks');
-    if (taskProcessId === 'proc-mkt') {
-      taskAccess = getModuleAccess(currentMember, roles, 'marketing');
+    if (taskProcessId === 'proc-mkt' || (taskProcessId && taskProcessId.includes('mkt'))) {
+      const mktAccess = getModuleAccess(currentMember, roles, 'marketing');
+      if (mktAccess !== 'ninguno') taskAccess = mktAccess;
+    } else if (taskProcessId === 'proc-acred' || taskProcessId === 'acreditacion' || (taskProcessId && taskProcessId.includes('acred'))) {
+      const acredAccess = getModuleAccess(currentMember, roles, 'acreditacion');
+      if (acredAccess !== 'ninguno') taskAccess = acredAccess;
     }
 
-    const isDirectAssignee = currentMember && (
+    const isDirectAssignee = !!(currentMember && (
       task.memberId === currentMember.id || 
       task.auxiliaryId === currentMember.id ||
-      (task.auxiliaryIds && task.auxiliaryIds.includes(currentMember.id))
-    );
+      (task.auxiliaryIds && Array.isArray(task.auxiliaryIds) && task.auxiliaryIds.includes(currentMember.id))
+    ));
     if (taskAccess !== 'colaborador' && taskAccess !== 'lider' && taskAccess !== 'administrador' && !isDirectAssignee) {
       alert('Error: No dispones de privilegios para cambiar el estado de las tareas.');
       return;
@@ -631,10 +695,10 @@ export function useTaskManager({
       };
       const updatedHistory = [...existingHistory, statusHistoryItem];
 
-      await updateDoc(doc(db, 'tasks', id), { 
+      await updateDoc(doc(db, 'tasks', id), sanitizeForFirestore({ 
         status: newStatus,
         history: updatedHistory
-      });
+      }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'tasks');
     }
@@ -702,15 +766,38 @@ export function useTaskManager({
     }
   };
 
+  let currentProcessId = newTaskData.processId || (editingTask && editingTask.processId) || '';
+  if (!currentProcessId && newTaskData.projectId) {
+    const proj = projects.find(p => p.id === newTaskData.projectId);
+    if (proj && proj.processId) {
+      currentProcessId = proj.processId;
+    }
+  }
+
   const isUserAdmin = currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin';
   const isNewTask = !editingTask;
-  const isPrimaryAssignee = currentMember && editingTask && editingTask.memberId === currentMember.id;
-  const taskAccess = getModuleAccess(currentMember, roles, newTaskData.processId ? `tasks_${newTaskData.processId}` : 'tasks');
+  const isPrimaryAssignee = !!(currentMember && editingTask && editingTask.memberId === currentMember.id);
+  const isAssignee = !!(currentMember && editingTask && (
+    editingTask.memberId === currentMember.id || 
+    editingTask.auxiliaryId === currentMember.id ||
+    (editingTask.auxiliaryIds && Array.isArray(editingTask.auxiliaryIds) && editingTask.auxiliaryIds.includes(currentMember.id))
+  ));
+  
+  let effectiveTaskAccess = getModuleAccess(currentMember, roles, currentProcessId ? `tasks_${currentProcessId}` : 'tasks');
+  if (currentProcessId === 'proc-mkt' || (currentProcessId && currentProcessId.includes('mkt'))) {
+    const mktAccess = getModuleAccess(currentMember, roles, 'marketing');
+    if (mktAccess !== 'ninguno') effectiveTaskAccess = mktAccess;
+  } else if (currentProcessId === 'proc-acred' || currentProcessId === 'acreditacion' || (currentProcessId && currentProcessId.includes('acred'))) {
+    const acredAccess = getModuleAccess(currentMember, roles, 'acreditacion');
+    if (acredAccess !== 'ninguno') effectiveTaskAccess = acredAccess;
+  }
+
+  const taskAccess = effectiveTaskAccess;
   const isProcessLeader = !!(isUserAdmin || taskAccess === 'lider' || taskAccess === 'administrador');
   const canEditMetadataField = isNewTask || isProcessLeader;
-  const canEditStatusField = isNewTask || isProcessLeader || taskAccess === 'colaborador';
+  const canEditStatusField = isNewTask || isProcessLeader || taskAccess === 'colaborador' || isAssignee;
   const canEditPlanning = isNewTask || isProcessLeader;
-  const canEditExecution = isNewTask || isProcessLeader || isPrimaryAssignee;
+  const canEditExecution = isNewTask || isProcessLeader || isPrimaryAssignee || isAssignee;
 
   return {
     isAddingTask,

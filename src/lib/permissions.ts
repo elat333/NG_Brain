@@ -63,7 +63,7 @@ export const getModuleAccess = (
     if (member.moduleAccess) {
       const keys = Object.keys(member.moduleAccess);
       const specificLevels = keys
-        .filter(k => k.startsWith('tasks_'))
+        .filter(k => k.startsWith('tasks_') || k === 'marketing' || k === 'acreditacion')
         .map(k => member.moduleAccess![k]);
       
       if (specificLevels.includes('administrador')) return 'administrador';
@@ -76,12 +76,42 @@ export const getModuleAccess = (
 
   // Handle tasks_ process-specific module ID
   if (moduleId.startsWith('tasks_')) {
+    const procId = moduleId.replace('tasks_', '');
+
+    // 1. Direct specific permission key
     if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
       return member.moduleAccess[moduleId];
     }
-    // Fallback to general tasks access
+
+    // 2. Specific module link for marketing
+    if ((procId === 'proc-mkt' || procId.includes('mkt') || procId.includes('marketing')) && member.moduleAccess && member.moduleAccess['marketing'] !== undefined) {
+      return member.moduleAccess['marketing'];
+    }
+
+    // 3. Specific module link for acreditacion (e.g. proc-acred or acreditacion process)
+    const isAcredProcess = procId === 'proc-acred' || procId === 'acreditacion' || procId.includes('acred');
+    if (isAcredProcess && member.moduleAccess) {
+      if (member.moduleAccess['acreditacion'] !== undefined) {
+        return member.moduleAccess['acreditacion'];
+      }
+      if (member.moduleAccess['tasks_proc-acred'] !== undefined) {
+        return member.moduleAccess['tasks_proc-acred'];
+      }
+    }
+
+    // 4. If the member is assigned to this process
+    const isMemberInProcess = member.processId === procId || (isAcredProcess && (member.processId === 'proc-acred' || member.processId === 'acreditacion' || (member.processId && member.processId.includes('acred'))));
+    if (isMemberInProcess) {
+      if (member.systemRoleId === 'role-lider' || (member.role && member.role.toLowerCase().includes('lider'))) {
+        return 'lider';
+      }
+      // If the member belongs to the process, default to colaborador
+      return 'colaborador';
+    }
+
+    // 5. Fallback to general tasks access
     const generalTasksAccess = member.moduleAccess ? member.moduleAccess['tasks'] : undefined;
-    if (generalTasksAccess !== undefined) {
+    if (generalTasksAccess !== undefined && generalTasksAccess !== 'ninguno') {
       return generalTasksAccess;
     }
     return 'ninguno';

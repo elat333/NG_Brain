@@ -52,17 +52,35 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
     const plan = plans.find(p => p.id === planId);
     if (!plan || !editingMgmt) return;
 
-    // Calculate hours diff
-    const [startH, startM] = plan.startTime.split(':').map(Number);
-    const [endH, endM] = plan.endTime.split(':').map(Number);
-    const hours = (endH + endM / 60) - (startH + startM / 60);
-    const finalHours = hours > 0 ? hours : 0;
-
-    // Calculate cost based on trainer
+    let finalHours = 0;
     let cost = 0;
-    const trainer = trainers.find(t => t.id === plan.trainerId);
-    if (trainer && trainer.hourlyRate) {
-      cost = trainer.hourlyRate * finalHours;
+
+    if (plan.sessions && plan.sessions.length > 0) {
+      // Sumar horas y costos de cada sesión considerando su capacitador específico
+      plan.sessions.forEach(session => {
+        if (session.startTime && session.endTime) {
+          const [sH, sM] = session.startTime.split(':').map(Number);
+          const [eH, eM] = session.endTime.split(':').map(Number);
+          const blockH = Math.max(0, (eH + eM / 60) - (sH + sM / 60));
+          finalHours += blockH;
+
+          const tr = trainers.find(t => t.id === session.trainerId);
+          if (tr && tr.hourlyRate) {
+            cost += tr.hourlyRate * blockH;
+          }
+        }
+      });
+    } else {
+      // Cálculo para planes legados de una sesión
+      const [startH, startM] = plan.startTime.split(':').map(Number);
+      const [endH, endM] = plan.endTime.split(':').map(Number);
+      const hours = (endH + endM / 60) - (startH + startM / 60);
+      finalHours = hours > 0 ? hours : 0;
+
+      const trainer = trainers.find(t => t.id === plan.trainerId);
+      if (trainer && trainer.hourlyRate) {
+        cost = trainer.hourlyRate * finalHours;
+      }
     }
 
     setEditingMgmt({

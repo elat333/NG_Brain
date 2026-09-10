@@ -1,40 +1,103 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Plus, Search, Edit2, Trash2, X, GraduationCap, DollarSign, User, UserPlus, AlertCircle } from 'lucide-react';
+import { 
+  Users, 
+  Plus, 
+  Search, 
+  Edit2, 
+  Trash2, 
+  X, 
+  GraduationCap, 
+  DollarSign, 
+  User, 
+  UserPlus, 
+  AlertCircle,
+  Eye,
+  Heart,
+  ThumbsDown,
+  Layers,
+  MessageSquare
+} from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Trainer, TeamMember } from '../../types';
+import { Trainer, TeamMember, Company, Process, Role, PersonCategory, TrainingPlan, TrainingSpace } from '../../types';
+import { MemberEditorView } from '../common/MemberEditorView';
+import { TrainerDetailModal } from './TrainerDetailModal';
 
 interface TrainersViewProps {
   trainers: Trainer[];
   members: TeamMember[];
+  companies?: Company[];
+  processes?: Process[];
+  roles?: Role[];
+  plans?: TrainingPlan[];
+  spaces?: TrainingSpace[];
   onSaveTrainer: (trainer: Partial<Trainer>) => Promise<void>;
   onDeleteTrainer: (id: string) => Promise<void>;
   onCreateMember?: (member: Partial<TeamMember>) => Promise<string>;
 }
 
-export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, onSaveTrainer, onDeleteTrainer, onCreateMember }) => {
+export const TrainersView: React.FC<TrainersViewProps> = ({ 
+  trainers, 
+  members, 
+  companies = [], 
+  processes = [], 
+  roles = [], 
+  plans = [],
+  spaces = [],
+  onSaveTrainer, 
+  onDeleteTrainer, 
+  onCreateMember 
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingTrainer, setEditingTrainer] = useState<Partial<Trainer> | null>(null);
+  const [viewingTrainer, setViewingTrainer] = useState<Trainer | null>(null);
 
-  // Modal para Crear Persona en Directorio (Flujo idéntico a Acreditaciones)
+  // Modal para Crear Persona en Directorio con el formulario oficial MemberEditorView
   const [showCreateMemberModal, setShowCreateMemberModal] = useState(false);
-  const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberRole, setNewMemberRole] = useState('');
-  const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [newMemberPhone, setNewMemberPhone] = useState('');
+  const initialNewMemberData = {
+    name: '',
+    role: 'Capacitador / Facilitador',
+    systemRoleId: '',
+    isSystemAdmin: false,
+    moduleAccess: undefined,
+    categories: ['contacto'] as PersonCategory[],
+    processId: '',
+    companyAssociations: [] as { companyId: string, role: string }[],
+    identificationId: '',
+    hasRuc: false,
+    ruc: '',
+    skills: '',
+    responsibilities: '',
+    personality: '',
+    notes: '',
+    email: '',
+    phone: '',
+    epp: ''
+  };
+  const [newMemberData, setNewMemberData] = useState(initialNewMemberData);
   const [isSavingMember, setIsSavingMember] = useState(false);
-  const [memberError, setMemberError] = useState('');
 
   const getMemberInfo = (directoryId: string) => {
     return members.find(m => m.id === directoryId);
   };
 
+  const getCompanyForMember = (member?: TeamMember) => {
+    if (!member || !member.companyAssociations || member.companyAssociations.length === 0) return undefined;
+    return companies.find(c => c.id === member.companyAssociations[0].companyId);
+  };
+
+  const getProcessForMember = (member?: TeamMember) => {
+    if (!member || !member.processId) return undefined;
+    return processes.find(p => p.id === member.processId);
+  };
+
   const filteredTrainers = trainers.filter(t => {
     const member = getMemberInfo(t.directoryId);
     return member?.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-           t.specialties?.toLowerCase().includes(searchQuery.toLowerCase());
+           t.specialties?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           t.teachingInterests?.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   const handleOpenModal = (trainer?: Trainer) => {
@@ -45,7 +108,13 @@ export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, o
         type: 'interno',
         directoryId: '',
         specialties: '',
-        hourlyRate: 0
+        hourlyRate: 0,
+        relationshipType: 'aliado_estrategico',
+        teachingInterests: '',
+        teachingDislikes: '',
+        preferredModality: 'presencial',
+        logisticsNotes: '',
+        relationshipNotes: ''
       });
     }
     setShowModal(true);
@@ -70,36 +139,59 @@ export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, o
   // Creación de Persona en Directorio (Guarda directamente en Firebase 'members' y auto-selecciona)
   const handleCreateMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMemberName.trim()) {
-      setMemberError('Ingresa el nombre y apellido de la persona');
+    if (!newMemberData.name?.trim()) {
+      alert('Ingresa el nombre y apellido de la persona');
       return;
     }
     setIsSavingMember(true);
-    setMemberError('');
 
     try {
       let newId = '';
       if (onCreateMember) {
         newId = await onCreateMember({
-          name: newMemberName.trim(),
-          role: newMemberRole.trim() || 'Capacitador / Facilitador',
-          categories: ['contacto'],
-          email: newMemberEmail.trim() || undefined,
-          phone: newMemberPhone.trim() || undefined
+          name: newMemberData.name.trim(),
+          role: newMemberData.role?.trim() || 'Capacitador / Facilitador',
+          systemRoleId: newMemberData.systemRoleId || '',
+          isSystemAdmin: newMemberData.isSystemAdmin || false,
+          moduleAccess: newMemberData.moduleAccess || null,
+          categories: Array.isArray(newMemberData.categories) ? newMemberData.categories : ['contacto'],
+          processId: newMemberData.processId || '',
+          companyAssociations: newMemberData.companyAssociations || [],
+          identificationId: newMemberData.identificationId || '',
+          hasRuc: newMemberData.hasRuc || false,
+          ruc: newMemberData.hasRuc ? `${newMemberData.identificationId}001` : '',
+          skills: typeof newMemberData.skills === 'string' ? newMemberData.skills.split(',').map(s => s.trim()).filter(s => s !== '') : (newMemberData.skills || []),
+          responsibilities: typeof newMemberData.responsibilities === 'string' ? newMemberData.responsibilities.split(',').map(r => r.trim()).filter(r => r !== '') : (newMemberData.responsibilities || []),
+          personality: newMemberData.personality || '',
+          notes: newMemberData.notes || '',
+          email: newMemberData.email || '',
+          phone: newMemberData.phone || '',
+          epp: typeof newMemberData.epp === 'string' ? newMemberData.epp.split(',').map(e => e.trim()).filter(e => e !== '') : (newMemberData.epp || [])
         });
       } else {
         newId = `mem-${Date.now()}`;
         const newMem: TeamMember = {
           id: newId,
-          name: newMemberName.trim(),
-          role: newMemberRole.trim() || 'Capacitador / Facilitador',
-          categories: ['contacto'],
-          skills: [],
-          responsibilities: [],
+          name: newMemberData.name.trim(),
+          role: newMemberData.role?.trim() || 'Capacitador / Facilitador',
+          systemRoleId: newMemberData.systemRoleId || '',
+          isSystemAdmin: newMemberData.isSystemAdmin || false,
+          moduleAccess: newMemberData.moduleAccess || null,
+          categories: Array.isArray(newMemberData.categories) ? newMemberData.categories : ['contacto'],
+          processId: newMemberData.processId || '',
+          companyAssociations: newMemberData.companyAssociations || [],
+          identificationId: newMemberData.identificationId || '',
+          hasRuc: newMemberData.hasRuc || false,
+          ruc: newMemberData.hasRuc ? `${newMemberData.identificationId}001` : '',
+          skills: typeof newMemberData.skills === 'string' ? newMemberData.skills.split(',').map(s => s.trim()).filter(s => s !== '') : (newMemberData.skills || []),
+          responsibilities: typeof newMemberData.responsibilities === 'string' ? newMemberData.responsibilities.split(',').map(r => r.trim()).filter(r => r !== '') : (newMemberData.responsibilities || []),
           recentAchievements: [],
-          email: newMemberEmail.trim() || undefined,
-          phone: newMemberPhone.trim() || undefined,
-          companyAssociations: []
+          avatar: `https://picsum.photos/seed/${newMemberData.name.replace(/\s/g, '')}/150/150`,
+          personality: newMemberData.personality || '',
+          notes: newMemberData.notes || '',
+          email: newMemberData.email || '',
+          phone: newMemberData.phone || '',
+          epp: typeof newMemberData.epp === 'string' ? newMemberData.epp.split(',').map(e => e.trim()).filter(e => e !== '') : (newMemberData.epp || [])
         };
         await setDoc(doc(db, 'members', newId), newMem);
       }
@@ -113,14 +205,11 @@ export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, o
       }
 
       // Resetear campos y cerrar submodal
-      setNewMemberName('');
-      setNewMemberRole('');
-      setNewMemberEmail('');
-      setNewMemberPhone('');
+      setNewMemberData(initialNewMemberData);
       setShowCreateMemberModal(false);
     } catch (err: any) {
       console.error('Error creando persona en directorio:', err);
-      setMemberError('Error al crear la persona. Por favor intenta de nuevo.');
+      alert('Error al crear la persona. Por favor intenta de nuevo.');
     } finally {
       setIsSavingMember(false);
     }
@@ -178,11 +267,28 @@ export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, o
                 return (
                   <tr key={`trainer_row_${trainer.id || trIdx}_${trIdx}`} className="hover:bg-slate-50/50 transition-colors">
                     <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center font-bold text-lg text-indigo-700">
-                          <User size={20} />
+                      <div 
+                        onClick={() => setViewingTrainer(trainer)}
+                        className="flex items-center gap-3 cursor-pointer group"
+                      >
+                        <div className="relative">
+                          <img
+                            src={member?.avatar || `https://picsum.photos/seed/${(member?.name || 'Trainer').replace(/\s/g, '')}/100/100`}
+                            alt=""
+                            className="w-10 h-10 rounded-xl object-cover shadow-sm group-hover:ring-2 group-hover:ring-indigo-500 transition-all"
+                          />
+                          <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                            trainer.type === 'interno' ? 'bg-indigo-600' : 'bg-amber-500'
+                          }`} />
                         </div>
-                        <span className="font-bold text-slate-800">{member?.name || 'Persona Desconocida'}</span>
+                        <div>
+                          <span className="font-black text-slate-800 group-hover:text-indigo-600 transition-colors block">
+                            {member?.name || 'Persona Desconocida'}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            {member?.role || 'Capacitador'} {trainer.relationshipType ? `• ${trainer.relationshipType.replace('_', ' ')}` : ''}
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td className="p-4">
@@ -194,15 +300,30 @@ export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, o
                       </span>
                     </td>
                     <td className="p-4">
-                      <span className="text-slate-600">{trainer.specialties || '-'}</span>
+                      <div className="max-w-[220px]">
+                        <span className="text-xs font-bold text-slate-700 block truncate">{trainer.specialties || '-'}</span>
+                        {trainer.teachingInterests && (
+                          <span className="text-[10px] text-emerald-600 font-medium block truncate">
+                            🎯 {trainer.teachingInterests}
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td className="p-4 font-semibold text-slate-700">
+                    <td className="p-4 font-bold text-slate-700">
                       ${trainer.hourlyRate?.toFixed(2) || '0.00'}
                     </td>
                     <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button 
+                          onClick={() => setViewingTrainer(trainer)}
+                          title="Ver Ficha Integral"
+                          className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        >
+                          <Eye size={16} />
+                        </button>
                         <button 
                           onClick={() => handleOpenModal(trainer)}
+                          title="Editar Ficha"
                           className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         >
                           <Edit2 size={16} />
@@ -213,6 +334,7 @@ export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, o
                               onDeleteTrainer(trainer.id);
                             }
                           }}
+                          title="Eliminar"
                           className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         >
                           <Trash2 size={16} />
@@ -291,7 +413,7 @@ export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, o
                       <button
                         type="button"
                         onClick={() => {
-                          setMemberError('');
+                          setNewMemberData(initialNewMemberData);
                           setShowCreateMemberModal(true);
                         }}
                         className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-xl transition-colors cursor-pointer"
@@ -327,6 +449,78 @@ export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, o
                       className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     />
                   </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                        <Users size={14} /> Tipo de Relación
+                      </label>
+                      <select
+                        value={editingTrainer.relationshipType || 'aliado_estrategico'}
+                        onChange={e => setEditingTrainer({ ...editingTrainer, relationshipType: e.target.value as any })}
+                        className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      >
+                        <option value="aliado_estrategico">Aliado Estratégico</option>
+                        <option value="planta">Instructor de Planta</option>
+                        <option value="honorarios">Docente por Honorarios</option>
+                        <option value="proveedor_frecuente">Proveedor Frecuente</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                        <Layers size={14} /> Modalidad Preferida
+                      </label>
+                      <select
+                        value={editingTrainer.preferredModality || 'presencial'}
+                        onChange={e => setEditingTrainer({ ...editingTrainer, preferredModality: e.target.value as any })}
+                        className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      >
+                        <option value="presencial">Presencial (In-situ)</option>
+                        <option value="virtual">Virtual / Online</option>
+                        <option value="hibrido">Híbrido</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2 text-emerald-700">
+                      <Heart size={14} /> ¿Qué sabe y le gusta enseñar?
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Temas, metodologías, dinámicas o cursos en los que más disfruta capacitar..."
+                      value={editingTrainer.teachingInterests || ''}
+                      onChange={e => setEditingTrainer({ ...editingTrainer, teachingInterests: e.target.value })}
+                      className="w-full bg-white border border-slate-200 text-xs font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2 text-rose-700">
+                      <ThumbsDown size={14} /> ¿Qué no le gusta / Restricciones?
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Temas que no domina, limitaciones de horarios, tamaños de grupos o exigencias especiales..."
+                      value={editingTrainer.teachingDislikes || ''}
+                      onChange={e => setEditingTrainer({ ...editingTrainer, teachingDislikes: e.target.value })}
+                      className="w-full bg-white border border-slate-200 text-xs font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                      <MessageSquare size={14} className="text-indigo-600" /> Acuerdos & Notas de Relación Institucional
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Condiciones de pago, viáticos, historial de acuerdos o notas estratégicas..."
+                      value={editingTrainer.relationshipNotes || ''}
+                      onChange={e => setEditingTrainer({ ...editingTrainer, relationshipNotes: e.target.value })}
+                      className="w-full bg-white border border-slate-200 text-xs font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    />
+                  </div>
                 </form>
               </div>
 
@@ -351,115 +545,45 @@ export const TrainersView: React.FC<TrainersViewProps> = ({ trainers, members, o
         )}
       </AnimatePresence>
 
-      {/* Modal para Crear Persona en Directorio (Flujo Completo) */}
+      {/* Modal Ficha Integral del Capacitador */}
+      <AnimatePresence>
+        {viewingTrainer && (
+          <TrainerDetailModal
+            trainer={viewingTrainer}
+            member={getMemberInfo(viewingTrainer.directoryId)}
+            company={getCompanyForMember(getMemberInfo(viewingTrainer.directoryId))}
+            process={getProcessForMember(getMemberInfo(viewingTrainer.directoryId))}
+            plans={plans}
+            spaces={spaces}
+            onClose={() => setViewingTrainer(null)}
+            onEdit={(tr) => {
+              setViewingTrainer(null);
+              handleOpenModal(tr);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Modal para Crear Persona en Directorio (Oficial con MemberEditorView) */}
       <AnimatePresence>
         {showCreateMemberModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 text-left"
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="w-full max-w-5xl my-auto max-h-[92vh] overflow-y-auto rounded-[2rem] shadow-2xl"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                    <UserPlus size={18} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black text-slate-900">Crear Persona en Directorio</h3>
-                    <p className="text-[11px] text-slate-500 font-medium">
-                      Registra una nueva persona en el directorio y selecciónala al instante
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowCreateMemberModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {memberError && (
-                <div className="mb-3 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold flex items-center gap-2">
-                  <AlertCircle size={14} />
-                  <span>{memberError}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleCreateMember} className="space-y-3">
-                <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
-                    Nombres y Apellidos <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej. Ing. Juan Pérez"
-                    value={newMemberName}
-                    onChange={(e) => setNewMemberName(e.target.value)}
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
-                    Cargo / Rol en Directorio
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej. Instructor Certificado / Docente Especialista"
-                    value={newMemberRole}
-                    onChange={(e) => setNewMemberRole(e.target.value)}
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
-                      Correo Electrónico
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="juan@email.com"
-                      value={newMemberEmail}
-                      onChange={(e) => setNewMemberEmail(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700 mb-1">
-                      Teléfono / Celular
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="0991234567"
-                      value={newMemberPhone}
-                      onChange={(e) => setNewMemberPhone(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateMemberModal(false)}
-                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSavingMember}
-                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
-                  >
-                    {isSavingMember ? 'Guardando...' : 'Crear y Seleccionar'}
-                  </button>
-                </div>
-              </form>
+              <MemberEditorView
+                editingMember={null}
+                newMemberData={newMemberData}
+                setNewMemberData={setNewMemberData}
+                processes={processes}
+                companies={companies}
+                roles={roles}
+                onCancel={() => setShowCreateMemberModal(false)}
+                onSave={handleCreateMember}
+              />
             </motion.div>
           </div>
         )}

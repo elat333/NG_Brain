@@ -1625,7 +1625,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         // 1. Heading 1
                         if (line.startsWith('# ')) {
                           return (
-                            <h1 key={idx} className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight pt-3 pb-1 border-b border-slate-200">
+                            <h1 key={`pnote_render_${idx}_h1`} className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight pt-3 pb-1 border-b border-slate-200">
                               <span className="text-indigo-400 font-mono text-lg select-none mr-1.5 opacity-60">#</span>
                               <span>{line.substring(2)}</span>
                             </h1>
@@ -1634,7 +1634,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         // 2. Heading 2
                         if (line.startsWith('## ')) {
                           return (
-                            <h2 key={idx} className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight pt-2 pb-0.5">
+                            <h2 key={`pnote_render_${idx}_h2`} className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight pt-2 pb-0.5">
                               <span className="text-indigo-400 font-mono text-base select-none mr-1.5 opacity-60">##</span>
                               <span>{line.substring(3)}</span>
                             </h2>
@@ -1643,7 +1643,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         // 3. Heading 3
                         if (line.startsWith('### ')) {
                           return (
-                            <h3 key={idx} className="text-lg sm:text-xl font-bold text-slate-900 pt-1.5">
+                            <h3 key={`pnote_render_${idx}_h3`} className="text-lg sm:text-xl font-bold text-slate-900 pt-1.5">
                               <span className="text-indigo-400 font-mono text-sm select-none mr-1.5 opacity-60">###</span>
                               <span>{line.substring(4)}</span>
                             </h3>
@@ -1652,7 +1652,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         // 4. Heading 4, 5, 6
                         if (line.startsWith('#### ')) {
                           return (
-                            <h4 key={idx} className="text-base font-bold text-slate-800 pt-1">
+                            <h4 key={`pnote_render_${idx}_h4`} className="text-base font-bold text-slate-800 pt-1">
                               <span className="text-indigo-400 font-mono text-xs select-none mr-1 opacity-60">####</span>
                               <span>{line.substring(5)}</span>
                             </h4>
@@ -1664,7 +1664,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                           const taskText = line.substring(6);
                           return (
                             <div
-                              key={idx}
+                              key={`pnote_render_${idx}_chk`}
                               onClick={() => handleToggleTaskCheckbox(idx, isChecked)}
                               className="flex items-start gap-2.5 py-1 px-2 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors group select-none"
                             >
@@ -1683,7 +1683,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         // 6. Callout > [!NOTE] / > [!TIP] / > [!WARNING]
                         if (line.startsWith('> [!NOTE]')) {
                           return (
-                            <div key={idx} className="p-3.5 bg-blue-50 border-l-4 border-blue-500 rounded-r-xl my-2 text-blue-900 text-xs font-semibold flex items-start gap-2">
+                            <div key={`pnote_render_${idx}_note`} className="p-3.5 bg-blue-50 border-l-4 border-blue-500 rounded-r-xl my-2 text-blue-900 text-xs font-semibold flex items-start gap-2">
                               <Info size={16} className="text-blue-600 shrink-0 mt-0.5" />
                               <span>{line.replace('> [!NOTE]', '') || 'Nota informativa'}</span>
                             </div>
@@ -1691,7 +1691,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         }
                         if (line.startsWith('> [!TIP]')) {
                           return (
-                            <div key={idx} className="p-3.5 bg-emerald-50 border-l-4 border-emerald-500 rounded-r-xl my-2 text-emerald-900 text-xs font-semibold flex items-start gap-2">
+                            <div key={`pnote_render_${idx}_tip`} className="p-3.5 bg-emerald-50 border-l-4 border-emerald-500 rounded-r-xl my-2 text-emerald-900 text-xs font-semibold flex items-start gap-2">
                               <Lightbulb size={16} className="text-emerald-600 shrink-0 mt-0.5" />
                               <span>{line.replace('> [!TIP]', '') || 'Consejo clave'}</span>
                             </div>
@@ -1699,7 +1699,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         }
                         if (line.startsWith('> [!WARNING]')) {
                           return (
-                            <div key={idx} className="p-3.5 bg-amber-50 border-l-4 border-amber-500 rounded-r-xl my-2 text-amber-900 text-xs font-semibold flex items-start gap-2">
+                            <div key={`pnote_render_${idx}_warn`} className="p-3.5 bg-amber-50 border-l-4 border-amber-500 rounded-r-xl my-2 text-amber-900 text-xs font-semibold flex items-start gap-2">
                               <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
                               <span>{line.replace('> [!WARNING]', '') || 'Alerta o precaución'}</span>
                             </div>
@@ -1708,7 +1708,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         // 7. Generic Quote >
                         if (line.startsWith('> ')) {
                           return (
-                            <blockquote key={idx} className="border-l-3 border-indigo-400 pl-3 py-1 my-1 text-slate-600 italic text-sm bg-indigo-50/40 rounded-r-lg">
+                            <blockquote key={`pnote_render_${idx}_quote`} className="border-l-3 border-indigo-400 pl-3 py-1 my-1 text-slate-600 italic text-sm bg-indigo-50/40 rounded-r-lg">
                               {line.substring(2)}
                             </blockquote>
                           );
@@ -1716,7 +1716,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         // 8. Bullet List - or *
                         if (line.startsWith('- ') || line.startsWith('* ')) {
                           return (
-                            <div key={idx} className="flex items-start gap-2 text-sm text-slate-800 pl-2 py-0.5">
+                            <div key={`pnote_render_${idx}_bullet`} className="flex items-start gap-2 text-sm text-slate-800 pl-2 py-0.5">
                               <span className="text-indigo-500 font-black">•</span>
                               <span>{line.substring(2)}</span>
                             </div>
@@ -1727,7 +1727,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                           const num = line.match(/^(\d+)\.\s/)?.[1] || '1';
                           const text = line.replace(/^\d+\.\s/, '');
                           return (
-                            <div key={idx} className="flex items-start gap-2 text-sm text-slate-800 pl-2 py-0.5">
+                            <div key={`pnote_render_${idx}_num`} className="flex items-start gap-2 text-sm text-slate-800 pl-2 py-0.5">
                               <span className="text-indigo-600 font-bold text-xs bg-indigo-50 px-1.5 py-0.2 rounded font-mono">{num}</span>
                               <span>{text}</span>
                             </div>
@@ -1735,15 +1735,15 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         }
                         // 10. Horizontal divider
                         if (line === '---' || line === '***' || line === '___') {
-                          return <hr key={idx} className="border-slate-200 my-4" />;
+                          return <hr key={`pnote_render_${idx}_hr`} className="border-slate-200 my-4" />;
                         }
                         // 11. Empty line
                         if (!line.trim()) {
-                          return <div key={idx} className="h-2.5" />;
+                          return <div key={`pnote_render_${idx}_empty`} className="h-2.5" />;
                         }
                         // 12. Standard paragraph with inline formatting
                         return (
-                          <p key={idx} className="text-sm text-slate-800 leading-relaxed font-normal">
+                          <p key={`pnote_render_${idx}_p`} className="text-sm text-slate-800 leading-relaxed font-normal">
                             {line}
                           </p>
                         );

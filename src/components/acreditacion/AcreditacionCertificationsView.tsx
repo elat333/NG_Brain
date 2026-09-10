@@ -783,7 +783,7 @@ export const AcreditacionCertificationsView: React.FC<AcreditacionCertifications
                           {selectedDetailCert.volumePrices.map((tier, idx) => {
                             const tierMargin = tier.price - (selectedDetailCert.purchasePrice || 0);
                             return (
-                              <tr key={tier.id || idx} className="hover:bg-slate-50/80">
+                              <tr key={`cert_detail_tier_${tier.id || idx}_${idx}`} className="hover:bg-slate-50/80">
                                 <td className="py-2.5 px-3.5 font-bold text-slate-900">
                                   {tier.minQty} {tier.maxQty ? `a ${tier.maxQty} unidades` : 'unidades o más'}
                                 </td>
@@ -1082,7 +1082,7 @@ export const AcreditacionCertificationsView: React.FC<AcreditacionCertifications
                   ) : (
                     <div className="space-y-2">
                       {volumePrices.map((tier, idx) => (
-                        <div key={tier.id || idx} className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
+                        <div key={`cert_form_tier_${tier.id || idx}_${idx}`} className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
                           <div className="w-24">
                             <span className="text-[9px] text-slate-400 block font-bold">Min Uds</span>
                             <input

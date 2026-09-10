@@ -94,6 +94,24 @@ export interface TaskHistoryItem {
   details: string;
 }
 
+export interface TaskComment {
+  id: string;
+  taskId?: string;
+  taskTitle?: string;
+  authorId: string;
+  authorName: string;
+  authorRole?: string; // 'Líder' | 'Colaborador' | 'Revisor' | 'Administrador' | 'Observador'
+  authorAvatar?: string;
+  text: string;
+  createdAt: string;
+  requiresReview?: boolean; // Si es una solicitud de revisión/cambio formal
+  status?: 'pending' | 'resolved'; // Estado de la solicitud de revisión
+  resolvedAt?: string;
+  resolvedBy?: string;
+  targetMemberId?: string;
+  mentionedMemberIds?: string[];
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -114,12 +132,16 @@ export interface Task {
   plannedEndTime?: string; // Hora de fin planificada
   plannedEndDate?: string; // Fecha planificada para finalizar la actividad (Opcional)
   actualEndDate?: string; // Fecha de entrega real
+  actualStartDate?: string; // Fecha de inicio real
+  actualStartTime?: string; // Hora de inicio real
+  actualEndTime?: string; // Hora de fin / entrega real
   priority?: 'baja' | 'media' | 'alta' | 'meteoric_crash'; // Nivel de prioridad
   storyDescription?: string; // Descripción de la historia de usuario (NUEVO)
   acceptanceCriteria?: string; // Criterios de aceptación (NUEVO)
   taskTemplate?: 'standard' | 'design_post' | 'design_video' | 'design_carousel';
   designData?: DesignPostData;
   blockedByTaskIds?: string[]; // IDs de tareas que bloquean a esta tarea
+  comments?: TaskComment[]; // Comentarios y solicitudes de revisión
   createdAt: string;
   history?: TaskHistoryItem[]; // Historial de cambios
 }
@@ -616,6 +638,12 @@ export interface Trainer {
   directoryId: string; // Links to TeamMember if internal, or could be general
   specialties?: string;
   hourlyRate?: number;
+  relationshipType?: 'aliado_estrategico' | 'planta' | 'honorarios' | 'proveedor_frecuente';
+  teachingInterests?: string;       // Qué sabe y le gusta enseñar
+  teachingDislikes?: string;        // Qué no le gusta / restricciones
+  preferredModality?: 'presencial' | 'virtual' | 'hibrido';
+  logisticsNotes?: string;          // Condiciones de viaje, viáticos, requerimientos
+  relationshipNotes?: string;       // Notas sobre la relación institucional o acuerdos
   createdAt?: string;
 }
 
@@ -631,14 +659,29 @@ export interface TrainingSpace {
   createdAt?: string;
 }
 
+export interface TrainingSession {
+  id: string;
+  date: string;               // YYYY-MM-DD
+  startTime: string;          // HH:mm (ej. 10:00)
+  endTime: string;            // HH:mm (ej. 12:00)
+  trainerId: string;          // ID del capacitador asignado a esta sesión
+  spaceId: string;            // ID del espacio físico o virtual
+  topic?: string;             // Tema o módulo específico de la sesión
+  notes?: string;             // Notas específicas de la sesión
+}
+
 export interface TrainingPlan {
   id: string;
   title: string;
+  description?: string;
+  sessions?: TrainingSession[];
   trainerId: string;
   spaceId: string;
   date: string;
+  endDate?: string;
   startTime: string;
   endTime: string;
+  totalHours?: number;
   status: 'programada' | 'completada' | 'cancelada';
   createdAt?: string;
 }

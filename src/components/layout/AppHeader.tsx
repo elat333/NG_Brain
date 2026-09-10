@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Building2, 
   FolderKanban, 
@@ -19,7 +19,12 @@ import {
   Check, 
   ChevronRight, 
   User,
-  X
+  X,
+  Download,
+  ChevronDown,
+  FileSpreadsheet,
+  UserCheck,
+  BarChart3
 } from 'lucide-react';
 import { Process, TeamMember, Task } from '../../types';
 import { normalizeText } from '../../lib/textUtils';
@@ -121,10 +126,15 @@ export interface AppHeaderProps {
   migrateFromLocalStorage?: () => void;
   handleExportTasks?: () => void;
   fileInputRef?: React.RefObject<HTMLInputElement | null>;
+  myActivitiesOnly?: boolean;
+  setMyActivitiesOnly?: (val: boolean | ((prev: boolean) => boolean)) => void;
+  myActivitiesCount?: number;
+  handleExportTasksToCsv?: () => void;
   [key: string]: any;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = (props) => {
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const {
     activeTab,
     settingsSubTab,
@@ -222,45 +232,75 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
     setIsAddingCompany = () => {},
     accessibleProcesses = processes,
     showFicha = false,
-    setShowFicha = () => {}
+    setShowFicha = () => {},
+    myActivitiesOnly = false,
+    setMyActivitiesOnly = () => {},
+    myActivitiesCount = 0,
+    handleExportTasksToCsv = () => {}
   } = props;
 
   return (
         <header className={`flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white text-ng-black border-b border-gray-100 shadow-2xs relative z-30 transition-all ${
           ['tasks', 'gerencia', 'marketing', 'ventas', 'capacitacion', 'acreditacion', 'qhse', 'importaciones', 'process_dashboard', 'productos'].includes(activeTab) ? 'px-6 py-2.5' : 'p-6'
         }`}>
-          <div>
-            <h1 className={`font-black tracking-tight ${['tasks', 'gerencia', 'marketing', 'ventas', 'capacitacion', 'acreditacion', 'qhse', 'importaciones', 'process_dashboard', 'productos'].includes(activeTab) ? 'text-lg md:text-xl' : 'text-2xl'}`}>
-              {activeTab === 'dashboard' && 'Panel de Control'}
-              {activeTab === 'gerencia' && 'Módulo de Gerencia & Dirección'}
-              {activeTab === 'process_dashboard' && 'Gestión de Procesos'}
-              {activeTab === 'importaciones' && 'Módulo de Importaciones'}
-              {activeTab === 'marketing' && 'Módulo de Marketing'}
-              {activeTab === 'ventas' && 'Módulo de Ventas'}
-              {activeTab === 'capacitacion' && 'Módulo de Capacitación'}
-              {activeTab === 'acreditacion' && 'Módulo de Acreditación'}
-              {activeTab === 'productos' && 'Módulo de Productos'}
-              {activeTab === 'qhse' && 'Módulo de QHSE'}
-              {activeTab === 'transcript' && 'Análisis de Transcripciones'}
-              {activeTab === 'projects' && 'Gestión de Proyectos'}
-              {activeTab === 'tasks' && 'Seguimiento de Tareas'}
-              {activeTab === 'planner' && 'Asistente de Planificación'}
-              {activeTab === 'directory' && (
-                directorySubTab === 'people' ? 'Directorio de Personas' : 
-                directorySubTab === 'companies' ? 'Directorio de Compañías' : 
-                'Industrias y Sectores'
+          <div className="flex flex-wrap items-center gap-3">
+            <div>
+              <h1 className={`font-black tracking-tight ${['tasks', 'gerencia', 'marketing', 'ventas', 'capacitacion', 'acreditacion', 'qhse', 'importaciones', 'process_dashboard', 'productos'].includes(activeTab) ? 'text-lg md:text-xl' : 'text-2xl'}`}>
+                {activeTab === 'dashboard' && 'Panel de Control'}
+                {activeTab === 'gerencia' && 'Módulo de Gerencia & Dirección'}
+                {activeTab === 'process_dashboard' && 'Gestión de Procesos'}
+                {activeTab === 'importaciones' && 'Módulo de Importaciones'}
+                {activeTab === 'marketing' && 'Módulo de Marketing'}
+                {activeTab === 'ventas' && 'Módulo de Ventas'}
+                {activeTab === 'capacitacion' && 'Módulo de Capacitación'}
+                {activeTab === 'acreditacion' && 'Módulo de Acreditación'}
+                {activeTab === 'productos' && 'Módulo de Productos'}
+                {activeTab === 'qhse' && 'Módulo de QHSE'}
+                {activeTab === 'transcript' && 'Análisis de Transcripciones'}
+                {activeTab === 'projects' && 'Gestión de Proyectos'}
+                {activeTab === 'tasks' && 'Seguimiento de Tareas'}
+                {activeTab === 'planner' && 'Asistente de Planificación'}
+                {activeTab === 'directory' && (
+                  directorySubTab === 'people' ? 'Directorio de Personas' : 
+                  directorySubTab === 'companies' ? 'Directorio de Compañías' : 
+                  'Industrias y Sectores'
+                )}
+                {activeTab === 'settings' && (
+                  settingsSubTab === 'roles' ? 'Permisos por Integrante' :
+                  settingsSubTab === 'processes' ? 'Gestión de Procesos' :
+                  settingsSubTab === 'members' ? 'Gestión de Equipo' :
+                  'Configuración del Sistema'
+                )}
+              </h1>
+              {activeTab !== 'tasks' && (
+                <p className="text-ng-black/40 text-[10px] font-bold uppercase tracking-widest mt-1">
+                  Inteligencia colectiva para un futuro sostenible
+                </p>
               )}
-              {activeTab === 'settings' && (
-                settingsSubTab === 'roles' ? 'Permisos por Integrante' :
-                settingsSubTab === 'processes' ? 'Gestión de Procesos' :
-                settingsSubTab === 'members' ? 'Gestión de Equipo' :
-                'Configuración del Sistema'
-              )}
-            </h1>
-            {activeTab !== 'tasks' && (
-              <p className="text-ng-black/40 text-[10px] font-bold uppercase tracking-widest mt-1">
-                Inteligencia colectiva para un futuro sostenible
-              </p>
+            </div>
+
+            {activeTab === 'tasks' && currentMember && (
+              <button
+                type="button"
+                id="tasks-my-activities-toggle"
+                onClick={() => setMyActivitiesOnly(!myActivitiesOnly)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border shadow-2xs cursor-pointer select-none shrink-0 ${
+                  myActivitiesOnly
+                    ? 'bg-slate-900 text-ng-lime border-slate-900 shadow-md shadow-slate-900/10'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                }`}
+                title={myActivitiesOnly ? 'Mostrando solo mis tareas (haz clic para ver todas)' : 'Filtrar tareas donde soy responsable, auxiliar o revisor'}
+              >
+                <UserCheck size={14} className={myActivitiesOnly ? 'text-ng-lime' : 'text-slate-500'} />
+                <span>Mis Actividades</span>
+                {myActivitiesCount !== undefined && (
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                    myActivitiesOnly ? 'bg-ng-lime/20 text-ng-lime' : 'bg-slate-100 text-slate-700'
+                  }`}>
+                    {myActivitiesCount}
+                  </span>
+                )}
+              </button>
             )}
           </div>
 
@@ -758,7 +798,7 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
                             { id: 'backlog', label: 'Product Backlog' },
                             { id: 'todo', label: 'Por Hacer' },
                             { id: 'in_progress', label: 'En Progreso' },
-                            { id: 'review', label: 'En Revisión' },
+                            { id: 'review', label: 'Para Revisión' },
                             { id: 'correction', label: 'Para Corrección' },
                             { id: 'done', label: 'Completada' },
                             { id: 'blocked', label: 'Bloqueada' },
@@ -929,18 +969,21 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
                         <Calendar size={13} />
                         Calendario
                       </button>
+                      <button
+                        onClick={() => setTaskViewMode('summary')}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${
+                          taskViewMode === 'summary'
+                            ? 'bg-ng-lime text-ng-black shadow-2xs font-black'
+                            : 'text-gray-500 hover:text-gray-950 hover:bg-white/60 font-bold'
+                        }`}
+                        title="Ver Resumen & Gestión de Observaciones"
+                      >
+                        <BarChart3 size={13} />
+                        Resumen
+                      </button>
                     </div>
                     
                     <input type="file" accept=".json,.csv" className="hidden" ref={fileInputRef} onChange={handleImportTasks} />
-                    <button
-                      type="button"
-                      onClick={() => exportTasksBackup(tasks)}
-                      title="Descargar respaldo de seguridad JSON de todas las tareas"
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 text-[11px] font-bold rounded-xl transition-all border border-gray-200/60"
-                    >
-                      <Save size={14} className="text-gray-500" />
-                      <span className="hidden sm:inline">Respaldo JSON</span>
-                    </button>
                     
                     {!isReadOnly && (
                       <button 

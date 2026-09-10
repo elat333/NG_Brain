@@ -235,8 +235,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             if (!hasTasksAccess && !hasPlannerAccess && !hasProjectsAccess) return null;
 
             return (
-              <>
+              <React.Fragment key="sidebar_nav_group_tasks">
                 <NavButton 
+                  key="sidebar_nav_btn_tasks"
                   active={isTasksGroupActive} 
                   icon={<CheckCircle2 size={20} />} 
                   label="Tareas" 
@@ -262,8 +263,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       className="ml-8 mt-1 space-y-1 overflow-hidden"
                     >
                       {hasTasksAccess && (
-                        <>
+                        <React.Fragment key="subnav_tasks_primary_group">
                           <SubNavButton 
+                            key="subnav_tasks_btn_board"
                             active={activeTab === 'tasks' && tasksSubTab === 'board'} 
                             label="Tablero de Tareas" 
                             icon={<CheckCircle2 size={14} />} 
@@ -274,6 +276,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                             }} 
                           />
                           <SubNavButton 
+                            key="subnav_tasks_btn_permissions"
                             active={activeTab === 'tasks' && tasksSubTab === 'permissions'} 
                             label="Reglas y Permisos" 
                             icon={<Shield size={14} />} 
@@ -283,10 +286,11 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                               setTasksSubTab('permissions');
                             }} 
                           />
-                        </>
+                        </React.Fragment>
                       )}
                       {hasProjectsAccess && (
                         <SubNavButton 
+                          key="subnav_tasks_btn_projects"
                           active={activeTab === 'projects'} 
                           label="Proyectos" 
                           icon={<FolderKanban size={14} />} 
@@ -298,6 +302,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       )}
                       {hasPlannerAccess && (
                         <SubNavButton 
+                          key="subnav_tasks_btn_planner"
                           active={activeTab === 'planner'} 
                           label="Planificador IA" 
                           icon={<Calendar size={14} />} 
@@ -308,32 +313,35 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         />
                       )}
                       {hasTasksAccess && (
-                        <>
+                        <React.Fragment key="subnav_tasks_actions_group">
                           <SubNavButton 
+                            key="subnav_tasks_btn_export"
                             active={false} 
                             label="Exportar tareas" 
                             icon={<Download size={14} />} 
                             onClick={handleExportTasks} 
                           />
                           <SubNavButton 
+                            key="subnav_tasks_btn_import"
                             active={false} 
                             label="Importar tareas" 
                             icon={<UploadCloud size={14} />} 
                             onClick={() => fileInputRef.current?.click()} 
                           />
-                        </>
+                        </React.Fragment>
                       )}
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </>
+              </React.Fragment>
             );
           })()}
 
           {/* 3. Gestión (Procesos / XD) */}
           {getModuleAccess(currentMember, roles, 'process_dashboard') !== 'ninguno' && (
-            <>
+            <React.Fragment key="sidebar_nav_group_process_dashboard">
               <NavButton 
+                key="sidebar_nav_btn_process_dashboard"
                 active={activeTab === 'process_dashboard'} 
                 icon={<Activity size={20} />} 
                 label="Gestión" 
@@ -349,6 +357,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
                     <SubNavButton 
+                      key="subnav_proc_summary"
                       active={processSubTab === 'summary'} 
                       label="Horas y Tareas" 
                       icon={<Clock size={14} />} 
@@ -359,6 +368,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_proc_projects"
                       active={processSubTab === 'projects'} 
                       label="Bases de Proyectos" 
                       icon={<FolderKanban size={14} />} 
@@ -369,6 +379,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_proc_notes"
                       active={processSubTab === 'notes'} 
                       label="Notas" 
                       icon={<FileText size={14} />} 
@@ -379,6 +390,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_proc_links"
                       active={processSubTab === 'links'} 
                       label="Enlaces de Interés" 
                       icon={<Bookmark size={14} />} 
@@ -391,13 +403,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </>
+            </React.Fragment>
           )}
 
           {/* 4. Gerencia */}
           {getModuleAccess(currentMember, roles, 'gerencia') !== 'ninguno' && (
-            <>
+            <React.Fragment key="sidebar_nav_group_gerencia">
               <NavButton 
+                key="sidebar_nav_btn_gerencia"
                 active={activeTab === 'gerencia'} 
                 icon={<Briefcase size={20} />} 
                 label="Gerencia" 
@@ -413,6 +426,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
                     <SubNavButton 
+                      key="subnav_gerencia_links"
                       active={managementSubTab === 'links'} 
                       label="Enlaces de Interés" 
                       icon={<LinkIcon size={14} />} 
@@ -423,6 +437,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_gerencia_notes"
                       active={managementSubTab === 'notes'} 
                       label="Notas" 
                       icon={<BookOpen size={14} />} 
@@ -433,6 +448,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_gerencia_consultant"
                       active={managementSubTab === 'consultant'} 
                       label="Asistente IA" 
                       icon={<Bot size={14} />} 
@@ -443,6 +459,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_gerencia_strategy"
                       active={managementSubTab === 'strategy'} 
                       label="Estrategia & OKRs" 
                       icon={<Target size={14} />} 
@@ -453,6 +470,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_gerencia_governance"
                       active={managementSubTab === 'governance'} 
                       label="Gobernanza IA" 
                       icon={<Sliders size={14} />} 
@@ -465,13 +483,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </>
+            </React.Fragment>
           )}
 
           {/* 5. Acreditación */}
           {getModuleAccess(currentMember, roles, 'acreditacion') !== 'ninguno' && (
-            <>
+            <React.Fragment key="sidebar_nav_group_acreditacion">
               <NavButton 
+                key="sidebar_nav_btn_acreditacion"
                 active={activeTab === 'acreditacion'} 
                 icon={<Award size={20} />} 
                 label="Acreditación" 
@@ -487,6 +506,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
                     <SubNavButton 
+                      key="subnav_acred_links"
                       active={acreditacionSubTab === 'links'} 
                       label="Enlaces de Interés" 
                       icon={<Link2 size={14} />} 
@@ -497,6 +517,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_acred_notes"
                       active={acreditacionSubTab === 'notes'} 
                       label="Notas" 
                       icon={<FileText size={14} />} 
@@ -507,6 +528,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_acred_allies"
                       active={acreditacionSubTab === 'allies'} 
                       label="Aliados Estratégicos" 
                       icon={<Users size={14} />} 
@@ -517,6 +539,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_acred_certifications"
                       active={acreditacionSubTab === 'certifications'} 
                       label="Catálogo de Ofertas" 
                       icon={<Award size={14} />} 
@@ -529,13 +552,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </>
+            </React.Fragment>
           )}
 
           {/* 6. Capacitación */}
           {getModuleAccess(currentMember, roles, 'capacitacion') !== 'ninguno' && (
-            <>
+            <React.Fragment key="sidebar_nav_group_capacitacion">
               <NavButton 
+                key="sidebar_nav_btn_capacitacion"
                 active={activeTab === 'capacitacion'} 
                 icon={<GraduationCap size={20} />} 
                 label="Capacitación" 
@@ -551,6 +575,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
                     <SubNavButton 
+                      key="subnav_cap_links"
                       active={capacitacionSubTab === 'links'} 
                       label="Enlaces de Interés" 
                       icon={<LinkIcon size={14} />} 
@@ -561,6 +586,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_cap_notes"
                       active={capacitacionSubTab === 'notes'} 
                       label="Notas" 
                       icon={<FileText size={14} />} 
@@ -571,6 +597,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_cap_calendar"
                       active={capacitacionSubTab === 'calendar'} 
                       label="Calendario" 
                       icon={<Calendar size={14} />} 
@@ -581,6 +608,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_cap_management"
                       active={capacitacionSubTab === 'management'} 
                       label="Gestión de Capacitaciones" 
                       icon={<BarChart2 size={14} />} 
@@ -591,6 +619,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_cap_trainers"
                       active={capacitacionSubTab === 'trainers'} 
                       label="Capacitadores" 
                       icon={<Users size={14} />} 
@@ -601,6 +630,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_cap_physical_spaces"
                       active={capacitacionSubTab === 'physical_spaces'} 
                       label="Lugares" 
                       icon={<Building2 size={14} />} 
@@ -611,6 +641,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_cap_virtual_spaces"
                       active={capacitacionSubTab === 'virtual_spaces'} 
                       label="Aulas Virtuales" 
                       icon={<Monitor size={14} />} 
@@ -623,13 +654,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </>
+            </React.Fragment>
           )}
 
           {/* 7. QHSE */}
           {getModuleAccess(currentMember, roles, 'qhse') !== 'ninguno' && (
-            <>
+            <React.Fragment key="sidebar_nav_group_qhse">
               <NavButton 
+                key="sidebar_nav_btn_qhse"
                 active={activeTab === 'qhse'} 
                 icon={<ShieldCheck size={20} />} 
                 label="QHSE" 
@@ -645,6 +677,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
                     <SubNavButton 
+                      key="subnav_qhse_links"
                       active={qhseSubTab === 'links'} 
                       label="Enlaces de Interés" 
                       icon={<LinkIcon size={14} />} 
@@ -655,6 +688,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_qhse_notes"
                       active={qhseSubTab === 'notes'} 
                       label="Notas" 
                       icon={<FileText size={14} />} 
@@ -667,13 +701,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </>
+            </React.Fragment>
           )}
 
           {/* 8. Marketing */}
           {getModuleAccess(currentMember, roles, 'marketing') !== 'ninguno' && (
-            <>
+            <React.Fragment key="sidebar_nav_group_marketing">
               <NavButton 
+                key="sidebar_nav_btn_marketing"
                 active={activeTab === 'marketing'} 
                 icon={<Megaphone size={20} />} 
                 label="Marketing" 
@@ -689,6 +724,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
                     <SubNavButton 
+                      key="subnav_mkt_links"
                       active={marketingSubTab === 'links'} 
                       label="Enlaces de Interés" 
                       icon={<LinkIcon size={14} />} 
@@ -699,6 +735,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_mkt_notes"
                       active={marketingSubTab === 'notes'} 
                       label="Notas" 
                       icon={<FileText size={14} />} 
@@ -709,6 +746,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_mkt_campaigns"
                       active={marketingSubTab === 'campaigns'} 
                       label="Campañas" 
                       icon={<Target size={14} />} 
@@ -719,6 +757,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_mkt_calendar"
                       active={marketingSubTab === 'content_calendar'} 
                       label="Contenido & Calendario" 
                       icon={<Calendar size={14} />} 
@@ -729,6 +768,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_mkt_metrics"
                       active={marketingSubTab === 'metrics_analytics'} 
                       label="Métricas & KPIs" 
                       icon={<BarChart2 size={14} />} 
@@ -741,13 +781,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </>
+            </React.Fragment>
           )}
 
           {/* 9. Ventas */}
           {getModuleAccess(currentMember, roles, 'ventas') !== 'ninguno' && (
-            <>
+            <React.Fragment key="sidebar_nav_group_ventas">
               <NavButton 
+                key="sidebar_nav_btn_ventas"
                 active={activeTab === 'ventas'} 
                 icon={<DollarSign size={20} />} 
                 label="Ventas" 
@@ -763,6 +804,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
                     <SubNavButton 
+                      key="subnav_ventas_links"
                       active={ventasSubTab === 'links'} 
                       label="Enlaces de Interés" 
                       icon={<LinkIcon size={14} />} 
@@ -773,6 +815,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_ventas_notes"
                       active={ventasSubTab === 'notes'} 
                       label="Notas" 
                       icon={<FileText size={14} />} 
@@ -783,6 +826,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_ventas_crm"
                       active={ventasSubTab === 'crm'} 
                       label="Clientes" 
                       icon={<Users size={14} />} 
@@ -793,6 +837,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_ventas_pipeline"
                       active={ventasSubTab === 'pipeline'} 
                       label="B2C (Personas)" 
                       icon={<Target size={14} />} 
@@ -803,6 +848,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_ventas_quotes"
                       active={ventasSubTab === 'quotes'} 
                       label="B2B (Empresas)" 
                       icon={<FileText size={14} />} 
@@ -813,6 +859,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_ventas_goals"
                       active={ventasSubTab === 'goals'} 
                       label="Metas & KPIs" 
                       icon={<BarChart2 size={14} />} 
@@ -825,13 +872,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </>
+            </React.Fragment>
           )}
 
           {/* 10. Productos */}
           {getModuleAccess(currentMember, roles, 'productos') !== 'ninguno' && (
-            <>
+            <React.Fragment key="sidebar_nav_group_productos">
               <NavButton 
+                key="sidebar_nav_btn_productos"
                 active={activeTab === 'productos'} 
                 icon={<Boxes size={20} />} 
                 label="Productos" 
@@ -847,6 +895,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
                     <SubNavButton 
+                      key="subnav_prod_todos"
                       active={productosSubTab === 'todos'} 
                       label="Todos los Productos" 
                       icon={<Boxes size={14} />} 
@@ -857,6 +906,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_prod_cert"
                       active={productosSubTab === 'certificacion'} 
                       label="Certificación" 
                       icon={<Award size={14} />} 
@@ -867,6 +917,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_prod_cap"
                       active={productosSubTab === 'capacitacion'} 
                       label="Capacitación" 
                       icon={<GraduationCap size={14} />} 
@@ -877,6 +928,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_prod_qhse"
                       active={productosSubTab === 'qhse'} 
                       label="QHSE" 
                       icon={<ShieldAlert size={14} />} 
@@ -887,6 +939,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_prod_epp"
                       active={productosSubTab === 'epp'} 
                       label="EPP" 
                       icon={<HardHat size={14} />} 
@@ -897,6 +950,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_prod_equipos"
                       active={productosSubTab === 'equipos'} 
                       label="Equipos" 
                       icon={<Wrench size={14} />} 
@@ -909,13 +963,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </>
+            </React.Fragment>
           )}
 
           {/* 11. Directorio */}
           {getModuleAccess(currentMember, roles, 'directory') !== 'ninguno' && (
-            <>
+            <React.Fragment key="sidebar_nav_group_directory">
               <NavButton 
+                key="sidebar_nav_btn_directory"
                 active={activeTab === 'directory'} 
                 icon={<Contact size={20} />} 
                 label="Directorio" 
@@ -931,6 +986,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
                     <SubNavButton 
+                      key="subnav_dir_people"
                       active={directorySubTab === 'people'} 
                       label="Personas" 
                       icon={<User size={14} />} 
@@ -940,6 +996,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_dir_companies"
                       active={directorySubTab === 'companies'} 
                       label="Compañías" 
                       icon={<Building2 size={14} />} 
@@ -949,6 +1006,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_dir_industries"
                       active={directorySubTab === 'industries'} 
                       label="Industrias" 
                       icon={<Layers size={14} />} 
@@ -960,13 +1018,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </>
+            </React.Fragment>
           )}
 
           {/* 12. Importaciones */}
           {getModuleAccess(currentMember, roles, 'importaciones') !== 'ninguno' && (
-            <>
+            <React.Fragment key="sidebar_nav_group_importaciones">
               <NavButton 
+                key="sidebar_nav_btn_importaciones"
                 active={activeTab === 'importaciones'} 
                 icon={<Package size={20} />} 
                 label="Importaciones" 
@@ -982,6 +1041,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
                     <SubNavButton 
+                      key="subnav_imp_products"
                       active={importacionesSubTab === 'products'} 
                       label="Base de Productos" 
                       icon={<Package size={14} />} 
@@ -992,6 +1052,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_imp_suppliers"
                       active={importacionesSubTab === 'suppliers'} 
                       label="Proveedores Internacionales" 
                       icon={<Globe size={14} />} 
@@ -1002,6 +1063,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_imp_proformas"
                       active={importacionesSubTab === 'proformas'} 
                       label="Proformas / Órdenes" 
                       icon={<FileText size={14} />} 
@@ -1012,6 +1074,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_imp_upload_proforma"
                       active={importacionesSubTab === 'upload_proforma'} 
                       label="Cargar y Validar" 
                       icon={<UploadCloud size={14} />} 
@@ -1024,12 +1087,13 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </>
+            </React.Fragment>
           )}
 
           {/* 13. Analizar Reunión */}
           {getModuleAccess(currentMember, roles, 'transcript') !== 'ninguno' && (
             <NavButton 
+              key="sidebar_nav_btn_transcript"
               active={activeTab === 'transcript'} 
               icon={<Sparkles size={20} />} 
               label="Analizar Reunión" 
@@ -1042,8 +1106,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
           {/* 14. Configuración */}
           {getModuleAccess(currentMember, roles, 'settings') !== 'ninguno' && (
-            <>
+            <React.Fragment key="sidebar_nav_group_settings">
               <NavButton 
+                key="sidebar_nav_btn_settings"
                 active={activeTab === 'settings'} 
                 icon={<Settings size={20} />} 
                 label="Configuración" 
@@ -1059,6 +1124,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
                     <SubNavButton 
+                      key="subnav_settings_roles"
                       active={settingsSubTab === 'roles'} 
                       label="Permisos" 
                       icon={<Shield size={14} />} 
@@ -1068,6 +1134,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_settings_processes"
                       active={settingsSubTab === 'processes'} 
                       label="Procesos" 
                       icon={<Building2 size={14} />} 
@@ -1077,6 +1144,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_settings_members"
                       active={settingsSubTab === 'members'} 
                       label="Equipo" 
                       icon={<Users size={14} />} 
@@ -1088,7 +1156,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </>
+            </React.Fragment>
           )}
         </nav>
       </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { TeamMember } from '../../types';
+import { TeamMember, Company, Process, Role } from '../../types';
 import { CapacitacionModule, CapacitacionSubTab } from '../CapacitacionModule';
 
 interface TrainingViewProps {
@@ -8,6 +8,9 @@ interface TrainingViewProps {
   activeSubTab: CapacitacionSubTab;
   onSubTabChange: (tab: CapacitacionSubTab) => void;
   members: TeamMember[];
+  companies?: Company[];
+  processes?: Process[];
+  roles?: Role[];
   onCreateMember?: (member: Partial<TeamMember>) => Promise<string>;
 }
 
@@ -16,6 +19,9 @@ export const TrainingView: React.FC<TrainingViewProps> = ({
   activeSubTab,
   onSubTabChange,
   members,
+  companies = [],
+  processes = [],
+  roles = [],
   onCreateMember,
 }) => {
   return (
@@ -31,6 +37,9 @@ export const TrainingView: React.FC<TrainingViewProps> = ({
         activeSubTab={activeSubTab}
         onSubTabChange={onSubTabChange}
         members={members}
+        companies={companies}
+        processes={processes}
+        roles={roles}
         onCreateMember={onCreateMember}
       />
     </motion.div>

@@ -61,23 +61,37 @@ service cloud.firestore {
       let hasMember = member != null;
       let moduleAccess = hasMember && 'moduleAccess' in member && member.moduleAccess != null ? member.moduleAccess : {};
       let systemRoleId = hasMember && 'systemRoleId' in member ? member.systemRoleId : '';
+      let memberRole = hasMember && 'role' in member && member.role is string ? member.role : '';
+      let memberProcessId = hasMember && 'processId' in member && member.processId is string ? member.processId : '';
       let isSystemAdmin = hasMember && 'isSystemAdmin' in member ? member.isSystemAdmin : false;
       
-      let specificKey = 'tasks_' + processId;
+      let pId = processId is string ? processId : '';
+      let specificKey = 'tasks_' + pId;
       let specificAccess = specificKey in moduleAccess ? moduleAccess[specificKey] : null;
       let generalAccess = 'tasks' in moduleAccess ? moduleAccess['tasks'] : null;
       let marketingAccess = 'marketing' in moduleAccess ? moduleAccess['marketing'] : null;
+      let acreditacionAccess = 'acreditacion' in moduleAccess ? moduleAccess['acreditacion'] : null;
       
+      let isMktProcess = pId == 'proc-mkt' || (pId.size() > 0 && pId.matches('.*mkt.*'));
+      let isAcredProcess = pId == 'proc-acred' || pId == 'acreditacion' || (pId.size() > 0 && pId.matches('.*acred.*'));
+      let isAcredMember = memberProcessId == 'proc-acred' || memberProcessId == 'acreditacion' || (memberProcessId.size() > 0 && memberProcessId.matches('.*acred.*'));
+
       return isSignedIn() && hasMember && (
         isSystemAdmin == true ||
         systemRoleId == 'role-admin' ||
         specificAccess == 'lider' ||
         specificAccess == 'administrador' ||
-        (processId == 'proc-mkt' && (marketingAccess == 'lider' || marketingAccess == 'administrador')) ||
+        (isMktProcess && (marketingAccess == 'lider' || marketingAccess == 'administrador')) ||
+        (isAcredProcess && (acreditacionAccess == 'lider' || acreditacionAccess == 'administrador')) ||
+        (pId.size() > 0 && (memberProcessId == pId || (isAcredMember && isAcredProcess)) && (systemRoleId == 'role-lider' || memberRole.matches('.*(Lider|Líder|lider|líder).*'))) ||
         (
-          specificAccess == null && (
+          (specificAccess == null || specificAccess == 'ninguno') && (
             generalAccess == 'lider' ||
-            generalAccess == 'administrador'
+            generalAccess == 'administrador' ||
+            acreditacionAccess == 'lider' ||
+            acreditacionAccess == 'administrador' ||
+            marketingAccess == 'lider' ||
+            marketingAccess == 'administrador'
           )
         )
       );
@@ -88,16 +102,25 @@ service cloud.firestore {
       let member = getMember();
       let hasMember = member != null;
       let moduleAccess = hasMember && 'moduleAccess' in member && member.moduleAccess != null ? member.moduleAccess : {};
+      let memberProcessId = hasMember && 'processId' in member && member.processId is string ? member.processId : '';
       
-      let specificKey = 'tasks_' + processId;
+      let pId = processId is string ? processId : '';
+      let specificKey = 'tasks_' + pId;
       let specificAccess = specificKey in moduleAccess ? moduleAccess[specificKey] : null;
       let generalAccess = 'tasks' in moduleAccess ? moduleAccess['tasks'] : null;
       let marketingAccess = 'marketing' in moduleAccess ? moduleAccess['marketing'] : null;
+      let acreditacionAccess = 'acreditacion' in moduleAccess ? moduleAccess['acreditacion'] : null;
+
+      let isMktProcess = pId == 'proc-mkt' || (pId.size() > 0 && pId.matches('.*mkt.*'));
+      let isAcredProcess = pId == 'proc-acred' || pId == 'acreditacion' || (pId.size() > 0 && pId.matches('.*acred.*'));
+      let isAcredMember = memberProcessId == 'proc-acred' || memberProcessId == 'acreditacion' || (memberProcessId.size() > 0 && memberProcessId.matches('.*acred.*'));
       
       return isSignedIn() && hasMember && (
         specificAccess == 'colaborador' ||
-        (processId == 'proc-mkt' && (marketingAccess == 'colaborador')) ||
-        (specificAccess == null && generalAccess == 'colaborador')
+        (isMktProcess && (marketingAccess == 'colaborador')) ||
+        (isAcredProcess && (acreditacionAccess == 'colaborador')) ||
+        (pId.size() > 0 && (memberProcessId == pId || (isAcredMember && isAcredProcess))) ||
+        ((specificAccess == null || specificAccess == 'ninguno') && generalAccess == 'colaborador')
       );
     }
 
@@ -189,10 +212,12 @@ service cloud.firestore {
         (
           (isTaskAssignee(existing()) || isProcessCollaborator('processId' in existing() ? existing().processId : '')) && 
           incoming().diff(existing()).affectedKeys().hasOnly([
-            'deliverables', 'actualHours', 'dueDate', 'history', 'status'
+            'deliverables', 'actualHours', 'plannedHours', 'dueDate', 'plannedDate', 'plannedEndDate', 'history', 'status',
+            'actualStartDate', 'actualEndDate', 'actualStartTime', 'actualEndTime',
+            'plannedStartTime', 'plannedEndTime', 'comments', 'designData'
           ]) && (
             incoming().status == existing().status ||
-            incoming().status in ['in_progress', 'review']
+            incoming().status in ['todo', 'in_progress', 'review', 'correction', 'done', 'blocked']
           )
         )
       );

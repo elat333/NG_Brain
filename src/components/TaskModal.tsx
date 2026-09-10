@@ -5,16 +5,18 @@ import {
   Info, History, CheckCircle2, ChevronDown, ChevronUp, Link as LinkIcon, 
   Lock, Activity, FolderKanban, AlignLeft, Users, UserPlus, Zap, Ban, Copy 
 } from 'lucide-react';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, sanitizeForFirestore } from '../lib/firebase';
 import { processAndCompressImage } from '../lib/imageUtils';
 import { Task, TeamMember, Role, Process, Project } from '../types';
 import { isTaskBlocked as checkTaskBlocked } from '../lib/permissions';
 import { TaskDeliverablesSection } from './tasks/modal/TaskDeliverablesSection';
 import { TaskDependenciesSection } from './tasks/modal/TaskDependenciesSection';
 import { TaskHistorySection } from './tasks/modal/TaskHistorySection';
+import { TaskCommentsSection } from './tasks/modal/TaskCommentsSection';
+import { TaskQuickActionsFooter } from './tasks/modal/TaskQuickActionsFooter';
 interface TaskModalProps {
   isOpen: boolean;
   editingTask: Task | null;
@@ -72,6 +74,11 @@ export default function TaskModal({
 
   const [showAddAuxDropdown, setShowAddAuxDropdown] = useState(false);
   const [auxSearchQuery, setAuxSearchQuery] = useState('');
+  const [commentDraft, setCommentDraft] = useState<{ text: string; requiresReview: boolean }>({ text: '', requiresReview: false });
+
+  const handleDraftChange = useCallback((text: string, requiresReview: boolean) => {
+    setCommentDraft({ text, requiresReview });
+  }, []);
 
   const sortedMembers = React.useMemo(() => {
     return [...members].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -79,6 +86,25 @@ export default function TaskModal({
 
   const isPrimaryAssignee = currentMember?.id === (editingTask?.memberId || newTaskData?.memberId);
   const taskAccess: string = 'administrador'; // full edit within modal if user opened it
+
+  // Check if current task process or linked project is Marketing
+  const isMarketingProcess = React.useMemo(() => {
+    if (newTaskData.processId) {
+      const proc = processes.find(p => p.id === newTaskData.processId);
+      if (proc) {
+        return (proc.name || '').toLowerCase().includes('marketing') || (proc.id || '').toLowerCase().includes('marketing');
+      }
+      return newTaskData.processId.toLowerCase().includes('marketing');
+    }
+    if (newTaskData.projectId) {
+      const proj = projects.find(p => p.id === newTaskData.projectId);
+      if (proj && proj.processId) {
+        const proc = processes.find(p => p.id === proj.processId);
+        return (proc?.name || '').toLowerCase().includes('marketing') || (proc?.id || '').toLowerCase().includes('marketing');
+      }
+    }
+    return false;
+  }, [newTaskData.processId, newTaskData.projectId, processes, projects]);
 
   const [designColWidths, setDesignColWidths] = useState({
     element: 150,
@@ -196,7 +222,35 @@ export default function TaskModal({
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
                 className="bg-white w-full max-w-6xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
               >
-                <form onSubmit={onSave} className="flex flex-col flex-1 overflow-hidden">
+                <form 
+                  onSubmit={(e) => {
+                    if (commentDraft.text && commentDraft.text.trim()) {
+                      const mentionedIds: string[] = [];
+                      members.forEach(m => {
+                        if (commentDraft.text.includes(`@${m.name}`)) {
+                          mentionedIds.push(m.id);
+                        }
+                      });
+                      const autoComment = sanitizeForFirestore({
+                        id: `comment_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                        authorId: currentMember?.id || 'anonymous',
+                        authorName: currentMember?.name || 'Usuario',
+                        authorRole: currentMember?.role || 'Colaborador',
+                        authorAvatar: currentMember?.avatar || '',
+                        text: commentDraft.text.trim(),
+                        requiresReview: !!commentDraft.requiresReview,
+                        ...(commentDraft.requiresReview ? { status: 'pending' } : {}),
+                        mentionedMemberIds: mentionedIds.length > 0 ? Array.from(new Set(mentionedIds)) : [],
+                        createdAt: new Date().toISOString(),
+                        taskId: editingTask?.id || newTaskData.id,
+                        taskTitle: newTaskData.title || ''
+                      });
+                      newTaskData.comments = [...(newTaskData.comments || []), autoComment];
+                    }
+                    onSave(e);
+                  }} 
+                  className="flex flex-col flex-1 overflow-hidden"
+                >
                   <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0 z-10">
                     <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
                       <div className={`p-2.5 rounded-xl shrink-0 ${editingTask ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>
@@ -261,7 +315,21 @@ export default function TaskModal({
                             disabled={!canEditMetadataField}
                             className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-xs font-bold shadow-sm disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                             value={newTaskData.processId}
-                            onChange={e => setNewTaskData({...newTaskData, processId: e.target.value})}
+                            onChange={e => {
+                              const newProcessId = e.target.value;
+                              const proc = processes.find(p => p.id === newProcessId);
+                              const isMkt = (proc?.name || '').toLowerCase().includes('marketing') || (proc?.id || '').toLowerCase().includes('marketing');
+                              
+                              // Si el nuevo proceso no es de Marketing y la plantilla actual era de diseño, reiniciar a standard
+                              const currentTemplate = newTaskData.taskTemplate;
+                              const isDesignTemplate = currentTemplate === 'design_post' || currentTemplate === 'design_carousel' || currentTemplate === 'design_video';
+                              
+                              setNewTaskData({
+                                ...newTaskData, 
+                                processId: newProcessId,
+                                taskTemplate: (!isMkt && isDesignTemplate) ? 'standard' : currentTemplate
+                              });
+                            }}
                           >
                             <option value="">Seleccionar Proceso...</option>
                             {processes.map((p, pIdx) => <option key={`modal_proc_${p.id || pIdx}_${pIdx}`} value={p.id}>{p.name}</option>)}
@@ -294,10 +362,19 @@ export default function TaskModal({
                             }}
                           >
                             <option value="standard">Desarrollo / Estándar</option>
-                            <option value="design_post">Diseño - Post Estático</option>
-                            <option value="design_carousel">Diseño - Carrusel</option>
-                            <option value="design_video">Diseño - Video</option>
+                            {isMarketingProcess && (
+                              <optgroup label="Plantillas de Diseño (Marketing)">
+                                <option value="design_post">Diseño - Post Estático</option>
+                                <option value="design_carousel">Diseño - Carrusel</option>
+                                <option value="design_video">Diseño - Video</option>
+                              </optgroup>
+                            )}
                           </select>
+                          {!isMarketingProcess && (
+                            <p className="text-[9px] text-gray-400 font-medium px-1 italic">
+                              * Las plantillas de diseño se activan al seleccionar el proceso de Marketing.
+                            </p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
@@ -508,7 +585,25 @@ export default function TaskModal({
                             disabled={!canEditMetadataField}
                             className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-xs font-bold shadow-sm disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                             value={newTaskData.projectId}
-                            onChange={e => setNewTaskData({...newTaskData, projectId: e.target.value})}
+                            onChange={e => {
+                              const newProjId = e.target.value;
+                              const proj = projects.find(p => p.id === newProjId);
+                              let nextProcessId = newTaskData.processId;
+                              if (proj && proj.processId && !newTaskData.processId) {
+                                nextProcessId = proj.processId;
+                              }
+                              const proc = processes.find(p => p.id === nextProcessId);
+                              const isMkt = (proc?.name || '').toLowerCase().includes('marketing') || (proc?.id || '').toLowerCase().includes('marketing');
+                              const currentTemplate = newTaskData.taskTemplate;
+                              const isDesignTemplate = currentTemplate === 'design_post' || currentTemplate === 'design_carousel' || currentTemplate === 'design_video';
+
+                              setNewTaskData({
+                                ...newTaskData, 
+                                projectId: newProjId,
+                                ...(nextProcessId ? { processId: nextProcessId } : {}),
+                                taskTemplate: (!isMkt && isDesignTemplate) ? 'standard' : currentTemplate
+                              });
+                            }}
                           >
                             <option value="">Historia de Usuario Independiente</option>
                             {projects.filter(p => 
@@ -545,7 +640,7 @@ export default function TaskModal({
                                 { value: 'backlog', label: '📦 Product Backlog' },
                                 { value: 'todo', label: '📋 Por Hacer' },
                                 { value: 'in_progress', label: '⚡ En Progreso' },
-                                { value: 'review', label: '🔍 En Revisión' },
+                                { value: 'review', label: '🔍 Para Revisión' },
                                 { value: 'correction', label: '🔧 Para Corrección' },
                                 { value: 'done', label: '✅ Completada' },
                                 { value: 'blocked', label: '🚫 Bloqueada' }
@@ -555,20 +650,11 @@ export default function TaskModal({
                                   <option key={`task_st_opt_${opt.value}_${optIdx}`} value={opt.value}>{opt.label}</option>
                                 ));
                               }
-                              if (taskAccess === 'colaborador') {
-                                // Only allow 'in_progress', 'review', and current status
-                                const filtered = allOptions.filter(opt => 
-                                  opt.value === 'in_progress' || 
-                                  opt.value === 'review' || 
-                                  opt.value === newTaskData.status
-                                );
-                                return filtered.map((opt, optIdx) => (
-                                  <option key={`task_st_filt_opt_${opt.value}_${optIdx}`} value={opt.value}>{opt.label}</option>
-                                ));
-                              }
-                              // Otherwise, they shouldn't be editing, but if they view it:
-                              return allOptions.filter(opt => opt.value === newTaskData.status).map((opt, optIdx) => (
-                                <option key={`task_st_view_opt_${opt.value}_${optIdx}`} value={opt.value}>{opt.label}</option>
+                              // For collaborators and assigned users, allow standard workflow transitions
+                              const allowedValues = new Set(['todo', 'in_progress', 'review', newTaskData.status]);
+                              const filtered = allOptions.filter(opt => allowedValues.has(opt.value));
+                              return filtered.map((opt, optIdx) => (
+                                <option key={`task_st_filt_opt_${opt.value}_${optIdx}`} value={opt.value}>{opt.label}</option>
                               ));
                             })()}
                           </select>
@@ -755,10 +841,10 @@ export default function TaskModal({
         <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 flex items-center gap-2 mb-2">
           <CheckCircle2 size={12} className="text-blue-500" /> Ejecución Real
         </h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-2 relative">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5">
-              <Calendar size={12} className="text-emerald-500" /> Entregado el...
+              <Calendar size={12} className="text-emerald-500" /> Fecha Entrega
               {!canEditExecution && <Lock size={10} className="text-gray-300 ml-auto" />}
             </label>
             <input 
@@ -769,6 +855,21 @@ export default function TaskModal({
               }`}
               value={newTaskData.actualEndDate || ''}
               onChange={e => setNewTaskData({...newTaskData, actualEndDate: e.target.value})}
+            />
+          </div>
+          <div className="space-y-2 relative">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5">
+              <Clock size={12} className="text-blue-500" /> Hora Entrega
+              {!canEditExecution && <Lock size={10} className="text-gray-300 ml-auto" />}
+            </label>
+            <input 
+              type="time" 
+              disabled={!canEditExecution}
+              className={`w-full px-2.5 py-2 border rounded-lg focus:outline-none transition-all text-xs font-bold ${
+                !canEditExecution ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100' : 'bg-white border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
+              }`}
+              value={newTaskData.actualEndTime || ''}
+              onChange={e => setNewTaskData({...newTaskData, actualEndTime: e.target.value})}
             />
           </div>
           <div className="space-y-2 relative">
@@ -791,7 +892,7 @@ export default function TaskModal({
         </div>
       </div>
     </div>
-    {/* Section: Split Description into Description and Acceptance Criteria */}
+    {/* Section: Split Description into Description */}
                             <div className="space-y-3">
                               <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] ml-1">Descripción de la historia</label>
                               <textarea 
@@ -807,28 +908,6 @@ export default function TaskModal({
                                 <span className="text-[8px] font-black tracking-tight text-red-500 uppercase block pl-1">Solo Líder / Administrador</span>
                               )}
                             </div>
-                            <div className="space-y-3">
-                              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] ml-1 flex items-center gap-2">
-                                <CheckSquare size={14} className="text-emerald-500" /> Criterios de Aceptación
-                              </label>
-                              <textarea 
-                                placeholder="Lista de criterios requeridos para dar por finalizada la tarea..."
-                                disabled={!canEditStoryAndCriteria}
-                                className={`w-full h-24 px-6 py-4 border-2 border-gray-100 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all resize-none text-sm leading-relaxed shadow-sm placeholder:text-gray-300 ${
-                                  !canEditStoryAndCriteria ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white'
-                                }`}
-                                value={newTaskData.acceptanceCriteria || ''}
-                                onChange={e => setNewTaskData({...newTaskData, acceptanceCriteria: e.target.value})}
-                              />
-                            </div>
-                            {/* Section: Deliverables */}
-                            <TaskDeliverablesSection
-                              deliverables={newTaskData.deliverables}
-                              canEditExecution={canEditExecution}
-                              onUpdateDeliverables={(newDeliverables) => {
-                                setNewTaskData({ ...newTaskData, deliverables: newDeliverables });
-                              }}
-                            />
                             {(newTaskData.taskTemplate === 'design_post' || newTaskData.taskTemplate === 'design_carousel' || newTaskData.taskTemplate === 'design_video') && (
                               <div className="space-y-6 pt-4 border-t border-gray-100">
                                 {(newTaskData.taskTemplate === 'design_post' || newTaskData.taskTemplate === 'design_carousel') && (() => {
@@ -1134,7 +1213,7 @@ export default function TaskModal({
                                                     <div className="absolute right-0 top-0 bottom-0 w-1 bg-gray-200 opacity-0 group-hover:opacity-100 cursor-col-resize hover:bg-purple-400 transition-colors" onMouseDown={(e) => { const startX = e.pageX; const startWidth = videoColWidths.observations || 200; const onMouseMove = (moveEvent) => setVideoColWidths(prev => ({ ...prev, observations: Math.max(50, startWidth + (moveEvent.pageX - startX)) })); const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); }; document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp); }} />
                                                   </th>
                                                   {newTaskData.designData?.customVideoColumns?.map((col, colIdx) => (
-                                                    <th key={col.id || `custom_col_${colIdx}`} style={{ width: videoColWidths[col.id] || 200 }} className="p-0 border-r border-gray-100/50 relative group select-none group/th">
+                                                    <th key={`modal_custom_video_col_${col.id || colIdx}_${colIdx}`} style={{ width: videoColWidths[col.id] || 200 }} className="p-0 border-r border-gray-100/50 relative group select-none group/th">
                                                       <div className="px-2 py-2 flex items-center justify-between overflow-hidden">
                                                         <input 
                                                           value={col.name}
@@ -1407,27 +1486,141 @@ export default function TaskModal({
                                   </div>
                                 </div>
                               )}
+
+                            {/* Section: Acceptance Criteria & Deliverables at the end of the workflow */}
+                            <div className="space-y-4 pt-4 border-t border-gray-100">
+                              <div className="space-y-3">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] ml-1 flex items-center gap-2">
+                                  <CheckSquare size={14} className="text-emerald-500" /> Criterios de Aceptación
+                                </label>
+                                <textarea 
+                                  placeholder="Lista de criterios requeridos para dar por finalizada la tarea..."
+                                  disabled={!canEditStoryAndCriteria}
+                                  className={`w-full h-24 px-6 py-4 border-2 border-gray-100 rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all resize-none text-sm leading-relaxed shadow-sm placeholder:text-gray-300 ${
+                                    !canEditStoryAndCriteria ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white'
+                                  }`}
+                                  value={newTaskData.acceptanceCriteria || ''}
+                                  onChange={e => setNewTaskData({...newTaskData, acceptanceCriteria: e.target.value})}
+                                />
+                                {!canEditStoryAndCriteria && (
+                                  <span className="text-[8px] font-black tracking-tight text-red-500 uppercase block pl-1">Solo Líder / Administrador</span>
+                                )}
+                              </div>
+                              {/* Section: Deliverables */}
+                              <TaskDeliverablesSection
+                                deliverables={newTaskData.deliverables}
+                                canEditExecution={canEditExecution}
+                                onUpdateDeliverables={(newDeliverables) => {
+                                  setNewTaskData({ ...newTaskData, deliverables: newDeliverables });
+                                }}
+                              />
+
+                              {/* Section: Comments & Review Requests */}
+                              <TaskCommentsSection
+                                comments={newTaskData.comments || []}
+                                currentMember={currentMember}
+                                members={members}
+                                canAddComment={true}
+                                onDraftChange={handleDraftChange}
+                                onAddComment={async (newComment) => {
+                                  const fullComment = sanitizeForFirestore({
+                                    ...newComment,
+                                    id: `comment_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                                    createdAt: new Date().toISOString(),
+                                    taskId: editingTask?.id || newTaskData.id,
+                                    taskTitle: newTaskData.title || ''
+                                  });
+                                  const updatedComments = sanitizeForFirestore([...(newTaskData.comments || []), fullComment]);
+                                  setNewTaskData({
+                                    ...newTaskData,
+                                    comments: updatedComments
+                                  });
+                                  if (editingTask?.id) {
+                                    try {
+                                      await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({
+                                        comments: updatedComments
+                                      }));
+                                    } catch (err) {
+                                      console.error('Error saving comment in real-time:', err);
+                                    }
+                                  }
+                                }}
+                                onToggleCommentStatus={async (commentId, newStatus) => {
+                                  const updatedComments = sanitizeForFirestore((newTaskData.comments || []).map((c: any) => {
+                                    if (c.id === commentId) {
+                                      const updatedC = {
+                                        ...c,
+                                        status: newStatus
+                                      };
+                                      if (newStatus === 'resolved') {
+                                        updatedC.resolvedAt = new Date().toISOString();
+                                        updatedC.resolvedBy = currentMember?.name || 'Usuario';
+                                      } else {
+                                        delete updatedC.resolvedAt;
+                                        delete updatedC.resolvedBy;
+                                      }
+                                      return updatedC;
+                                    }
+                                    return c;
+                                  }));
+                                  setNewTaskData({ ...newTaskData, comments: updatedComments });
+                                  if (editingTask?.id) {
+                                    try {
+                                      await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({
+                                        comments: updatedComments
+                                      }));
+                                    } catch (err) {
+                                      console.error('Error updating comment status in real-time:', err);
+                                    }
+                                  }
+                                }}
+                                onDeleteComment={async (commentId) => {
+                                  const updatedComments = sanitizeForFirestore((newTaskData.comments || []).filter((c: any) => c.id !== commentId));
+                                  setNewTaskData({ ...newTaskData, comments: updatedComments });
+                                  if (editingTask?.id) {
+                                    try {
+                                      await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({
+                                        comments: updatedComments
+                                      }));
+                                    } catch (err) {
+                                      console.error('Error deleting comment in real-time:', err);
+                                    }
+                                  }
+                                }}
+                              />
+                            </div>
                             </>
                           );
                         })()}
                       </div>
                     </div>
                   </div>
-                  <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-end gap-3 shrink-0">
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="px-5 py-2.5 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-100 transition-all"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-6 py-2.5 rounded-xl bg-ng-lime text-ng-black text-xs font-black shadow-lg shadow-ng-lime/25 hover:bg-[#d5ed3a] transition-all flex items-center gap-2"
-                    >
-                      <Check size={14} />
-                      <span>{editingTask ? 'Actualizar Historia' : 'Crear Historia'}</span>
-                    </button>
+                  <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                    <TaskQuickActionsFooter
+                      currentStatus={newTaskData.status || 'todo'}
+                      isProcessLeader={isProcessLeader}
+                      canEditExecution={canEditExecution}
+                      onTransitionStatus={(newStatus) => {
+                        setNewTaskData({ ...newTaskData, status: newStatus });
+                      }}
+                    />
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-5 py-2.5 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-100 transition-all"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-2.5 rounded-xl bg-ng-lime text-ng-black text-xs font-black shadow-lg shadow-ng-lime/25 hover:bg-[#d5ed3a] transition-all flex items-center gap-2"
+                      >
+                        <Check size={14} />
+                        <span>{editingTask ? 'Actualizar Historia' : 'Crear Historia'}</span>
+                      </button>
+                    </div>
                   </div>
                 </form>
               </motion.div>

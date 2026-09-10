@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, Calendar, Clock } from 'lucide-react';
+import { Trash2, Calendar, Clock, MessageSquare, AlertCircle } from 'lucide-react';
 import { Task, TeamMember, Process, Project } from '../../types';
 
 export interface TaskCardProps {
@@ -54,6 +54,23 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               {project.name}
             </span>
           )}
+          {task.comments && task.comments.length > 0 && (() => {
+            const pendingCount = task.comments.filter(c => c.requiresReview && c.status === 'pending').length;
+            return (
+              <span
+                className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-2xs ${
+                  pendingCount > 0
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse'
+                    : 'bg-gray-100 text-gray-600'
+                }`}
+                title={pendingCount > 0 ? `${pendingCount} solicitud(es) de revisión pendientes` : `${task.comments.length} comentarios`}
+              >
+                <MessageSquare size={10} />
+                <span>{task.comments.length}</span>
+                {pendingCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
+              </span>
+            );
+          })()}
         </div>
         <button
           onClick={(e) => {
@@ -168,14 +185,19 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           )}
         </div>
         
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          {task.plannedDate && (
+            <span className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-200/60 px-1.5 py-0.5 rounded flex items-center gap-1 shadow-2xs" title="Fecha Planificada">
+              <Calendar size={10} className="text-blue-500" /> {new Date(task.plannedDate + 'T00:00:00').toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }).replace('.', '')}
+            </span>
+          )}
           {task.dueDate && (
-            <span className="text-[9px] font-bold text-red-500/90 bg-red-50 px-1.5 py-0.5 rounded flex items-center gap-1" title="Fecha Límite">
-              <Calendar size={10} /> {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }).replace('.', '')}
+            <span className="text-[9px] font-bold text-red-600 bg-red-50 border border-red-200/60 px-1.5 py-0.5 rounded flex items-center gap-1 shadow-2xs" title="Fecha Límite">
+              <Calendar size={10} className="text-red-500" /> {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }).replace('.', '')}
             </span>
           )}
           {task.plannedHours ? (
-            <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1" title="Horas planificadas">
+            <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1 ml-0.5" title="Horas planificadas">
               <Clock size={10} /> {task.plannedHours}h
             </span>
           ) : null}
