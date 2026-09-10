@@ -209,6 +209,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && isValidTask(incoming()) && (
         isSuperAdmin() || 
         isProcessLeader('processId' in existing() ? existing().processId : '') ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['comments']) ||
         (
           (isTaskAssignee(existing()) || isProcessCollaborator('processId' in existing() ? existing().processId : '')) && 
           incoming().diff(existing()).affectedKeys().hasOnly([

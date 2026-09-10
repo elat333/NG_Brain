@@ -438,6 +438,21 @@ export function useTaskManager({
       (editingTask.auxiliaryIds && editingTask.auxiliaryIds.includes(currentMember.id))
     );
     if (taskAccess !== 'colaborador' && taskAccess !== 'lider' && taskAccess !== 'administrador' && !isDirectAssignee) {
+      const commentsChanged = JSON.stringify(editingTask.comments || []) !== JSON.stringify(newTaskData.comments || []);
+      if (commentsChanged) {
+        try {
+          await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({
+            comments: newTaskData.comments || []
+          }));
+          setEditingTask(null);
+          setIsAddingTask(false);
+          setShowUnsavedTaskChangesModal(false);
+          return;
+        } catch (error) {
+          handleFirestoreError(error, OperationType.UPDATE, 'tasks');
+          return;
+        }
+      }
       alert('Error: No dispones de privilegios para actualizar tareas en este proceso.');
       return;
     }

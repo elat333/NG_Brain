@@ -1542,6 +1542,7 @@ export default function TaskModal({
                                       }));
                                     } catch (err) {
                                       console.error('Error saving comment in real-time:', err);
+                                      alert('No se pudo guardar el comentario en el servidor. Verifica tu conexión o permisos.');
                                     }
                                   }
                                 }}
