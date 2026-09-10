@@ -1,3 +1,12 @@
+import { storage, ref, uploadBytes, getDownloadURL } from './firebase';
+
+export const uploadImageToStorage = async (file: File, path: string = 'task_references'): Promise<string> => {
+  const fileExt = file.name.split('.').pop() || 'jpg';
+  const storageRef = ref(storage, `${path}/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`);
+  const snapshot = await uploadBytes(storageRef, file);
+  return await getDownloadURL(snapshot.ref);
+};
+
 export const processAndCompressImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

@@ -62,22 +62,6 @@ export function useFirestoreSync(user: FirebaseUser | null) {
   // Subscribe to real-time collections
   useEffect(() => {
     if (!user) return;
-    
-    // TEMPORARY SCRIPT TO FORCE DELETE ORPHANED TASKS
-    const deleteOrphans = async () => {
-      try {
-        const q = query(collection(db, 'tasks'));
-        const snap = await getDocs(q);
-        snap.docs.forEach(async (d) => {
-          const data = d.data();
-          if (data.title?.includes('Diseño de artes para anuncios - ASÍ virtual') || data.id !== d.id) {
-            await deleteDoc(doc(db, 'tasks', d.id));
-            console.log('Force deleted orphaned/corrupted task:', d.id);
-          }
-        });
-      } catch (err) {}
-    };
-    deleteOrphans();
 
     const collections: Array<{ name: string; setState: (data: any[]) => void; initial?: any }> = [
       { name: 'members', setState: (data) => setMembers(data), initial: initialMembers },

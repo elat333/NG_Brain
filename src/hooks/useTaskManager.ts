@@ -301,7 +301,16 @@ export function useTaskManager({
   const handleAddTask = async (e?: React.FormEvent) => {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (!newTaskData.title || !newTaskData.processId) return;
-    const taskAccess = getModuleAccess(currentMember, roles, `tasks_${newTaskData.processId}`);
+    let taskAccess = getModuleAccess(currentMember, roles, `tasks_${newTaskData.processId}`);
+    const taskProcessId = newTaskData.processId;
+    if (taskProcessId === 'proc-mkt' || (taskProcessId && taskProcessId.includes('mkt'))) {
+      const mktAccess = getModuleAccess(currentMember, roles, 'marketing');
+      if (mktAccess !== 'ninguno') taskAccess = mktAccess;
+    } else if (taskProcessId === 'proc-acred' || taskProcessId === 'acreditacion' || (taskProcessId && taskProcessId.includes('acred'))) {
+      const acredAccess = getModuleAccess(currentMember, roles, 'acreditacion');
+      if (acredAccess !== 'ninguno') taskAccess = acredAccess;
+    }
+
     if (taskAccess !== 'colaborador' && taskAccess !== 'lider' && taskAccess !== 'administrador') {
       alert('Error: No dispones de privilegios para crear tareas en este proceso.');
       return;

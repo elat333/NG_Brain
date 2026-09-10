@@ -1,5 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import {
   Users,
   Building2,
@@ -426,9 +428,14 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                           <Layers size={20} />
                         </div>
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             if (window.confirm('¿Deseas eliminar este sector? Solo se eliminará de la lista maestra.')) {
                               setIndustries(prev => prev.filter(ind => ind.id !== industry.id));
+                              try {
+                                await deleteDoc(doc(db, 'industries', industry.id));
+                              } catch (e) {
+                                console.error('Error al borrar industria de Firestore:', e);
+                              }
                             }
                           }}
                           className="p-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"

@@ -9,7 +9,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, sanitizeForFirestore } from '../lib/firebase';
-import { processAndCompressImage } from '../lib/imageUtils';
+import { uploadImageToStorage } from '../lib/imageUtils';
 import { Task, TeamMember, Role, Process, Project } from '../types';
 import { isTaskBlocked as checkTaskBlocked } from '../lib/permissions';
 import { TaskDeliverablesSection } from './tasks/modal/TaskDeliverablesSection';
@@ -1437,17 +1437,17 @@ export default function TaskModal({
                                         const file = e.dataTransfer.files[0];
                                         if (file.type.startsWith('image/')) {
                                           try {
-                                            const dataUrl = await processAndCompressImage(file);
+                                            const downloadUrl = await uploadImageToStorage(file);
                                             const currentDesignData = newTaskData.designData || { campaign: '', formats: '', elements: [], references: [] };
-                                            const newRefs = [...(currentDesignData.references || []), { id: Date.now().toString(), type: 'image' as const, url: dataUrl, comment: '' }];
+                                            const newRefs = [...(currentDesignData.references || []), { id: Date.now().toString(), type: 'image' as const, url: downloadUrl, comment: '' }];
                                             setNewTaskData({ ...newTaskData, designData: { ...currentDesignData, references: newRefs } });
-                                            } catch (err) {
-                                              console.error("Error processing image:", err);
-                                              alert("Error procesando la imagen. Intenta con un archivo más ligero.");
-                                            }
+                                          } catch (err) {
+                                            console.error("Error uploading image to storage:", err);
+                                            alert("Error al subir la imagen. Por favor, intenta de nuevo.");
                                           }
                                         }
-                                      }}
+                                      }
+                                    }}
                                     >
                                       <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-pink-500 border border-gray-100">
                                         <Plus size={24} />

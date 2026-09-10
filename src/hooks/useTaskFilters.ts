@@ -154,7 +154,7 @@ export function useTaskFilters({
 
       return isTaskVisibleForMember(t, currentMember, roles);
     });
-  }, [tasks, searchQuery, activeProjectFilter, smartFilters, taskViewMode, tableFilters, currentMember, roles, myActivitiesOnly]);
+  }, [tasks, searchQuery, activeProjectFilter, activeMemberFilter, smartFilters, taskViewMode, tableFilters, currentMember, roles, myActivitiesOnly]);
 
   const sortedTasks = useMemo(() => {
     const list = [...filteredTasks];

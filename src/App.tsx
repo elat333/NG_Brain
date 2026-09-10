@@ -43,7 +43,7 @@ import { useAppNavigation } from './hooks/useAppNavigation';
 import { useTaskFilters } from './hooks/useTaskFilters';
 
 export default function App() {
-  const [user, setUser] = useState<FirebaseUser | null>({ email: 'e.siavichay@novagreen.ec', uid: '123', displayName: 'Test User' } as any);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
   // Hook desacoplado de navegación y sub-pestañas
@@ -557,13 +557,9 @@ export default function App() {
 
   if (loadingAuth) {
     return (
-      <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-8">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
-        />
-        <p className="text-sm font-bold text-gray-500 animate-pulse uppercase tracking-widest">Cargando Teampulse AI...</p>
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white gap-4">
+        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-medium text-slate-400">Verificando sesión en Novagreen IA...</p>
       </div>
     );
   }

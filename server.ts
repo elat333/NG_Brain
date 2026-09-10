@@ -28,7 +28,7 @@ function getAI(): GoogleGenAI {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
 
@@ -290,7 +290,7 @@ async function startServer() {
       const systemDirectives = governance?.systemDirectives || '';
       
       // Filter guardrails based on activeProfile's activeGuardrails array
-      const enabledGuardrails = (governance?.guardrails || []).filter((g: any) => activeProfile.activeGuardrails.includes(g.id));
+      const enabledGuardrails = (governance?.guardrails || []).filter((g: any) => activeProfile.activeGuardrails?.includes(g.id) ?? false);
       const calibrationHistory = governance?.calibrationHistory || [];
 
       // Construct System Instruction dynamically
@@ -358,14 +358,19 @@ ${activeProfile.prompt}
 
       const selectedModel = governance?.selectedModel || 'gemini-2.5-flash';
 
+      const formattedContents = [
+        ...((messages || []).map((m: any) => ({
+          role: m.sender === 'user' ? 'user' : 'model',
+          parts: [{ text: m.text }]
+        }))),
+        { role: 'user', parts: [{ text: `Gerente: ${userQuery}` }] }
+      ];
+
       let response;
       try {
         response = await ai.models.generateContent({
-          model: selectedModel === 'gemini-2.5-pro' ? 'gemini-2.5-pro-preview' : selectedModel,
-          contents: [
-            ...((messages || []).map((m: any) => `${m.sender === 'user' ? 'Gerente' : 'Asistente'}: ${m.text}`)),
-            `Gerente: ${userQuery}`
-          ].join('\n'),
+          model: selectedModel === 'gemini-2.5-pro-preview' ? 'gemini-2.5-pro' : selectedModel,
+          contents: formattedContents,
           config: {
             systemInstruction,
             responseMimeType: "application/json",
@@ -455,6 +460,11 @@ ${activeProfile.prompt}
       console.error("Management AI Error:", error); /* fs.writeFileSync removed */
       res.status(500).json({ error: error?.message || "Failed to query management AI" });
     }
+  });
+
+  // 404 handler for unhandled API routes
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: 'Endpoint no encontrado' });
   });
 
   // Vite middleware for development
