@@ -21,8 +21,8 @@ export interface TasksViewProps {
   projects: Project[];
   roles?: Role[];
   currentMember?: TeamMember | null;
-  tasksSubTab: 'board' | 'permissions';
-  taskViewMode: 'board' | 'list' | 'calendar' | 'summary';
+  tasksSubTab: 'board' | 'permissions' | 'comments';
+  taskViewMode: 'board' | 'list' | 'calendar';
   tableFilters: {
     title: string;
     status: string;
@@ -105,7 +105,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
           processes={processes}
           roles={roles}
         />
-      ) : taskViewMode === 'summary' ? (
+      ) : tasksSubTab === 'comments' ? (
         <div className="flex-1 overflow-y-auto custom-scrollbar p-1 pb-6">
           <TaskCommentsDashboard
             tasks={tasks}

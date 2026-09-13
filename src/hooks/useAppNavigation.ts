@@ -29,6 +29,7 @@ export type ProcessSubTabType = 'summary' | 'projects' | 'links' | 'notes';
 export type ManagementSubTabType = 'consultant' | 'notes' | 'strategy' | 'governance' | 'links';
 export type ImportacionesSubTabType = 'products' | 'suppliers' | 'proformas' | 'upload_proforma';
 export type AcreditacionSubTabType = 'links' | 'notes' | 'allies' | 'certifications';
+export type TasksSubTabType = 'board' | 'permissions' | 'comments';
 
 export function useAppNavigation() {
   const [activeTab, setActiveTab] = useState<MainTabType>('dashboard');
@@ -36,7 +37,7 @@ export function useAppNavigation() {
   const [expandedNavModule, setExpandedNavModule] = useState<string | null>(null);
 
   // Sub-pestañas de cada módulo
-  const [tasksSubTab, setTasksSubTab] = useState<'board' | 'permissions'>('board');
+  const [tasksSubTab, setTasksSubTab] = useState<TasksSubTabType>('board');
   const [ventasSubTab, setVentasSubTab] = useState<VentasSubTabType>('links');
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTabType>('general');
   const [directorySubTab, setDirectorySubTab] = useState<DirectorySubTabType>('people');

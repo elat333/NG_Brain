@@ -358,5 +358,24 @@ service cloud.firestore {
     match /products/{id} {
       allow read, write: if isSignedIn();
     }
+    match /task_comments/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidComment(incoming());
+      allow update: if isSignedIn() && (
+        isSuperAdmin() ||
+        (existing().authorId == getMemberId()) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'resolvedAt', 'resolvedBy'])
+      );
+      allow delete: if isSignedIn() && (
+        isSuperAdmin() ||
+        (existing().authorId == getMemberId())
+      );
+    }
+
+    function isValidComment(data) {
+      return data.id is string && data.taskId is string &&
+             data.text is string && data.text.size() > 0 && data.text.size() <= 10000 &&
+             data.authorId is string && data.authorName is string;
+    }
   }
 }

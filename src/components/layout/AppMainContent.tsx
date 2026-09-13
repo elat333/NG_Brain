@@ -78,7 +78,7 @@ export interface AppMainContentProps {
   directorySubTab: DirectorySubTabType;
   handleDirectorySubTabClick: (tab: DirectorySubTabType) => void;
   settingsSubTab: SettingsSubTabType;
-  tasksSubTab: 'board' | 'permissions';
+  tasksSubTab: 'board' | 'permissions' | 'comments';
   taskViewMode: 'board' | 'list' | 'calendar';
   // Selected Process & Ficha
   selectedProcessId: string;

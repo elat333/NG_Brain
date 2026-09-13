@@ -1,11 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   MessageSquare, CheckCircle2, Clock, AlertCircle, User, 
   Search, ArrowRight, CheckCircle, FolderKanban, ChevronRight,
-  Filter, Sparkles, AlertTriangle
+  Filter, Sparkles, AlertTriangle, Check
 } from 'lucide-react';
 import { Task, TeamMember, Process, Project, TaskComment } from '../../../types';
 import { renderCommentWithMentions } from '../modal/TaskCommentsSection';
+import { commentService } from '../../../services/commentService';
 
 export interface TaskCommentsDashboardProps {
   tasks: Task[];
@@ -29,32 +30,76 @@ export const TaskCommentsDashboard: React.FC<TaskCommentsDashboardProps> = ({
   const [filterMemberId, setFilterMemberId] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'resolved'>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [liveComments, setLiveComments] = useState<TaskComment[]>([]);
+
+  // Suscripción desacoplada en tiempo real a comentarios de toda la organización
+  useEffect(() => {
+    const unsubscribe = commentService.subscribeAllComments((comments) => {
+      setLiveComments(comments);
+    }, tasks);
+
+    return () => {
+      unsubscribe();
+    };
+  }, [tasks]);
 
   // Extract all comments from all tasks with enriched task information
   const allCommentsWithTask = useMemo(() => {
     const list: { comment: TaskComment; task: Task; member?: TeamMember; process?: Process; project?: Project }[] = [];
-    
-    tasks.forEach(task => {
-      if (task.comments && task.comments.length > 0) {
+    const taskMap = new Map(tasks.map(t => [t.id, t]));
+
+    if (liveComments.length > 0) {
+      liveComments.forEach(comment => {
+        const taskId = comment.taskId;
+        const task = (taskId && taskMap.get(taskId)) || ({
+          id: taskId || 'unknown',
+          title: comment.taskTitle || 'Tarea asociada',
+          memberId: comment.authorId,
+          status: 'pending',
+          priority: 'medium'
+        } as unknown as Task);
+
         const member = members.find(m => m.id === task.memberId);
         const process = processes.find(p => p.id === task.processId);
         const project = projects.find(p => p.id === task.projectId);
 
-        task.comments.forEach(comment => {
-          list.push({
-            comment,
-            task,
-            member,
-            process,
-            project
+        list.push({ comment, task, member, process, project });
+      });
+    } else {
+      tasks.forEach(task => {
+        if (task.comments && task.comments.length > 0) {
+          const member = members.find(m => m.id === task.memberId);
+          const process = processes.find(p => p.id === task.processId);
+          const project = projects.find(p => p.id === task.projectId);
+
+          task.comments.forEach(comment => {
+            list.push({
+              comment,
+              task,
+              member,
+              process,
+              project
+            });
           });
-        });
-      }
-    });
+        }
+      });
+    }
 
     // Sort by createdAt descending
     return list.sort((a, b) => new Date(b.comment.createdAt).getTime() - new Date(a.comment.createdAt).getTime());
-  }, [tasks, members, processes, projects]);
+  }, [liveComments, tasks, members, processes, projects]);
+
+  const handleQuickResolve = async (e: React.MouseEvent, commentId: string, taskId: string) => {
+    e.stopPropagation();
+    try {
+      await commentService.toggleCommentStatus(commentId, 'resolved', currentMember?.name, taskId);
+      if (onResolveComment) {
+        onResolveComment(taskId, commentId);
+      }
+    } catch (err) {
+      console.error('Error resolviendo comentario:', err);
+    }
+  };
 
   // General Metrics
   const totalComments = allCommentsWithTask.length;
@@ -348,9 +393,19 @@ export const TaskCommentsDashboard: React.FC<TaskCommentsDashboardProps> = ({
 
                         <div className="flex items-center gap-2 shrink-0">
                           {isPending && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300/60">
-                              <Clock size={10} /> Por Resolver
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300/60">
+                                <Clock size={10} /> Por Resolver
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleQuickResolve(e, comment.id, task.id)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
+                                title="Marcar como resuelto"
+                              >
+                                <Check size={10} /> Resolver
+                              </button>
+                            </div>
                           )}
                           {isResolved && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300/60">

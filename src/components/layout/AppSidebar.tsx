@@ -40,7 +40,8 @@ import {
   Layers, 
   User, 
   LogOut, 
-  Zap 
+  Zap,
+  MessageSquare
 } from 'lucide-react';
 import { TeamMember, Role } from '../../types';
 
@@ -117,7 +118,7 @@ interface AppSidebarProps {
   
   // Sub-tabs
   tasksSubTab: string;
-  setTasksSubTab: (tab: 'board' | 'permissions') => void;
+  setTasksSubTab: (tab: any) => void;
   handleExportTasks: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   
@@ -284,6 +285,17 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                               setExpandedNavModule('tasks');
                               handleTabClick('tasks');
                               setTasksSubTab('permissions');
+                            }} 
+                          />
+                          <SubNavButton 
+                            key="subnav_tasks_btn_comments"
+                            active={activeTab === 'tasks' && tasksSubTab === 'comments'} 
+                            label="Observaciones & Revisiones" 
+                            icon={<MessageSquare size={14} />} 
+                            onClick={() => {
+                              setExpandedNavModule('tasks');
+                              handleTabClick('tasks');
+                              setTasksSubTab('comments');
                             }} 
                           />
                         </React.Fragment>
@@ -1164,22 +1176,22 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       <div className="mt-auto p-3 border-t border-ng-gray/10 shrink-0">
         <div className="bg-ng-gray/5 p-2.5 rounded-xl border border-ng-gray/10 flex items-center justify-between gap-2.5">
           {/* Avatar with Status Indicator */}
-          <div className="relative shrink-0" title="Agente Conectado y Escuchando">
+          <div className="relative shrink-0" title={`Usuario: ${currentMember?.name || user.displayName || 'Usuario'}`}>
             <img 
-              src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} 
+              src={currentMember?.avatar || user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentMember?.name || user.displayName || 'Usuario')}&background=84cc16&color=000`} 
               className="w-8 h-8 rounded-lg border border-ng-gray/20 object-cover" 
-              alt={user.displayName || 'User'} 
+              alt={currentMember?.name || user.displayName || 'User'} 
             />
             <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-ng-lime border-2 border-ng-black animate-pulse" />
           </div>
 
           {/* Compact User Info */}
-          <div className="overflow-hidden flex-1 text-left min-w-0" title={`${user.displayName || ''} (${user.email || ''})${currentMember ? ` - Mapeado: ${currentMember.name}` : ''}`}>
+          <div className="overflow-hidden flex-1 text-left min-w-0" title={`${currentMember?.name || user.displayName || ''} (${user.email || ''})${currentMember?.role ? ` - ${currentMember.role}` : ''}`}>
             <p className="text-xs font-black text-white truncate leading-tight">
-              {user.displayName || 'Usuario'}
+              {currentMember?.name || user.displayName || 'Usuario'}
             </p>
             <p className="text-[10px] font-bold text-ng-lime/80 truncate leading-tight">
-              {currentMember ? currentMember.name : user.email}
+              {currentMember?.role || user.email}
             </p>
           </div>
 

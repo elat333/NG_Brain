@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   MessageSquare, Send, CheckCircle2, Clock, AlertCircle, 
-  AtSign, User, ShieldCheck, X 
+  AtSign, User, ShieldCheck, X, Loader2 
 } from 'lucide-react';
 import { TaskComment, TeamMember } from '../../../types';
 
@@ -94,6 +94,9 @@ export const TaskCommentsSection: React.FC<TaskCommentsSectionProps> = ({
 }) => {
   const [commentText, setCommentText] = useState('');
   const [requiresReview, setRequiresReview] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [justPosted, setJustPosted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Notificar cambios de borrador de forma controlada sin bucles infinitos
   const updateDraft = (text: string, review: boolean) => {
@@ -237,11 +240,11 @@ export const TaskCommentsSection: React.FC<TaskCommentsSectionProps> = ({
     }, 10);
   };
 
-  const handleSubmit = (e?: React.SyntheticEvent) => {
+  const handleSubmit = async (e?: React.SyntheticEvent) => {
     if (e) {
       e.preventDefault();
     }
-    if (!commentText.trim()) return;
+    if (!commentText.trim() || isSending) return;
 
     const authorRole = currentMember?.role || 'Colaborador';
     
@@ -267,12 +270,27 @@ export const TaskCommentsSection: React.FC<TaskCommentsSectionProps> = ({
       commentPayload.status = 'pending';
     }
 
-    onAddComment(commentPayload);
-
-    setCommentText('');
-    setRequiresReview(false);
-    updateDraft('', false);
-    setIsMentionOpen(false);
+    try {
+      setIsSending(true);
+      setErrorMessage(null);
+      await Promise.resolve(onAddComment(commentPayload));
+      setCommentText('');
+      setRequiresReview(false);
+      updateDraft('', false);
+      setIsMentionOpen(false);
+      setJustPosted(true);
+      setTimeout(() => setJustPosted(false), 3000);
+    } catch (err: any) {
+      console.error('Error enviando comentario:', err);
+      const errMsg = err?.message || '';
+      if (errMsg.includes('Missing or insufficient permissions') || errMsg.includes('permission-denied')) {
+        setErrorMessage('El comentario quedó registrado localmente (los permisos en la nube para esta tarea padre son restringidos).');
+      } else {
+        setErrorMessage(errMsg || 'No se pudo guardar el comentario en el servidor. Verifica tu conexión.');
+      }
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const pendingReviewsCount = comments.filter(c => c.requiresReview && c.status === 'pending').length;
@@ -520,16 +538,41 @@ export const TaskCommentsSection: React.FC<TaskCommentsSectionProps> = ({
               </label>
             </div>
 
-            <button
-              type="button"
-              onClick={() => handleSubmit()}
-              disabled={!commentText.trim()}
-              className="px-3.5 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm flex items-center gap-1.5"
-            >
-              <Send size={12} />
-              <span>Comentar</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {justPosted && (
+                <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1 animate-in fade-in duration-200">
+                  <CheckCircle2 size={13} />
+                  Publicado
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => handleSubmit()}
+                disabled={!commentText.trim() || isSending}
+                className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm flex items-center gap-1.5"
+                title="Publicar comentario (Enter)"
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Publicando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={13} />
+                    <span>Publicar comentario</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+
+          {errorMessage && (
+            <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-semibold flex items-center gap-2 animate-in fade-in duration-200">
+              <AlertCircle size={14} className="text-red-500 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

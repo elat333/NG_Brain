@@ -969,18 +969,6 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
                         <Calendar size={13} />
                         Calendario
                       </button>
-                      <button
-                        onClick={() => setTaskViewMode('summary')}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${
-                          taskViewMode === 'summary'
-                            ? 'bg-ng-lime text-ng-black shadow-2xs font-black'
-                            : 'text-gray-500 hover:text-gray-950 hover:bg-white/60 font-bold'
-                        }`}
-                        title="Ver Resumen & Gestión de Observaciones"
-                      >
-                        <BarChart3 size={13} />
-                        Resumen
-                      </button>
                     </div>
                     
                     <input type="file" accept=".json,.csv" className="hidden" ref={fileInputRef} onChange={handleImportTasks} />
