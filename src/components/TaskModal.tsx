@@ -3,9 +3,9 @@ import {
   User, Tag, CheckSquare, Paperclip, MessageSquare, AlertTriangle, 
   ExternalLink, ChevronRight, Layers, FileText, Layout, LayoutTemplate, Video, 
   Info, History, CheckCircle2, ChevronDown, ChevronUp, Link as LinkIcon, 
-  Lock, Activity, FolderKanban, AlignLeft, Users, UserPlus, Zap, Ban, Copy 
+  Lock, Activity, FolderKanban, AlignLeft, Users, UserPlus, Zap, Ban, Copy, Loader2 
 } from 'lucide-react';
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, sanitizeForFirestore } from '../lib/firebase';
@@ -17,6 +17,7 @@ import { TaskDependenciesSection } from './tasks/modal/TaskDependenciesSection';
 import { TaskHistorySection } from './tasks/modal/TaskHistorySection';
 import { TaskCommentsSection } from './tasks/modal/TaskCommentsSection';
 import { TaskQuickActionsFooter } from './tasks/modal/TaskQuickActionsFooter';
+import { commentService } from '../services/commentService';
 interface TaskModalProps {
   isOpen: boolean;
   editingTask: Task | null;
@@ -79,6 +80,35 @@ export default function TaskModal({
   const [showAddAuxDropdown, setShowAddAuxDropdown] = useState(false);
   const [auxSearchQuery, setAuxSearchQuery] = useState('');
   const [commentDraft, setCommentDraft] = useState<{ text: string; requiresReview: boolean }>({ text: '', requiresReview: false });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [realtimeComments, setRealtimeComments] = useState<any[]>(newTaskData.comments || []);
+
+  useEffect(() => {
+    setIsSubmitting(false);
+  }, [isOpen, editingTask?.id]);
+
+  // Sincronización desacoplada en tiempo real de comentarios de la tarea
+  useEffect(() => {
+    if (!isOpen) return;
+    const currentTaskId = editingTask?.id;
+    if (!currentTaskId) {
+      setRealtimeComments(newTaskData.comments || []);
+      return;
+    }
+
+    const unsubscribe = commentService.subscribeTaskComments(
+      currentTaskId,
+      (fetched) => {
+        setRealtimeComments(fetched);
+        setNewTaskData((prev: any) => ({ ...prev, comments: fetched }));
+      },
+      newTaskData.comments || []
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isOpen, editingTask?.id]);
 
   const handleDraftChange = useCallback((text: string, requiresReview: boolean) => {
     setCommentDraft({ text, requiresReview });
@@ -227,31 +257,62 @@ export default function TaskModal({
                 className="bg-white w-full max-w-6xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
               >
                 <form 
-                  onSubmit={(e) => {
-                    if (commentDraft.text && commentDraft.text.trim()) {
-                      const mentionedIds: string[] = [];
-                      members.forEach(m => {
-                        if (commentDraft.text.includes(`@${m.name}`)) {
-                          mentionedIds.push(m.id);
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (isSubmitting) return;
+                    setIsSubmitting(true);
+                    try {
+                      let draftCommentSaved = false;
+                      if (commentDraft.text && commentDraft.text.trim()) {
+                        const mentionedIds: string[] = [];
+                        members.forEach(m => {
+                          if (commentDraft.text.includes(`@${m.name}`)) {
+                            mentionedIds.push(m.id);
+                          }
+                        });
+                        const targetTaskId = editingTask?.id || newTaskData.id;
+                        try {
+                          const created = await commentService.addComment({
+                            authorId: currentMember?.id || 'anonymous',
+                            authorName: currentMember?.name || 'Usuario',
+                            authorRole: currentMember?.role || 'Colaborador',
+                            authorAvatar: currentMember?.avatar || '',
+                            text: commentDraft.text.trim(),
+                            requiresReview: !!commentDraft.requiresReview,
+                            status: commentDraft.requiresReview ? 'pending' : undefined,
+                            mentionedMemberIds: mentionedIds.length > 0 ? Array.from(new Set(mentionedIds)) : [],
+                            taskId: targetTaskId,
+                            taskTitle: newTaskData.title || ''
+                          });
+                          setRealtimeComments(prev => {
+                            if (prev.some(c => c.id === created.id)) return prev;
+                            return [...prev, created];
+                          });
+                          const nextComments = [...(newTaskData.comments || []).filter((c: any) => c.id !== created.id), created];
+                          newTaskData.comments = nextComments;
+                          setNewTaskData((prev: any) => ({
+                            ...prev,
+                            comments: nextComments
+                          }));
+                          setCommentDraft({ text: '', requiresReview: false });
+                          draftCommentSaved = true;
+                        } catch (err) {
+                          console.error('Error saving draft comment:', err);
                         }
-                      });
-                      const autoComment = sanitizeForFirestore({
-                        id: `comment_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-                        authorId: currentMember?.id || 'anonymous',
-                        authorName: currentMember?.name || 'Usuario',
-                        authorRole: currentMember?.role || 'Colaborador',
-                        authorAvatar: currentMember?.avatar || '',
-                        text: commentDraft.text.trim(),
-                        requiresReview: !!commentDraft.requiresReview,
-                        ...(commentDraft.requiresReview ? { status: 'pending' } : {}),
-                        mentionedMemberIds: mentionedIds.length > 0 ? Array.from(new Set(mentionedIds)) : [],
-                        createdAt: new Date().toISOString(),
-                        taskId: editingTask?.id || newTaskData.id,
-                        taskTitle: newTaskData.title || ''
-                      });
-                      newTaskData.comments = [...(newTaskData.comments || []), autoComment];
+                      }
+
+                      // Si el usuario no tiene permisos para modificar campos estructurales de la tarea
+                      // y solo deseaba comentar o consultar, cerramos limpiamente habiendo guardado el comentario en task_comments
+                      const canModifyTask = isNewTask || isProcessLeader || canEditMetadataField || canEditStatusField || canEditPlanning || canEditExecution;
+                      if (!canModifyTask) {
+                        onClose();
+                        return;
+                      }
+
+                      await onSave(e);
+                    } finally {
+                      setIsSubmitting(false);
                     }
-                    onSave(e);
                   }} 
                   className="flex flex-col flex-1 overflow-hidden"
                 >
@@ -713,6 +774,14 @@ export default function TaskModal({
                         const canEditPlannedDates = isNewTask || isProcessLeader;
                         const canEditDueDate = isNewTask || isProcessLeader || isPrimaryAssignee || (!editingTask?.memberId && taskAccess === 'colaborador');
                         const canEditStoryAndCriteria = isNewTask || isProcessLeader;
+                        const isResponsibleMember = !!(
+                          currentMember && (
+                            (editingTask && editingTask.memberId === currentMember.id) ||
+                            newTaskData.memberId === currentMember.id
+                          )
+                        );
+                        const isExecutionOrReviewStatus = newTaskData.status === 'in_progress' || newTaskData.status === 'review';
+                        const canEditActualHours = isNewTask || isProcessLeader || (isResponsibleMember && isExecutionOrReviewStatus);
                         return (
                           <>
                             
@@ -1524,75 +1593,74 @@ export default function TaskModal({
 
                               {/* Section: Comments & Review Requests */}
                               <TaskCommentsSection
-                                comments={newTaskData.comments || []}
+                                comments={realtimeComments}
                                 currentMember={currentMember}
                                 members={members}
                                 canAddComment={true}
                                 onDraftChange={handleDraftChange}
                                 onAddComment={async (newComment) => {
-                                  const fullComment = sanitizeForFirestore({
+                                  const targetTaskId = editingTask?.id || newTaskData.id;
+                                  const created = await commentService.addComment({
                                     ...newComment,
-                                    id: `comment_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-                                    createdAt: new Date().toISOString(),
-                                    taskId: editingTask?.id || newTaskData.id,
+                                    taskId: targetTaskId,
                                     taskTitle: newTaskData.title || ''
                                   });
-                                  const updatedComments = sanitizeForFirestore([...(newTaskData.comments || []), fullComment]);
-                                  setNewTaskData({
-                                    ...newTaskData,
-                                    comments: updatedComments
+                                  setRealtimeComments(prev => {
+                                    if (prev.some(c => c.id === created.id)) return prev;
+                                    return [...prev, created];
                                   });
-                                  if (editingTask?.id) {
-                                    try {
-                                      await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({
-                                        comments: updatedComments
-                                      }));
-                                    } catch (err) {
-                                      console.error('Error saving comment in real-time:', err);
-                                      alert('No se pudo guardar el comentario en el servidor. Verifica tu conexión o permisos.');
-                                    }
-                                  }
+                                  setNewTaskData((prev: any) => ({
+                                    ...prev,
+                                    comments: [...(prev.comments || []).filter((c: any) => c.id !== created.id), created]
+                                  }));
+                                  return created;
                                 }}
                                 onToggleCommentStatus={async (commentId, newStatus) => {
-                                  const updatedComments = sanitizeForFirestore((newTaskData.comments || []).map((c: any) => {
-                                    if (c.id === commentId) {
-                                      const updatedC = {
-                                        ...c,
-                                        status: newStatus
-                                      };
-                                      if (newStatus === 'resolved') {
-                                        updatedC.resolvedAt = new Date().toISOString();
-                                        updatedC.resolvedBy = currentMember?.name || 'Usuario';
-                                      } else {
-                                        delete updatedC.resolvedAt;
-                                        delete updatedC.resolvedBy;
+                                  const targetTaskId = editingTask?.id || newTaskData.id;
+                                  try {
+                                    await commentService.toggleCommentStatus(
+                                      commentId,
+                                      newStatus,
+                                      currentMember?.name,
+                                      targetTaskId
+                                    );
+                                    setRealtimeComments(prev => prev.map(c => {
+                                      if (c.id === commentId) {
+                                        return {
+                                          ...c,
+                                          status: newStatus,
+                                          resolvedAt: newStatus === 'resolved' ? new Date().toISOString() : undefined,
+                                          resolvedBy: newStatus === 'resolved' ? (currentMember?.name || 'Usuario') : undefined
+                                        };
                                       }
-                                      return updatedC;
-                                    }
-                                    return c;
-                                  }));
-                                  setNewTaskData({ ...newTaskData, comments: updatedComments });
-                                  if (editingTask?.id) {
-                                    try {
-                                      await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({
-                                        comments: updatedComments
-                                      }));
-                                    } catch (err) {
-                                      console.error('Error updating comment status in real-time:', err);
-                                    }
+                                      return c;
+                                    }));
+                                    setNewTaskData((prev: any) => ({
+                                      ...prev,
+                                      comments: (prev.comments || []).map((c: any) => c.id === commentId ? {
+                                        ...c,
+                                        status: newStatus,
+                                        resolvedAt: newStatus === 'resolved' ? new Date().toISOString() : undefined,
+                                        resolvedBy: newStatus === 'resolved' ? (currentMember?.name || 'Usuario') : undefined
+                                      } : c)
+                                    }));
+                                  } catch (err) {
+                                    console.error('Error updating comment status in real-time:', err);
+                                    alert('No se pudo actualizar el estado del comentario en el servidor.');
                                   }
                                 }}
                                 onDeleteComment={async (commentId) => {
-                                  const updatedComments = sanitizeForFirestore((newTaskData.comments || []).filter((c: any) => c.id !== commentId));
-                                  setNewTaskData({ ...newTaskData, comments: updatedComments });
-                                  if (editingTask?.id) {
-                                    try {
-                                      await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({
-                                        comments: updatedComments
-                                      }));
-                                    } catch (err) {
-                                      console.error('Error deleting comment in real-time:', err);
-                                    }
+                                  const targetTaskId = editingTask?.id || newTaskData.id;
+                                  try {
+                                    await commentService.deleteComment(commentId, targetTaskId);
+                                    setRealtimeComments(prev => prev.filter(c => c.id !== commentId));
+                                    setNewTaskData((prev: any) => ({
+                                      ...prev,
+                                      comments: (prev.comments || []).filter((c: any) => c.id !== commentId)
+                                    }));
+                                  } catch (err) {
+                                    console.error('Error deleting comment in real-time:', err);
+                                    alert('No se pudo eliminar el comentario en el servidor.');
                                   }
                                 }}
                               />
@@ -1614,6 +1682,10 @@ export default function TaskModal({
                     />
 
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                      <span className="text-[11px] text-gray-400 font-medium hidden sm:inline-flex items-center gap-1.5 mr-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Comentarios sincronizados
+                      </span>
                       <button
                         type="button"
                         onClick={onClose}
@@ -1623,10 +1695,25 @@ export default function TaskModal({
                       </button>
                       <button
                         type="submit"
-                        className="px-6 py-2.5 rounded-xl bg-ng-lime text-ng-black text-xs font-black shadow-lg shadow-ng-lime/25 hover:bg-[#d5ed3a] transition-all flex items-center gap-2"
+                        disabled={isSubmitting}
+                        className={`px-6 py-2.5 rounded-xl bg-ng-lime text-ng-black text-xs font-black shadow-lg shadow-ng-lime/25 hover:bg-[#d5ed3a] transition-all flex items-center gap-2 ${
+                          isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+                        }`}
                       >
-                        <Check size={14} />
-                        <span>{editingTask ? 'Actualizar Historia' : 'Crear Historia'}</span>
+                        {isSubmitting ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Check size={14} />
+                        )}
+                        <span>
+                          {isSubmitting
+                            ? 'Guardando...'
+                            : commentDraft.text && commentDraft.text.trim()
+                            ? 'Guardar Comentario'
+                            : editingTask
+                            ? 'Actualizar Historia'
+                            : 'Crear Historia'}
+                        </span>
                       </button>
                     </div>
                   </div>

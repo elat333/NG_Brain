@@ -112,8 +112,7 @@ export function useTaskManager({
         dueDate: newTaskData.dueDate || '',
         blockedByTaskIds: newTaskData.blockedByTaskIds || [],
         designData: newTaskData.designData || {},
-        deliverables: newTaskData.deliverables || [],
-        comments: newTaskData.comments || []
+        deliverables: newTaskData.deliverables || []
       };
       const initial = {
         title: (initialTaskSnapshotRef.current.title || '').trim(),
@@ -142,8 +141,7 @@ export function useTaskManager({
         dueDate: initialTaskSnapshotRef.current.dueDate || '',
         blockedByTaskIds: initialTaskSnapshotRef.current.blockedByTaskIds || [],
         designData: initialTaskSnapshotRef.current.designData || {},
-        deliverables: initialTaskSnapshotRef.current.deliverables || [],
-        comments: initialTaskSnapshotRef.current.comments || []
+        deliverables: initialTaskSnapshotRef.current.deliverables || []
       };
       return JSON.stringify(current) !== JSON.stringify(initial);
     } catch {
@@ -435,25 +433,72 @@ export function useTaskManager({
       editingTask.memberId === currentMember.id || 
       editingTask.auxiliaryId === currentMember.id ||
       editingTask.revisorId === currentMember.id ||
-      (editingTask.auxiliaryIds && editingTask.auxiliaryIds.includes(currentMember.id))
+      (editingTask.auxiliaryIds && editingTask.auxiliaryIds.includes(currentMember.id)) ||
+      newTaskData.memberId === currentMember.id
     );
-    if (taskAccess !== 'colaborador' && taskAccess !== 'lider' && taskAccess !== 'administrador' && !isDirectAssignee) {
-      const commentsChanged = JSON.stringify(editingTask.comments || []) !== JSON.stringify(newTaskData.comments || []);
-      if (commentsChanged) {
-        try {
-          await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({
-            comments: newTaskData.comments || []
-          }));
-          setEditingTask(null);
-          setIsAddingTask(false);
-          setShowUnsavedTaskChangesModal(false);
-          return;
-        } catch (error) {
-          handleFirestoreError(error, OperationType.UPDATE, 'tasks');
-          return;
-        }
+
+    const isDesignEmpty = (d: any) => !d || (!d.campaign && !d.formats && (!d.elements || d.elements.length === 0));
+    const designDataChanged = (isDesignEmpty(editingTask.designData) && isDesignEmpty(newTaskData.designData))
+      ? false
+      : JSON.stringify(editingTask.designData || {}) !== JSON.stringify(newTaskData.designData || {});
+
+    const isDeliverablesEmpty = (del: any) => !del || del.length === 0;
+    const deliverablesChanged = (isDeliverablesEmpty(editingTask.deliverables) && isDeliverablesEmpty(newTaskData.deliverables))
+      ? false
+      : JSON.stringify(editingTask.deliverables || []) !== JSON.stringify(newTaskData.deliverables || []);
+
+    const commentsChanged = JSON.stringify(editingTask.comments || []) !== JSON.stringify(newTaskData.comments || []);
+    const otherFieldsChanged = (
+      editingTask.title !== newTaskData.title ||
+      editingTask.status !== newTaskData.status ||
+      (editingTask.description || '') !== (newTaskData.description || '') ||
+      (editingTask.storyDescription || '') !== (newTaskData.storyDescription || '') ||
+      (editingTask.acceptanceCriteria || '') !== (newTaskData.acceptanceCriteria || '') ||
+      (editingTask.memberId || '') !== (newTaskData.memberId || '') ||
+      (editingTask.auxiliaryId || '') !== (newTaskData.auxiliaryId || '') ||
+      (editingTask.revisorId || '') !== (newTaskData.revisorId || '') ||
+      (editingTask.priority || 'media') !== (newTaskData.priority || 'media') ||
+      (editingTask.plannedDate || '') !== (newTaskData.plannedDate || '') ||
+      (editingTask.plannedEndDate || '') !== (newTaskData.plannedEndDate || '') ||
+      (editingTask.dueDate || '') !== (newTaskData.dueDate || '') ||
+      Number(editingTask.plannedHours || 0) !== Number(newTaskData.plannedHours || 0) ||
+      Number(editingTask.actualHours || 0) !== Number(newTaskData.actualHours || 0) ||
+      (editingTask.actualStartDate || '') !== (newTaskData.actualStartDate || '') ||
+      (editingTask.actualEndDate || '') !== (newTaskData.actualEndDate || '') ||
+      (editingTask.actualStartTime || '') !== (newTaskData.actualStartTime || '') ||
+      (editingTask.actualEndTime || '') !== (newTaskData.actualEndTime || '') ||
+      (editingTask.plannedStartTime || '') !== (newTaskData.plannedStartTime || '') ||
+      (editingTask.plannedEndTime || '') !== (newTaskData.plannedEndTime || '') ||
+      deliverablesChanged ||
+      designDataChanged
+    );
+
+    // Si no hubo cambios en campos estructurales de la tarea:
+    // Los comentarios se gestionan y guardan de forma independiente y desacoplada en 'task_comments'.
+    // Cerramos el modal limpiamente sin bloquear al usuario ni forzar escrituras innecesarias en 'tasks'.
+    if (!otherFieldsChanged) {
+      setEditingTask(null);
+      setIsAddingTask(false);
+      setShowUnsavedTaskChangesModal(false);
+      initialTaskSnapshotRef.current = null;
+      if (lastTab) {
+        setActiveTab(lastTab as any);
+        setLastTab(null);
       }
-      alert('Error: No dispones de privilegios para actualizar tareas en este proceso.');
+      return;
+    }
+
+    if (taskAccess !== 'colaborador' && taskAccess !== 'lider' && taskAccess !== 'administrador' && !isDirectAssignee) {
+      // Si el colaborador no dispone de privilegios de edición en la tarea padre pero interactuó con comentarios:
+      // Los comentarios ya están guardados de forma desacoplada en 'task_comments'.
+      setEditingTask(null);
+      setIsAddingTask(false);
+      setShowUnsavedTaskChangesModal(false);
+      initialTaskSnapshotRef.current = null;
+      if (lastTab) {
+        setActiveTab(lastTab as any);
+        setLastTab(null);
+      }
       return;
     }
 
@@ -540,10 +585,14 @@ export function useTaskManager({
       const isProcessLeader = !!(isUserAdmin || taskAccess === 'lider' || taskAccess === 'administrador');
 
       if (!isProcessLeader) {
+        const isResponsible = !!(currentMember && (editingTask.memberId === currentMember.id || newTaskData.memberId === currentMember.id));
+        const canSaveActualHours = isResponsible && (newTaskData.status === 'in_progress' || newTaskData.status === 'review');
+        const finalActualHours = canSaveActualHours ? (Number(newTaskData.actualHours) || 0) : (editingTask.actualHours || 0);
+
         await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({
           status: newTaskData.status as any,
           deliverables: newTaskData.deliverables || [],
-          actualHours: newTaskData.actualHours || 0,
+          actualHours: finalActualHours,
           actualStartDate: newTaskData.actualStartDate || '',
           actualEndDate: newTaskData.actualEndDate || '',
           actualStartTime: newTaskData.actualStartTime || '',
@@ -587,7 +636,7 @@ export function useTaskManager({
     } catch (error: any) {
       console.error("Error updating task: ", error);
       alert(`Error al guardar la tarea en Firestore: ${error?.message || "Verifique que tiene permisos correspondientes en el proceso."}`);
-      handleFirestoreError(error, OperationType.UPDATE, 'tasks');
+      return;
     }
 
     setEditingTask(null);
@@ -800,11 +849,19 @@ export function useTaskManager({
 
   const isUserAdmin = currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin';
   const isNewTask = !editingTask;
-  const isPrimaryAssignee = !!(currentMember && editingTask && editingTask.memberId === currentMember.id);
-  const isAssignee = !!(currentMember && editingTask && (
-    editingTask.memberId === currentMember.id || 
-    editingTask.auxiliaryId === currentMember.id ||
-    (editingTask.auxiliaryIds && Array.isArray(editingTask.auxiliaryIds) && editingTask.auxiliaryIds.includes(currentMember.id))
+  const isPrimaryAssignee = !!(currentMember && (
+    (editingTask && editingTask.memberId === currentMember.id) ||
+    newTaskData.memberId === currentMember.id
+  ));
+  const isAssignee = !!(currentMember && (
+    (editingTask && (
+      editingTask.memberId === currentMember.id || 
+      editingTask.auxiliaryId === currentMember.id ||
+      (editingTask.auxiliaryIds && Array.isArray(editingTask.auxiliaryIds) && editingTask.auxiliaryIds.includes(currentMember.id))
+    )) ||
+    newTaskData.memberId === currentMember.id ||
+    newTaskData.auxiliaryId === currentMember.id ||
+    (newTaskData.auxiliaryIds && Array.isArray(newTaskData.auxiliaryIds) && newTaskData.auxiliaryIds.includes(currentMember.id))
   ));
   
   let effectiveTaskAccess = getModuleAccess(currentMember, roles, currentProcessId ? `tasks_${currentProcessId}` : 'tasks');

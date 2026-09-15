@@ -233,6 +233,28 @@
         "pinned": { "type": "boolean" }
       },
       "required": ["id", "title", "content", "createdByMemberId", "createdAt", "updatedAt"]
+    },
+    "TaskComment": {
+      "title": "Task Comment and Review Observation",
+      "description": "A decoupled comment, feedback or review request tied to a task.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "taskId": { "type": "string" },
+        "taskTitle": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorRole": { "type": "string" },
+        "authorAvatar": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "requiresReview": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["pending", "resolved"] },
+        "resolvedAt": { "type": "string" },
+        "resolvedBy": { "type": "string" },
+        "mentionedMemberIds": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "taskId", "authorId", "authorName", "text", "createdAt"]
     }
   },
   "firestore": {
@@ -295,6 +317,10 @@
     "products": {
       "schema": "ProductItem",
       "description": "Collection of commercial product catalog items and services."
+    },
+    "task_comments": {
+      "schema": "TaskComment",
+      "description": "Collection of decoupled task comments, review requests, and observations."
     }
   }
 }
