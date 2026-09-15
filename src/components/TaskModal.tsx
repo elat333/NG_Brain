@@ -36,6 +36,8 @@ interface TaskModalProps {
   canEditStatusField: any;
   canEditPlanning: boolean;
   canEditExecution: boolean;
+  canEditDeliveryDateTime?: boolean;
+  canEditActualHours?: boolean;
   showTaskHistory: boolean;
   setShowTaskHistory: (show: boolean) => void;
   setTasks?: any;
@@ -61,6 +63,8 @@ export default function TaskModal({
   canEditStatusField,
   canEditPlanning,
   canEditExecution,
+  canEditDeliveryDateTime = true,
+  canEditActualHours = true,
   showTaskHistory,
   setShowTaskHistory,
   setTasks,
@@ -843,30 +847,32 @@ export default function TaskModal({
         </h4>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-2 relative">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5" title={!canEditDeliveryDateTime ? "Disponible únicamente cuando la tarea está En Progreso" : undefined}>
               <Calendar size={12} className="text-emerald-500" /> Fecha Entrega
-              {!canEditExecution && <Lock size={10} className="text-gray-300 ml-auto" />}
+              {!canEditDeliveryDateTime && <Lock size={10} className="text-gray-300 ml-auto" />}
             </label>
             <input 
               type="date" 
-              disabled={!canEditExecution}
+              disabled={!canEditDeliveryDateTime}
+              title={!canEditDeliveryDateTime ? "Disponible únicamente cuando la tarea está En Progreso" : undefined}
               className={`w-full px-2.5 py-2 border rounded-lg focus:outline-none transition-all text-xs font-bold ${
-                !canEditExecution ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100' : 'bg-white border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
+                !canEditDeliveryDateTime ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100' : 'bg-white border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
               }`}
               value={newTaskData.actualEndDate || ''}
               onChange={e => setNewTaskData({...newTaskData, actualEndDate: e.target.value})}
             />
           </div>
           <div className="space-y-2 relative">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5" title={!canEditDeliveryDateTime ? "Disponible únicamente cuando la tarea está En Progreso" : undefined}>
               <Clock size={12} className="text-blue-500" /> Hora Entrega
-              {!canEditExecution && <Lock size={10} className="text-gray-300 ml-auto" />}
+              {!canEditDeliveryDateTime && <Lock size={10} className="text-gray-300 ml-auto" />}
             </label>
             <input 
               type="time" 
-              disabled={!canEditExecution}
+              disabled={!canEditDeliveryDateTime}
+              title={!canEditDeliveryDateTime ? "Disponible únicamente cuando la tarea está En Progreso" : undefined}
               className={`w-full px-2.5 py-2 border rounded-lg focus:outline-none transition-all text-xs font-bold ${
-                !canEditExecution ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100' : 'bg-white border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
+                !canEditDeliveryDateTime ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100' : 'bg-white border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
               }`}
               value={newTaskData.actualEndTime || ''}
               onChange={e => setNewTaskData({...newTaskData, actualEndTime: e.target.value})}
@@ -875,15 +881,16 @@ export default function TaskModal({
           <div className="space-y-2 relative">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 flex items-center gap-1.5">
               <Activity size={12} className="text-green-500" /> Horas Reales
-              {!canEditExecution && <Lock size={10} className="text-gray-300 ml-auto" />}
+              {!canEditActualHours && <Lock size={10} className="text-gray-300 ml-auto" />}
             </label>
             <input 
               type="number" 
               min="0"
               step="0.5"
-              disabled={!canEditExecution}
+              disabled={!canEditActualHours}
+              title={!canEditActualHours ? "Disponible únicamente cuando la tarea está En Progreso" : undefined}
               className={`w-full px-2.5 py-2 border rounded-lg focus:outline-none transition-all text-xs font-bold ${
-                !canEditExecution ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100' : 'bg-white border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
+                !canEditActualHours ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100' : 'bg-white border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm'
               }`}
               value={newTaskData.actualHours}
               onChange={e => setNewTaskData({...newTaskData, actualHours: parseFloat(e.target.value) || 0})}

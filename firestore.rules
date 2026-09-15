@@ -34,7 +34,7 @@ service cloud.firestore {
     // For this app, I'll allow the user from metadata to be an admin if they sign in.
     function isSuperAdmin() {
       return isSignedIn() && (
-        ('email' in request.auth.token && request.auth.token.email.lower() == 'e.siavichay@novagreen.ec') || 
+        ('email' in request.auth.token && (request.auth.token.email.lower() == 'e.siavichay@novagreen.ec' || request.auth.token.email.lower() == 'anedward96@gmail.com')) || 
         isAdmin()
       );
     }
@@ -49,49 +49,35 @@ service cloud.firestore {
     function getMember() {
       let directMemberPath = /databases/$(database)/documents/members/$(request.auth.uid);
       let memberId = getMemberId();
-      let mappedMemberPath = memberId != null ? /databases/$(database)/documents/members/$(memberId) : null;
       return exists(directMemberPath) ? get(directMemberPath).data : (
-        mappedMemberPath != null && exists(mappedMemberPath) ? get(mappedMemberPath).data : null
+        memberId != null && exists(/databases/$(database)/documents/members/$(memberId)) ? get(/databases/$(database)/documents/members/$(memberId)).data : null
       );
     }
 
     // Check if the user is a leader for the process of the task
     function isProcessLeader(processId) {
       let member = getMember();
-      let hasMember = member != null;
-      let moduleAccess = hasMember && 'moduleAccess' in member && member.moduleAccess != null ? member.moduleAccess : {};
-      let systemRoleId = hasMember && 'systemRoleId' in member ? member.systemRoleId : '';
-      let memberRole = hasMember && 'role' in member && member.role is string ? member.role : '';
-      let memberProcessId = hasMember && 'processId' in member && member.processId is string ? member.processId : '';
-      let isSystemAdmin = hasMember && 'isSystemAdmin' in member ? member.isSystemAdmin : false;
-      
+      let moduleAccess = member != null && 'moduleAccess' in member && member.moduleAccess != null ? member.moduleAccess : {};
       let pId = processId is string ? processId : '';
-      let specificKey = 'tasks_' + pId;
-      let specificAccess = specificKey in moduleAccess ? moduleAccess[specificKey] : null;
-      let generalAccess = 'tasks' in moduleAccess ? moduleAccess['tasks'] : null;
-      let marketingAccess = 'marketing' in moduleAccess ? moduleAccess['marketing'] : null;
-      let acreditacionAccess = 'acreditacion' in moduleAccess ? moduleAccess['acreditacion'] : null;
-      
-      let isMktProcess = pId == 'proc-mkt' || (pId.size() > 0 && pId.matches('.*mkt.*'));
-      let isAcredProcess = pId == 'proc-acred' || pId == 'acreditacion' || (pId.size() > 0 && pId.matches('.*acred.*'));
-      let isAcredMember = memberProcessId == 'proc-acred' || memberProcessId == 'acreditacion' || (memberProcessId.size() > 0 && memberProcessId.matches('.*acred.*'));
+      let specificAccess = ('tasks_' + pId) in moduleAccess ? moduleAccess['tasks_' + pId] : null;
+      let memberProcessId = member != null && 'processId' in member && member.processId is string ? member.processId : '';
+      let isSystemAdmin = member != null && 'isSystemAdmin' in member && member.isSystemAdmin == true;
+      let systemRoleId = member != null && 'systemRoleId' in member ? member.systemRoleId : '';
+      let memberRole = member != null && 'role' in member && member.role is string ? member.role : '';
 
-      return isSignedIn() && hasMember && (
-        isSystemAdmin == true ||
+      return isSignedIn() && member != null && (
+        isSystemAdmin ||
         systemRoleId == 'role-admin' ||
         specificAccess == 'lider' ||
         specificAccess == 'administrador' ||
-        (isMktProcess && (marketingAccess == 'lider' || marketingAccess == 'administrador')) ||
-        (isAcredProcess && (acreditacionAccess == 'lider' || acreditacionAccess == 'administrador')) ||
-        (pId.size() > 0 && (memberProcessId == pId || (isAcredMember && isAcredProcess)) && (systemRoleId == 'role-lider' || memberRole.matches('.*(Lider|Líder|lider|líder).*'))) ||
+        (('marketing' in moduleAccess) && (pId == 'proc-mkt' || pId.matches('.*mkt.*')) && (moduleAccess['marketing'] in ['lider', 'administrador'])) ||
+        (('acreditacion' in moduleAccess) && (pId in ['proc-acred', 'acreditacion'] || pId.matches('.*acred.*')) && (moduleAccess['acreditacion'] in ['lider', 'administrador'])) ||
+        (pId.size() > 0 && memberProcessId == pId && (systemRoleId == 'role-lider' || memberRole.matches('.*(Lider|Líder|lider|líder).*'))) ||
         (
           (specificAccess == null || specificAccess == 'ninguno') && (
-            generalAccess == 'lider' ||
-            generalAccess == 'administrador' ||
-            acreditacionAccess == 'lider' ||
-            acreditacionAccess == 'administrador' ||
-            marketingAccess == 'lider' ||
-            marketingAccess == 'administrador'
+            ('tasks' in moduleAccess && moduleAccess['tasks'] in ['lider', 'administrador']) ||
+            ('acreditacion' in moduleAccess && moduleAccess['acreditacion'] in ['lider', 'administrador']) ||
+            ('marketing' in moduleAccess && moduleAccess['marketing'] in ['lider', 'administrador'])
           )
         )
       );
@@ -100,27 +86,17 @@ service cloud.firestore {
     // Check if the user is a collaborator for the process of the task
     function isProcessCollaborator(processId) {
       let member = getMember();
-      let hasMember = member != null;
-      let moduleAccess = hasMember && 'moduleAccess' in member && member.moduleAccess != null ? member.moduleAccess : {};
-      let memberProcessId = hasMember && 'processId' in member && member.processId is string ? member.processId : '';
-      
+      let moduleAccess = member != null && 'moduleAccess' in member && member.moduleAccess != null ? member.moduleAccess : {};
       let pId = processId is string ? processId : '';
-      let specificKey = 'tasks_' + pId;
-      let specificAccess = specificKey in moduleAccess ? moduleAccess[specificKey] : null;
-      let generalAccess = 'tasks' in moduleAccess ? moduleAccess['tasks'] : null;
-      let marketingAccess = 'marketing' in moduleAccess ? moduleAccess['marketing'] : null;
-      let acreditacionAccess = 'acreditacion' in moduleAccess ? moduleAccess['acreditacion'] : null;
+      let specificAccess = ('tasks_' + pId) in moduleAccess ? moduleAccess['tasks_' + pId] : null;
+      let memberProcessId = member != null && 'processId' in member && member.processId is string ? member.processId : '';
 
-      let isMktProcess = pId == 'proc-mkt' || (pId.size() > 0 && pId.matches('.*mkt.*'));
-      let isAcredProcess = pId == 'proc-acred' || pId == 'acreditacion' || (pId.size() > 0 && pId.matches('.*acred.*'));
-      let isAcredMember = memberProcessId == 'proc-acred' || memberProcessId == 'acreditacion' || (memberProcessId.size() > 0 && memberProcessId.matches('.*acred.*'));
-      
-      return isSignedIn() && hasMember && (
+      return isSignedIn() && member != null && (
         specificAccess == 'colaborador' ||
-        (isMktProcess && (marketingAccess == 'colaborador')) ||
-        (isAcredProcess && (acreditacionAccess == 'colaborador')) ||
-        (pId.size() > 0 && (memberProcessId == pId || (isAcredMember && isAcredProcess))) ||
-        ((specificAccess == null || specificAccess == 'ninguno') && generalAccess == 'colaborador')
+        (('marketing' in moduleAccess) && (pId == 'proc-mkt' || pId.matches('.*mkt.*')) && moduleAccess['marketing'] == 'colaborador') ||
+        (('acreditacion' in moduleAccess) && (pId in ['proc-acred', 'acreditacion'] || pId.matches('.*acred.*')) && moduleAccess['acreditacion'] == 'colaborador') ||
+        (pId.size() > 0 && memberProcessId == pId) ||
+        ((specificAccess == null || specificAccess == 'ninguno') && 'tasks' in moduleAccess && moduleAccess['tasks'] == 'colaborador')
       );
     }
 
@@ -357,6 +333,13 @@ service cloud.firestore {
     }
     match /products/{id} {
       allow read, write: if isSignedIn();
+    }
+
+    match /comments/{commentId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
   }
 }

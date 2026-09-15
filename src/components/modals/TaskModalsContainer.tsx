@@ -28,6 +28,8 @@ interface TaskModalsContainerProps {
   canEditStatusField: boolean;
   canEditPlanning: boolean;
   canEditExecution: boolean;
+  canEditDeliveryDateTime?: boolean;
+  canEditActualHours?: boolean;
   showTaskHistory: boolean;
   setShowTaskHistory: React.Dispatch<React.SetStateAction<boolean>>;
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
@@ -65,6 +67,8 @@ export const TaskModalsContainer: React.FC<TaskModalsContainerProps> = ({
   canEditStatusField,
   canEditPlanning,
   canEditExecution,
+  canEditDeliveryDateTime,
+  canEditActualHours,
   showTaskHistory,
   setShowTaskHistory,
   setTasks,
@@ -114,6 +118,8 @@ export const TaskModalsContainer: React.FC<TaskModalsContainerProps> = ({
         canEditStatusField={canEditStatusField}
         canEditPlanning={canEditPlanning}
         canEditExecution={canEditExecution}
+        canEditDeliveryDateTime={canEditDeliveryDateTime}
+        canEditActualHours={canEditActualHours}
         showTaskHistory={showTaskHistory}
         setShowTaskHistory={setShowTaskHistory}
         setTasks={setTasks}

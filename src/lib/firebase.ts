@@ -9,9 +9,21 @@ import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, dele
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
+const env = (import.meta as any).env || {};
+
+const resolvedConfig = {
+  projectId: env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId,
+  appId: env.VITE_FIREBASE_APP_ID || firebaseConfig.appId,
+  apiKey: env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
+  firestoreDatabaseId: env.VITE_FIREBASE_DATABASE_ID || (firebaseConfig as any).firestoreDatabaseId,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
+};
+
+const app = initializeApp(resolvedConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
+export const db = getFirestore(app, resolvedConfig.firestoreDatabaseId);
 export const storage = getStorage(app);
 export { ref, uploadBytes, getDownloadURL };
 

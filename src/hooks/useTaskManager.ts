@@ -823,6 +823,13 @@ export function useTaskManager({
   const canEditPlanning = isNewTask || isProcessLeader;
   const canEditExecution = isNewTask || isProcessLeader || isPrimaryAssignee || isAssignee;
 
+  // Regla de Negocio: Fecha y Hora de Entrega ('actualEndDate' y 'actualEndTime') y Horas Reales ('actualHours')
+  // - Líder de proceso / Administrador / Nueva Tarea: editable siempre.
+  // - Colaborador asignado (titular o auxiliar): editable ÚNICAMENTE cuando la tarea está en estado 'in_progress' ("En Progreso").
+  const isTaskInProgress = editingTask ? (editingTask.status === 'in_progress' || newTaskData.status === 'in_progress') : true;
+  const canEditDeliveryDateTime = isNewTask || isProcessLeader || ((isPrimaryAssignee || isAssignee) && isTaskInProgress);
+  const canEditActualHours = isNewTask || isProcessLeader || ((isPrimaryAssignee || isAssignee) && isTaskInProgress);
+
   return {
     isAddingTask,
     setIsAddingTask,
@@ -852,6 +859,8 @@ export function useTaskManager({
     canEditMetadataField,
     canEditStatusField,
     canEditPlanning,
-    canEditExecution
+    canEditExecution,
+    canEditDeliveryDateTime,
+    canEditActualHours
   };
 }

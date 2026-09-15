@@ -18,7 +18,7 @@ function getAI(): GoogleGenAI {
       apiKey,
       httpOptions: {
         headers: {
-          'User-Agent': 'aistudio-build'
+          'User-Agent': 'novagreen-server'
         }
       }
     });

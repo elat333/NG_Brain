@@ -45,6 +45,7 @@ export type SystemRole = Role;
 export interface CompanyAssociation {
   companyId: string;
   role: string; // Specific role/relationship with this company
+  email?: string;
 }
 
 export interface TeamMember {
@@ -106,6 +107,29 @@ export interface TaskComment {
   createdAt: string;
   requiresReview?: boolean; // Si es una solicitud de revisión/cambio formal
   status?: 'pending' | 'resolved'; // Estado de la solicitud de revisión
+  resolvedAt?: string;
+  resolvedBy?: string;
+  targetMemberId?: string;
+  mentionedMemberIds?: string[];
+}
+
+export type CommentEntityType = 'task' | 'link' | 'note' | 'project';
+
+export interface UniversalComment {
+  id: string;
+  entityType: CommentEntityType;
+  entityId: string;
+  entityTitle?: string;
+  processId?: string;
+  authorId: string;
+  authorName: string;
+  authorRole?: string;
+  authorAvatar?: string;
+  text: string;
+  createdAt: string;
+  updatedAt?: string;
+  requiresReview?: boolean;
+  status?: 'pending' | 'resolved';
   resolvedAt?: string;
   resolvedBy?: string;
   targetMemberId?: string;

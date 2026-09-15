@@ -109,17 +109,24 @@ export function useFirestoreSync(user: FirebaseUser | null) {
   // Synchronize Google user email mapping to the Member document ID in Firestore for Security Rules
   useEffect(() => {
     if (!user || !user.email || members.length === 0) return;
-    const found = members.find(m => m.email?.toLowerCase() === user.email?.toLowerCase());
+    const userEmail = user.email.toLowerCase().trim();
+    const found = members.find(m => 
+      m.email?.toLowerCase().trim() === userEmail ||
+      m.companyAssociations?.some(ca => ca.email?.toLowerCase().trim() === userEmail)
+    );
     if (found) {
-      const emailDocId = user.email.toLowerCase();
+      const emailDocId = userEmail;
       const writeMapping = async () => {
         try {
           await setDoc(doc(db, 'user_mappings', emailDocId), { memberId: found.id });
+          console.info(`[Auth Sync] Mapeo verificado para ${userEmail} -> Miembro: ${found.name} (${found.id})`);
         } catch (e) {
-          console.warn("Silent mapping sync:", e);
+          console.warn("[Auth Sync] Advertencia al sincronizar user_mappings:", e);
         }
       };
       writeMapping();
+    } else {
+      console.warn(`[Auth Sync] Usuario autenticado (${userEmail}) no está registrado en la lista de miembros de Novagreen.`);
     }
   }, [user, members]);
 

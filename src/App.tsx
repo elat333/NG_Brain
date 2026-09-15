@@ -142,16 +142,20 @@ export default function App() {
 
   const currentMember = React.useMemo(() => {
     if (!user || !user.email) return null;
-    const found = members.find(m => m.email?.toLowerCase() === user.email?.toLowerCase());
+    const userEmail = user.email.toLowerCase().trim();
+    const found = members.find(m => 
+      m.email?.toLowerCase().trim() === userEmail ||
+      m.companyAssociations?.some(ca => ca.email?.toLowerCase().trim() === userEmail)
+    );
     if (found) {
-      if (user.email.toLowerCase() === 'e.siavichay@novagreen.ec') {
+      if (userEmail === 'e.siavichay@novagreen.ec' || userEmail === 'anedward96@gmail.com') {
         return { ...found, isSystemAdmin: true, systemRoleId: 'role-admin' };
       }
       return found;
     }
 
     // Fallback/bootstrap for super admin so they can access and manage the platform fully
-    if (user.email.toLowerCase() === 'e.siavichay@novagreen.ec') {
+    if (userEmail === 'e.siavichay@novagreen.ec' || userEmail === 'anedward96@gmail.com') {
       return {
         id: 'super-admin-bootstrap',
         name: user.displayName || 'Super Admin',
@@ -429,7 +433,9 @@ export default function App() {
     canEditMetadataField,
     canEditStatusField,
     canEditPlanning,
-    canEditExecution
+    canEditExecution,
+    canEditDeliveryDateTime,
+    canEditActualHours
   } = useTaskManager({
     tasks,
     projects,
@@ -945,6 +951,8 @@ export default function App() {
           canEditStatusField={canEditStatusField}
           canEditPlanning={canEditPlanning}
           canEditExecution={canEditExecution}
+          canEditDeliveryDateTime={canEditDeliveryDateTime}
+          canEditActualHours={canEditActualHours}
           showTaskHistory={showTaskHistory}
           setShowTaskHistory={setShowTaskHistory}
           setTasks={setTasks}
