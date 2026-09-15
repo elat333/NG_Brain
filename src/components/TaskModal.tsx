@@ -780,8 +780,8 @@ export default function TaskModal({
                             newTaskData.memberId === currentMember.id
                           )
                         );
-                        const isExecutionOrReviewStatus = newTaskData.status === 'in_progress' || newTaskData.status === 'review';
-                        const canEditActualHours = isNewTask || isProcessLeader || (isResponsibleMember && isExecutionOrReviewStatus);
+                        const isTaskInProgress = newTaskData.status === 'in_progress';
+                        const canEditActualHours = isNewTask || isProcessLeader || (isResponsibleMember && isTaskInProgress);
                         return (
                           <>
                             
