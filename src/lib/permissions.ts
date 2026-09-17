@@ -220,6 +220,15 @@ export const getModuleAccess = (
     const ranks = ['ninguno', 'lector', 'colaborador', 'lider', 'administrador'] as const;
     return ranks[effectiveRank] || 'colaborador';
   }
+
+  // Handle inventario module
+  if (moduleId === 'inventario') {
+    const generalAccess = member.moduleAccess ? member.moduleAccess['inventario'] : undefined;
+    if (generalAccess !== undefined) {
+      return generalAccess;
+    }
+    return 'colaborador';
+  }
   
   // If the member has an explicit moduleAccess object, that object is the absolute source of truth
   if (member.moduleAccess) {

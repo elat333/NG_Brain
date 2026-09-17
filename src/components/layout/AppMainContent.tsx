@@ -15,6 +15,7 @@ import { TrainingView } from '../training/TrainingView';
 import { SalesView } from '../sales/SalesView';
 import { AcreditacionView } from '../acreditacion/AcreditacionView';
 import { ProductsView } from '../products/ProductsView';
+import { InventarioModule } from '../inventario/InventarioModule';
 import { QHSEView } from '../qhse/QHSEView';
 import { SettingsContainerView } from '../settings/SettingsContainerView';
 import { DashboardView } from '../dashboard/DashboardView';
@@ -22,7 +23,7 @@ import { ProjectsView } from '../projects/ProjectsView';
 import DirectoryView from '../directory/DirectoryView';
 import { PlannerView } from '../planner/PlannerView';
 import { TranscriptView } from '../transcript/TranscriptView';
-import { MainTabType, SettingsSubTabType, DirectorySubTabType, ProcessSubTabType, ManagementSubTabType, ImportacionesSubTabType, AcreditacionSubTabType, VentasSubTabType } from '../../hooks/useAppNavigation';
+import { MainTabType, SettingsSubTabType, DirectorySubTabType, ProcessSubTabType, ManagementSubTabType, ImportacionesSubTabType, AcreditacionSubTabType, VentasSubTabType, InventarioSubTabType } from '../../hooks/useAppNavigation';
 import { MarketingSubTab } from '../MarketingModule';
 import { CapacitacionSubTab } from '../CapacitacionModule';
 import { ProductSubTab } from '../ProductosModule';
@@ -69,6 +70,8 @@ export interface AppMainContentProps {
   setAcreditacionSubTab: (tab: AcreditacionSubTabType) => void;
   productosSubTab: ProductSubTab;
   setProductosSubTab: (tab: ProductSubTab) => void;
+  inventarioSubTab?: InventarioSubTabType;
+  setInventarioSubTab?: (tab: InventarioSubTabType) => void;
   qhseSubTab: QHSESubTab;
   setQhseSubTab: (tab: QHSESubTab) => void;
   importacionesSubTab: ImportacionesSubTabType;
@@ -199,6 +202,8 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
   setAcreditacionSubTab,
   productosSubTab,
   setProductosSubTab,
+  inventarioSubTab = 'existencias',
+  setInventarioSubTab,
   qhseSubTab,
   setQhseSubTab,
   importacionesSubTab,
@@ -328,6 +333,7 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
                  activeTab === 'capacitacion' ? 'Capacitación' :
                  activeTab === 'acreditacion' ? 'Acreditación' :
                  activeTab === 'productos' ? 'Productos' :
+                 activeTab === 'inventario' ? 'Inventario' :
                  activeTab === 'qhse' ? 'QHSE' :
                  activeTab === 'importaciones' ? 'Importaciones' :
                  'Configuración'}
@@ -435,6 +441,17 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
           activeSubTab={productosSubTab}
           onSubTabChange={(tab) => setProductosSubTab(tab)}
           accessLevel={getModuleAccess(currentMember, roles, 'productos')}
+        />
+      )}
+
+      {activeTab === 'inventario' && (
+        <InventarioModule
+          currentMember={currentMember}
+          products={products}
+          members={members}
+          activeSubTab={inventarioSubTab}
+          onSubTabChange={(tab) => setInventarioSubTab && setInventarioSubTab(tab)}
+          accessLevel={getModuleAccess(currentMember, roles, 'inventario')}
         />
       )}
 

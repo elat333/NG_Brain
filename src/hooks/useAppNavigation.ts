@@ -20,8 +20,10 @@ export type MainTabType =
   | 'capacitacion' 
   | 'acreditacion' 
   | 'productos' 
+  | 'inventario'
   | 'qhse';
 
+export type InventarioSubTabType = 'existencias' | 'bodegas' | 'solicitudes' | 'facturas';
 export type VentasSubTabType = 'links' | 'notes' | 'crm' | 'pipeline' | 'quotes' | 'goals';
 export type SettingsSubTabType = 'roles' | 'processes' | 'members' | 'general';
 export type DirectorySubTabType = 'people' | 'companies' | 'industries';
@@ -37,6 +39,7 @@ export function useAppNavigation() {
   const [expandedNavModule, setExpandedNavModule] = useState<string | null>(null);
 
   // Sub-pestañas de cada módulo
+  const [inventarioSubTab, setInventarioSubTab] = useState<InventarioSubTabType>('existencias');
   const [tasksSubTab, setTasksSubTab] = useState<TasksSubTabType>('board');
   const [ventasSubTab, setVentasSubTab] = useState<VentasSubTabType>('links');
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTabType>('general');
@@ -80,6 +83,7 @@ export function useAppNavigation() {
     capacitacionSubTab, 
     acreditacionSubTab, 
     productosSubTab, 
+    inventarioSubTab,
     qhseSubTab, 
     importacionesSubTab,
     tasksSubTab
@@ -115,6 +119,8 @@ export function useAppNavigation() {
     setAcreditacionSubTab,
     productosSubTab,
     setProductosSubTab,
+    inventarioSubTab,
+    setInventarioSubTab,
     qhseSubTab,
     setQhseSubTab,
     selectedProcessId,

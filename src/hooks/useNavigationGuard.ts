@@ -21,6 +21,8 @@ interface UseNavigationGuardProps {
   setAcreditacionSubTab: (tab: any) => void;
   productosSubTab: string;
   setProductosSubTab: (tab: any) => void;
+  inventarioSubTab?: string;
+  setInventarioSubTab?: (tab: any) => void;
   qhseSubTab: string;
   setQhseSubTab: (tab: any) => void;
   importacionesSubTab: string;
@@ -98,6 +100,8 @@ export const useNavigationGuard = ({
   setAcreditacionSubTab,
   productosSubTab,
   setProductosSubTab,
+  inventarioSubTab,
+  setInventarioSubTab,
   qhseSubTab,
   setQhseSubTab,
   importacionesSubTab,
@@ -297,6 +301,8 @@ export const useNavigationGuard = ({
       setAcreditacionSubTab(action.targetSubTab);
     } else if (action.type === 'productos_subtab' && action.targetSubTab) {
       setProductosSubTab(action.targetSubTab);
+    } else if (action.type === 'inventario_subtab' && action.targetSubTab) {
+      if (setInventarioSubTab) setInventarioSubTab(action.targetSubTab);
     } else if (action.type === 'qhse_subtab' && action.targetSubTab) {
       setQhseSubTab(action.targetSubTab);
     } else if (action.type === 'importaciones_subtab' && action.targetSubTab) {
@@ -394,6 +400,13 @@ export const useNavigationGuard = ({
   const handleProductosSubTabClick = useCallback((subTab: any) => {
     navigateWithUnsavedCheck({
       type: 'productos_subtab',
+      targetSubTab: subTab
+    });
+  }, [navigateWithUnsavedCheck]);
+
+  const handleInventarioSubTabClick = useCallback((subTab: any) => {
+    navigateWithUnsavedCheck({
+      type: 'inventario_subtab' as any,
       targetSubTab: subTab
     });
   }, [navigateWithUnsavedCheck]);
@@ -539,6 +552,7 @@ export const useNavigationGuard = ({
     handleCapacitacionSubTabClick,
     handleAcreditacionSubTabClick,
     handleProductosSubTabClick,
+    handleInventarioSubTabClick,
     handleQhseSubTabClick,
     handleImportacionesSubTabClick,
     handleTasksSubTabClick,

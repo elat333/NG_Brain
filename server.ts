@@ -30,7 +30,8 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: "100mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 
   // Health check endpoint
   app.get("/api/health", (req, res) => {
@@ -460,6 +461,114 @@ ${activeProfile.prompt}
       console.error("Management AI Error:", error); /* fs.writeFileSync removed */
       res.status(500).json({ error: error?.message || "Failed to query management AI" });
     }
+  });
+
+  app.post("/api/ai/parse-invoice", async (req, res) => {
+    try {
+      const { pdfBase64, existingProducts } = req.body;
+      if (!pdfBase64) {
+        return res.status(400).json({ error: "Falta el archivo PDF en base64." });
+      }
+
+      // Limpiar prefijo data URL si existe
+      const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;base64,/, "").trim();
+
+      const ai = getAI();
+      const prompt = `
+        Eres un asistente experto en compras, contabilidad e inventario para la empresa Novagreen.
+        Analiza detenidamente la factura comercial/fiscal adjunta en PDF (contiene compras de Equipos de Protección Personal - EPP, uniformes, calzado de seguridad, insumos industriales o herramientas).
+        
+        Tu tarea es:
+        1. Extraer los datos generales de la factura:
+           - Número de factura (invoiceNumber): Ej. "001-002-000012345" o el que conste en el documento.
+           - Proveedor (supplierName): Razón social o nombre comercial del emisor/proveedor.
+           - RUC/Identificación del proveedor (supplierRuc): Si está disponible.
+           - Fecha de emisión (invoiceDate): En formato YYYY-MM-DD. Si solo viene día y mes, o año incompleto, usa el año 2026.
+           - Monto total de la factura (totalAmount): Número decimal con el valor final total de la factura.
+           
+        2. Extraer cada uno de los ítems o productos facturados:
+           - description: Descripción completa y detallada del producto tal como figura en la factura.
+           - quantity: Cantidad facturada como número positivo (entero o decimal).
+           - unitPrice: Precio unitario.
+           - totalPrice: Total de la línea (quantity * unitPrice).
+           - suggestedSize: Si el ítem indica talla o medida (ej: "38", "39", "40", "41", "42", "S", "M", "L", "XL", "XXL", "Estándar", etc.), extráela con precisión. Si no tiene talla, devuelve "Estándar".
+           - matchedProductId: De la lista de productos existentes en el catálogo de Novagreen que te proporcionamos a continuación, si el ítem corresponde o se asemeja claramente a alguno, asigna su 'id'. Si es un producto nuevo o no coincide claramente, deja este campo vacío ("").
+           
+        Catálogo actual de productos de Novagreen:
+        ${JSON.stringify((existingProducts || []).map((p: any) => ({ id: p.id, name: p.name, sku: p.sku, category: p.category })), null, 2)}
+        
+        IMPORTANTE: Devuelve la respuesta estructurada estrictamente en formato JSON según el esquema. Todos los textos deben estar en ESPAÑOL.
+      `;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                inlineData: {
+                  mimeType: "application/pdf",
+                  data: cleanBase64
+                }
+              },
+              {
+                text: prompt
+              }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              invoiceNumber: { type: Type.STRING },
+              supplierName: { type: Type.STRING },
+              supplierRuc: { type: Type.STRING },
+              invoiceDate: { type: Type.STRING },
+              totalAmount: { type: Type.NUMBER },
+              items: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    description: { type: Type.STRING },
+                    quantity: { type: Type.NUMBER },
+                    unitPrice: { type: Type.NUMBER },
+                    totalPrice: { type: Type.NUMBER },
+                    suggestedSize: { type: Type.STRING },
+                    matchedProductId: { type: Type.STRING }
+                  },
+                  required: ["description", "quantity", "unitPrice", "totalPrice"]
+                }
+              }
+            },
+            required: ["invoiceNumber", "supplierName", "items"]
+          }
+        }
+      });
+
+      const rawText = response.text;
+      if (!rawText) {
+        return res.status(500).json({ error: "No se recibió respuesta estructurada del modelo de IA." });
+      }
+
+      const parsed = JSON.parse(rawText);
+      res.json(parsed);
+    } catch (error: any) {
+      console.error("Error al procesar factura con Gemini:", error);
+      res.status(500).json({ error: error?.message || "Error al procesar la factura con IA." });
+    }
+  });
+
+  // Error handler middleware (catch payload too large, JSON syntax errors, etc.)
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err.type === 'entity.too.large' || err.status === 413) {
+      return res.status(413).json({ error: 'El archivo excede el tamaño máximo permitido (100MB). Por favor comprime el archivo o utiliza una versión más ligera.' });
+    }
+    console.error('Unhandled server error:', err);
+    res.status(err.status || 500).json({ error: err?.message || 'Error interno del servidor' });
   });
 
   // 404 handler for unhandled API routes

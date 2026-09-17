@@ -622,9 +622,100 @@ export interface MarketingMetricRecord {
   updatedAt: string;
 }
 
+// Module: Inventario & EPPs
+export interface Warehouse {
+  id: string;
+  name: string;
+  code: string; // ej: "BOD-MATRIZ", "BOD-PLANTA", "BOD-MOVIL-01"
+  type: 'fija' | 'movil' | 'campo';
+  location?: string;
+  responsibleMemberId?: string; // Custodio (TeamMember.id)
+  responsibleMemberName?: string;
+  description?: string;
+  status: 'activa' | 'inactiva';
+  createdAt: string;
+  updatedAt?: string;
+}
 
+export interface InventoryStockItem {
+  id: string; // `${warehouseId}_${productId}`
+  warehouseId: string;
+  warehouseName: string;
+  productId: string;
+  productName: string;
+  productSku?: string;
+  productCategory: string; // 'epp' | 'equipos' | etc.
+  currentStock: number;
+  minStock: number;
+  unit: string; // 'unidad', 'par', 'juego', 'caja'
+  sizesStock?: Record<string, number>; // Desglose por tallas: {"38": 4, "39": 6, "40": 10}
+  updatedAt: string;
+}
 
+export interface EPPItemDelivered {
+  productId: string;
+  productName: string;
+  productSku?: string;
+  quantity: number;
+  size?: string;
+  condition?: 'nuevo' | 'reacondicionado';
+}
 
+export interface InventoryUpdateRequest {
+  id: string;
+  requestCode: string; // ej: "SOL-EPP-2026-0001"
+  warehouseId: string;
+  warehouseName: string;
+  workerId: string;
+  workerName: string;
+  workerIdNumber?: string; // Cédula
+  workerRole?: string;
+  deliveredById: string;
+  deliveredByName: string;
+  deliveryDate: string;
+  deliveryReason: 'dotacion_inicial' | 'reposicion_desgaste' | 'perdida_dano' | 'prestamo_temporal';
+  items: EPPItemDelivered[];
+  photoEquipmentUrl?: string; // Evidencia 1: Foto del EPP
+  photoWorkerUrl?: string; // Evidencia 2: Foto del trabajador con el EPP
+  signatureUrl?: string; // Firma digital táctil
+  pdfReportUrl?: string; // URL o base64 del Acta PDF
+  status: 'pendiente' | 'aprobada' | 'rechazada';
+  approvedById?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
+  notes?: string;
+  source: 'app_movil' | 'web';
+  createdAt: string;
+}
+
+export interface InventoryInvoiceItem {
+  productId: string;        // ID del producto en Novagreen
+  productName: string;      // Nombre o descripción
+  productSku?: string;
+  quantity: number;         // Cantidad facturada
+  unitPrice: number;        // Precio unitario
+  totalPrice: number;       // Total línea
+  size?: string;            // Talla (opcional: ej. "M", "L", "40", "42", "Única")
+}
+
+export interface InventoryInvoice {
+  id: string;
+  invoiceNumber: string;     // ej: "001-002-000012345"
+  supplierName: string;      // Razón social del proveedor
+  supplierRuc?: string;      // RUC del proveedor
+  invoiceDate: string;       // Fecha de emisión
+  totalAmount: number;       // Monto total de la factura
+  warehouseId: string;       // Bodega de destino donde ingresó el stock
+  warehouseName: string;     // Nombre de la bodega
+  items: InventoryInvoiceItem[];
+  pdfUrl?: string;           // Enlace al archivo PDF en Firebase Storage
+  pdfStoragePath?: string;
+  status: 'cargada' | 'anulada';
+  uploadedById: string;
+  uploadedByName: string;
+  createdAt: string;
+}
 
 // --- Ventas Module Types ---
 export interface SalesClient {

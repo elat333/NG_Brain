@@ -241,11 +241,11 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
 
   return (
         <header className={`flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white text-ng-black border-b border-gray-100 shadow-2xs relative z-30 transition-all ${
-          ['tasks', 'gerencia', 'marketing', 'ventas', 'capacitacion', 'acreditacion', 'qhse', 'importaciones', 'process_dashboard', 'productos'].includes(activeTab) ? 'px-6 py-2.5' : 'p-6'
+          ['tasks', 'gerencia', 'marketing', 'ventas', 'capacitacion', 'acreditacion', 'qhse', 'importaciones', 'process_dashboard', 'productos', 'inventario'].includes(activeTab) ? 'px-6 py-2.5' : 'p-6'
         }`}>
           <div className="flex flex-wrap items-center gap-3">
             <div>
-              <h1 className={`font-black tracking-tight ${['tasks', 'gerencia', 'marketing', 'ventas', 'capacitacion', 'acreditacion', 'qhse', 'importaciones', 'process_dashboard', 'productos'].includes(activeTab) ? 'text-lg md:text-xl' : 'text-2xl'}`}>
+              <h1 className={`font-black tracking-tight ${['tasks', 'gerencia', 'marketing', 'ventas', 'capacitacion', 'acreditacion', 'qhse', 'importaciones', 'process_dashboard', 'productos', 'inventario'].includes(activeTab) ? 'text-lg md:text-xl' : 'text-2xl'}`}>
                 {activeTab === 'dashboard' && 'Panel de Control'}
                 {activeTab === 'gerencia' && 'Módulo de Gerencia & Dirección'}
                 {activeTab === 'process_dashboard' && 'Gestión de Procesos'}
@@ -255,6 +255,7 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
                 {activeTab === 'capacitacion' && 'Módulo de Capacitación'}
                 {activeTab === 'acreditacion' && 'Módulo de Acreditación'}
                 {activeTab === 'productos' && 'Módulo de Productos'}
+                {activeTab === 'inventario' && 'Módulo de Inventario & Bodegas'}
                 {activeTab === 'qhse' && 'Módulo de QHSE'}
                 {activeTab === 'transcript' && 'Análisis de Transcripciones'}
                 {activeTab === 'projects' && 'Gestión de Proyectos'}

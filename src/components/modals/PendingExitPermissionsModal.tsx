@@ -4,11 +4,12 @@ import { ShieldAlert, Save, User, Building2, FolderKanban, Workflow } from 'luci
 import { TeamMember } from '../../types';
 
 export interface PendingExitAction {
-  type: 'tab' | 'subtab' | 'settings_subtab' | 'directory_subtab' | 'process_subtab' | 'management_subtab' | 'ventas_subtab' | 'capacitacion_subtab' | 'acreditacion_subtab' | 'productos_subtab' | 'qhse_subtab' | 'importaciones_subtab' | 'tasks_subtab' | 'member' | 'custom';
+  type: 'tab' | 'subtab' | 'settings_subtab' | 'directory_subtab' | 'process_subtab' | 'management_subtab' | 'ventas_subtab' | 'capacitacion_subtab' | 'acreditacion_subtab' | 'productos_subtab' | 'inventario_subtab' | 'qhse_subtab' | 'importaciones_subtab' | 'tasks_subtab' | 'member' | 'custom';
   targetTab?: any;
   targetSettingsSubTab?: any;
   targetDirectorySub?: any;
   targetSubTab?: any;
+  targetInventarioSubTab?: any;
   targetMemberId?: string;
   onExecute?: () => void;
   formType?: 'permissions' | 'member' | 'company' | 'process' | 'project';

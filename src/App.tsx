@@ -77,6 +77,8 @@ export default function App() {
     setAcreditacionSubTab,
     productosSubTab,
     setProductosSubTab,
+    inventarioSubTab,
+    setInventarioSubTab,
     qhseSubTab,
     setQhseSubTab,
     selectedProcessId,
@@ -487,6 +489,7 @@ export default function App() {
     handleCapacitacionSubTabClick,
     handleAcreditacionSubTabClick,
     handleProductosSubTabClick,
+    handleInventarioSubTabClick,
     handleQhseSubTabClick,
     handleImportacionesSubTabClick,
     handleTasksSubTabClick,
@@ -514,6 +517,8 @@ export default function App() {
     setAcreditacionSubTab,
     productosSubTab,
     setProductosSubTab,
+    inventarioSubTab,
+    setInventarioSubTab,
     qhseSubTab,
     setQhseSubTab,
     importacionesSubTab,
@@ -648,6 +653,8 @@ export default function App() {
         setVentasSubTab={handleVentasSubTabClick}
         productosSubTab={productosSubTab}
         setProductosSubTab={handleProductosSubTabClick}
+        inventarioSubTab={inventarioSubTab}
+        setInventarioSubTab={handleInventarioSubTabClick}
         directorySubTab={directorySubTab}
         setDirectorySubTab={handleDirectorySubTabClick}
         importacionesSubTab={importacionesSubTab}
@@ -786,6 +793,8 @@ export default function App() {
               setAcreditacionSubTab={setAcreditacionSubTab}
               productosSubTab={productosSubTab}
               setProductosSubTab={setProductosSubTab}
+              inventarioSubTab={inventarioSubTab}
+              setInventarioSubTab={setInventarioSubTab}
               qhseSubTab={qhseSubTab}
               setQhseSubTab={setQhseSubTab}
               importacionesSubTab={importacionesSubTab}

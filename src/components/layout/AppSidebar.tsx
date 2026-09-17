@@ -41,7 +41,9 @@ import {
   User, 
   LogOut, 
   Zap,
-  MessageSquare
+  MessageSquare,
+  FileCheck,
+  Receipt
 } from 'lucide-react';
 import { TeamMember, Role } from '../../types';
 
@@ -146,6 +148,9 @@ interface AppSidebarProps {
   productosSubTab: string;
   setProductosSubTab: (tab: any) => void;
   
+  inventarioSubTab?: string;
+  setInventarioSubTab?: (tab: any) => void;
+  
   directorySubTab: string;
   setDirectorySubTab: (tab: 'people' | 'companies' | 'industries') => void;
   
@@ -194,6 +199,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   setVentasSubTab,
   productosSubTab,
   setProductosSubTab,
+  inventarioSubTab = 'existencias',
+  setInventarioSubTab,
   directorySubTab,
   setDirectorySubTab,
   importacionesSubTab,
@@ -970,6 +977,84 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         setExpandedNavModule('productos');
                         handleTabClick('productos');
                         setProductosSubTab('equipos');
+                      }} 
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </React.Fragment>
+          )}
+
+          {/* Inventario & Bodegas */}
+          {getModuleAccess(currentMember, roles, 'inventario') !== 'ninguno' && (
+            <React.Fragment key="sidebar_nav_group_inventario">
+              <NavButton 
+                key="sidebar_nav_btn_inventario"
+                active={activeTab === 'inventario'} 
+                icon={<Package size={20} />} 
+                label="Inventario" 
+                onClick={() => {
+                  toggleNavModule('inventario', () => {
+                    handleTabClick('inventario');
+                    if (setInventarioSubTab) setInventarioSubTab('existencias');
+                  });
+                }} 
+                trailingIcon={
+                  <span className={`text-[10px] transition-transform duration-200 inline-block ${expandedNavModule === 'inventario' ? 'rotate-90' : ''}`}>
+                    ▶
+                  </span>
+                }
+              />
+              <AnimatePresence>
+                {expandedNavModule === 'inventario' && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="pl-6 space-y-1 overflow-hidden py-1 border-l border-white/5 ml-5 my-1"
+                  >
+                    <SubNavButton 
+                      key="subnav_inv_existencias"
+                      active={inventarioSubTab === 'existencias'} 
+                      label="Existencias & Stock" 
+                      icon={<Layers size={14} />} 
+                      onClick={() => {
+                        setExpandedNavModule('inventario');
+                        handleTabClick('inventario');
+                        if (setInventarioSubTab) setInventarioSubTab('existencias');
+                      }} 
+                    />
+                    <SubNavButton 
+                      key="subnav_inv_bodegas"
+                      active={inventarioSubTab === 'bodegas'} 
+                      label="Gestión de Bodegas" 
+                      icon={<Building2 size={14} />} 
+                      onClick={() => {
+                        setExpandedNavModule('inventario');
+                        handleTabClick('inventario');
+                        if (setInventarioSubTab) setInventarioSubTab('bodegas');
+                      }} 
+                    />
+                    <SubNavButton 
+                      key="subnav_inv_solicitudes"
+                      active={inventarioSubTab === 'solicitudes'} 
+                      label="Entrega de EPP" 
+                      icon={<FileCheck size={14} />} 
+                      onClick={() => {
+                        setExpandedNavModule('inventario');
+                        handleTabClick('inventario');
+                        if (setInventarioSubTab) setInventarioSubTab('solicitudes');
+                      }} 
+                    />
+                    <SubNavButton 
+                      key="subnav_inv_facturas"
+                      active={inventarioSubTab === 'facturas'} 
+                      label="Carga por Factura" 
+                      icon={<Receipt size={14} />} 
+                      onClick={() => {
+                        setExpandedNavModule('inventario');
+                        handleTabClick('inventario');
+                        if (setInventarioSubTab) setInventarioSubTab('facturas');
                       }} 
                     />
                   </motion.div>

@@ -504,6 +504,7 @@ export const SettingsContainerView: React.FC<SettingsContainerViewProps> = ({
                           { id: 'marketing', name: 'Módulo de Marketing', desc: 'Campañas estandarizadas [AAMMDD], proyectos vinculados, calendario de contenidos, CRM y métricas.', icon: <Megaphone size={16} /> },
                           { id: 'ventas', name: 'Módulo de Ventas', desc: 'CRM de Clientes, Embudo de Ventas (Pipeline), Cotizaciones y Metas.', icon: <DollarSign size={16} /> },
                           { id: 'productos', name: 'Módulo de Productos', desc: 'Catálogo de soluciones comerciales, fichas técnicas y precios de Certificación, Capacitación, QHSE, EPP y Equipos.', icon: <Boxes size={16} />, isProductosParent: true },
+                          { id: 'inventario', name: 'Módulo de Inventario & Bodegas', desc: 'Control de existencias multi-bodega, stock mínimo, tallas y bandeja de solicitudes de EPP.', icon: <Package size={16} /> },
                           { id: 'acreditacion', name: 'Módulo de Acreditación', desc: 'Enlaces, aliados y programas de acreditación internacional.', icon: <Award size={16} /> },
                           { id: 'qhse', name: 'Módulo de QHSE', desc: 'Gestión de Calidad, Salud, Seguridad Ocupacional y Medio Ambiente.', icon: <ShieldCheck size={16} /> },
                           { id: 'importaciones', name: 'Módulo de Importaciones', desc: 'Base de productos, catálogo de proveedores internacionales y órdenes de importación.', icon: <Package size={16} /> },
