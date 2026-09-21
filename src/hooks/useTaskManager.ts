@@ -236,7 +236,7 @@ export function useTaskManager({
       processId: task.processId,
       memberId: task.memberId || '',
       auxiliaryId: task.auxiliaryId || '',
-      auxiliaryIds: task.auxiliaryIds || (task.auxiliaryId ? [task.auxiliaryId] : []),
+      auxiliaryIds: Array.isArray(task.auxiliaryIds) ? task.auxiliaryIds : (task.auxiliaryId ? [task.auxiliaryId] : []),
       revisorId: task.revisorId || '',
       projectId: task.projectId || '',
       taskTemplate: task.taskTemplate || 'standard',
@@ -433,7 +433,7 @@ export function useTaskManager({
       editingTask.memberId === currentMember.id || 
       editingTask.auxiliaryId === currentMember.id ||
       editingTask.revisorId === currentMember.id ||
-      (editingTask.auxiliaryIds && editingTask.auxiliaryIds.includes(currentMember.id)) ||
+      (Array.isArray(editingTask.auxiliaryIds) && currentMember.id && editingTask.auxiliaryIds.includes(currentMember.id)) ||
       newTaskData.memberId === currentMember.id
     );
 

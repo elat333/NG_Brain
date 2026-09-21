@@ -518,7 +518,7 @@ export default function TaskModal({
                           </div>
                           {/* Horizontal flex of assigned auxiliaries */}
                           <div className="flex flex-wrap gap-1.5 p-2 bg-white rounded-2xl min-h-[48px] items-center border border-dashed border-gray-200">
-                            {(!newTaskData.auxiliaryIds || newTaskData.auxiliaryIds.length === 0) ? (
+                            {(!Array.isArray(newTaskData.auxiliaryIds) || newTaskData.auxiliaryIds.length === 0) ? (
                               <span className="text-[10px] text-gray-400 italic px-2 select-none py-1">Sin auxiliares asignados. Usa "+ Agregar".</span>
                             ) : (
                               newTaskData.auxiliaryIds.map((id, aIdx) => {
@@ -540,7 +540,7 @@ export default function TaskModal({
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          const nextIds = (newTaskData.auxiliaryIds || []).filter(currId => currId !== id);
+                                          const nextIds = (Array.isArray(newTaskData.auxiliaryIds) ? newTaskData.auxiliaryIds : []).filter(currId => currId !== id);
                                           setNewTaskData({
                                             ...newTaskData,
                                             auxiliaryIds: nextIds,
@@ -590,13 +590,13 @@ export default function TaskModal({
                                   .filter(m => !newTaskData.memberId || m.id !== newTaskData.memberId)
                                   .filter(m => !auxSearchQuery || m.name.toLowerCase().includes(auxSearchQuery.toLowerCase()))
                                   .map((m, mIdx) => {
-                                    const isSelected = !!newTaskData.auxiliaryIds?.includes(m.id);
+                                    const isSelected = Array.isArray(newTaskData.auxiliaryIds) && newTaskData.auxiliaryIds.includes(m.id);
                                     return (
                                       <button
                                         key={`aux_add_opt_${m.id || mIdx}_${mIdx}`}
                                         type="button"
                                         onClick={() => {
-                                          const currentIds = [...(newTaskData.auxiliaryIds || [])];
+                                          const currentIds = Array.isArray(newTaskData.auxiliaryIds) ? [...newTaskData.auxiliaryIds] : [];
                                           let nextIds = [];
                                           if (isSelected) {
                                             nextIds = currentIds.filter(id => id !== m.id);

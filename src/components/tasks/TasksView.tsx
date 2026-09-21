@@ -257,7 +257,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                       allTasks={tasks}
                       member={members.find(m => m.id === task.memberId)} 
                       auxiliary={members.find(m => m.id === task.auxiliaryId)}
-                      auxiliaries={task.auxiliaryIds ? members.filter(m => task.auxiliaryIds?.includes(m.id)) : (task.auxiliaryId ? members.filter(m => m.id === task.auxiliaryId) : [])}
+                      auxiliaries={Array.isArray(task.auxiliaryIds) ? members.filter(m => task.auxiliaryIds!.includes(m.id)) : (task.auxiliaryId ? members.filter(m => m.id === task.auxiliaryId) : [])}
                       revisor={members.find(m => m.id === task.revisorId)}
                       process={processes.find(p => p.id === task.processId)} 
                       project={projects.find(p => p.id === task.projectId)}
@@ -601,7 +601,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
               {sortedTasks.map((task, taskIdx) => {
                 const member = members.find(m => m.id === task.memberId);
                 const auxiliary = members.find(m => m.id === task.auxiliaryId);
-                const taskAuxiliaries = task.auxiliaryIds ? members.filter(m => task.auxiliaryIds?.includes(m.id)) : (auxiliary ? [auxiliary] : []);
+                const taskAuxiliaries = Array.isArray(task.auxiliaryIds) ? members.filter(m => task.auxiliaryIds!.includes(m.id)) : (auxiliary ? [auxiliary] : []);
                 const process = processes.find(p => p.id === task.processId);
                 const project = projects.find(p => p.id === task.projectId);
                 

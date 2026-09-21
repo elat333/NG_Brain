@@ -159,7 +159,7 @@ service cloud.firestore {
     }
 
     match /members/{memberId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn() && isValidMember(incoming()) && (isSuperAdmin() || incoming().uid == request.auth.uid);
       allow update: if isSignedIn() && isValidMember(incoming()) && (
         isSuperAdmin() || 
@@ -332,16 +332,21 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
     match /products/{id} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
     match /warehouses/{id} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
     match /inventory_stock/{id} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
     match /inventory_update_requests/{id} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isSignedIn();
     }
     match /inventory_invoices/{id} {
       allow read, write: if isSignedIn();

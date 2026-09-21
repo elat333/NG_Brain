@@ -96,24 +96,28 @@ export function useTaskFilters({
   };
 
   const myActivitiesCount = useMemo(() => {
-    if (!currentMember) return 0;
+    if (!currentMember || !Array.isArray(tasks)) return 0;
     return tasks.filter(t => {
+      if (!t) return false;
       // Excluir actividades completadas o bloqueadas
       if (t.status === 'done' || t.status === 'blocked') {
         return false;
       }
-      return (
-        t.memberId === currentMember.id || 
-        t.auxiliaryId === currentMember.id || 
-        (t.auxiliaryIds && t.auxiliaryIds.includes(currentMember.id)) ||
-        t.revisorId === currentMember.id
+      const isResp = Boolean(currentMember.id && t.memberId === currentMember.id);
+      const isAux = Boolean(
+        (currentMember.id && t.auxiliaryId === currentMember.id) || 
+        (Array.isArray(t.auxiliaryIds) && currentMember.id && t.auxiliaryIds.includes(currentMember.id))
       );
+      const isRev = Boolean(currentMember.id && t.revisorId === currentMember.id);
+      return isResp || isAux || isRev;
     }).length;
   }, [tasks, currentMember]);
 
   const filteredTasks = useMemo(() => {
+    if (!Array.isArray(tasks)) return [];
     return tasks.filter(t => {
-      const matchesSearch = normalizeText(t.title).includes(normalizeText(searchQuery)) || 
+      if (!t) return false;
+      const matchesSearch = normalizeText(t.title || '').includes(normalizeText(searchQuery)) || 
                            normalizeText(t.description || '').includes(normalizeText(searchQuery));
       const matchesProject = (!activeProjectFilter || t.projectId === activeProjectFilter) &&
                              (!smartFilters.projectId || t.projectId === smartFilters.projectId);
@@ -121,7 +125,9 @@ export function useTaskFilters({
                             (!smartFilters.memberId || t.memberId === smartFilters.memberId);
       
       const matchesSmartProcess = !smartFilters.processId || t.processId === smartFilters.processId;
-      const matchesSmartAuxiliary = !smartFilters.auxiliaryId || t.auxiliaryId === smartFilters.auxiliaryId || (t.auxiliaryIds && t.auxiliaryIds.includes(smartFilters.auxiliaryId));
+      const matchesSmartAuxiliary = !smartFilters.auxiliaryId || 
+                                    t.auxiliaryId === smartFilters.auxiliaryId || 
+                                    (Array.isArray(t.auxiliaryIds) && t.auxiliaryIds.includes(smartFilters.auxiliaryId));
       const matchesSmartStatus = !smartFilters.status || t.status === smartFilters.status;
       
       const matchesBasic = matchesSearch && matchesProject && matchesMember && matchesSmartProcess && matchesSmartAuxiliary && matchesSmartStatus;
@@ -129,9 +135,12 @@ export function useTaskFilters({
 
       // Apply "Mis Actividades" filter if active
       if (myActivitiesOnly && currentMember) {
-        const isResp = t.memberId === currentMember.id;
-        const isAux = t.auxiliaryId === currentMember.id || (t.auxiliaryIds && t.auxiliaryIds.includes(currentMember.id));
-        const isRev = t.revisorId === currentMember.id;
+        const isResp = Boolean(currentMember.id && t.memberId === currentMember.id);
+        const isAux = Boolean(
+          (currentMember.id && t.auxiliaryId === currentMember.id) || 
+          (Array.isArray(t.auxiliaryIds) && currentMember.id && t.auxiliaryIds.includes(currentMember.id))
+        );
+        const isRev = Boolean(currentMember.id && t.revisorId === currentMember.id);
         if (!isResp && !isAux && !isRev) {
           return false;
         }
@@ -139,12 +148,14 @@ export function useTaskFilters({
 
       // Apply inline table filters (only used in list mode, but nice to enforce if states are set)
       if (taskViewMode === 'list') {
-        const matchesTableTitle = !tableFilters.title || normalizeText(t.title).includes(normalizeText(tableFilters.title)) || normalizeText(t.description || '').includes(normalizeText(tableFilters.title));
+        const matchesTableTitle = !tableFilters.title || normalizeText(t.title || '').includes(normalizeText(tableFilters.title)) || normalizeText(t.description || '').includes(normalizeText(tableFilters.title));
         const matchesTableStatus = !tableFilters.status || t.status === tableFilters.status;
         const matchesTableProcess = !tableFilters.processId || t.processId === tableFilters.processId;
         const matchesTableProject = !tableFilters.projectId || t.projectId === tableFilters.projectId;
         const matchesTableMember = !tableFilters.memberId || t.memberId === tableFilters.memberId;
-        const matchesTableAuxiliary = !tableFilters.auxiliaryId || t.auxiliaryId === tableFilters.auxiliaryId || (t.auxiliaryIds && t.auxiliaryIds.includes(tableFilters.auxiliaryId));
+        const matchesTableAuxiliary = !tableFilters.auxiliaryId || 
+                                      t.auxiliaryId === tableFilters.auxiliaryId || 
+                                      (Array.isArray(t.auxiliaryIds) && t.auxiliaryIds.includes(tableFilters.auxiliaryId));
         const matchesTableRevisor = !tableFilters.revisorId || t.revisorId === tableFilters.revisorId;
         
         if (!matchesTableTitle || !matchesTableStatus || !matchesTableProcess || !matchesTableProject || !matchesTableMember || !matchesTableAuxiliary || !matchesTableRevisor) {
@@ -205,9 +216,9 @@ export function useTaskFilters({
         }
         
         if (typeof valA === 'string') {
-          return isAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          return isAsc ? valA.localeCompare(String(valB ?? '')) : String(valB ?? '').localeCompare(valA);
         } else {
-          return isAsc ? (valA - valB) : (valB - valA);
+          return isAsc ? ((Number(valA) || 0) - (Number(valB) || 0)) : ((Number(valB) || 0) - (Number(valA) || 0));
         }
       });
     }

@@ -100,9 +100,9 @@ export const getModuleAccess = (
     }
 
     // 4. If the member is assigned to this process
-    const isMemberInProcess = member.processId === procId || (isAcredProcess && (member.processId === 'proc-acred' || member.processId === 'acreditacion' || (member.processId && member.processId.includes('acred'))));
+    const isMemberInProcess = member.processId === procId || (isAcredProcess && (member.processId === 'proc-acred' || member.processId === 'acreditacion' || (typeof member.processId === 'string' && member.processId.includes('acred'))));
     if (isMemberInProcess) {
-      if (member.systemRoleId === 'role-lider' || (member.role && member.role.toLowerCase().includes('lider'))) {
+      if (member.systemRoleId === 'role-lider' || (typeof member.role === 'string' && member.role.toLowerCase().includes('lider'))) {
         return 'lider';
       }
       // If the member belongs to the process, default to colaborador
@@ -262,15 +262,21 @@ export const isTaskVisibleForMember = (
 
   // If they have no access ('ninguno'), they can only see the task if they are directly assigned or auxiliary
   if (access === 'ninguno') {
-    const isPrimaryAssignee = task.memberId === currentMember.id;
-    const isAuxiliaryAssignee = task.auxiliaryId === currentMember.id || (task.auxiliaryIds && task.auxiliaryIds.includes(currentMember.id));
+    const isPrimaryAssignee = Boolean(currentMember.id && task.memberId === currentMember.id);
+    const isAuxiliaryAssignee = Boolean(
+      (currentMember.id && task.auxiliaryId === currentMember.id) ||
+      (Array.isArray(task.auxiliaryIds) && currentMember.id && task.auxiliaryIds.includes(currentMember.id))
+    );
     return isPrimaryAssignee || isAuxiliaryAssignee;
   }
 
   // If they are a collaborator
   if (access === 'colaborador') {
-    const isPrimaryAssignee = task.memberId === currentMember.id;
-    const isAuxiliaryAssignee = task.auxiliaryId === currentMember.id || (task.auxiliaryIds && task.auxiliaryIds.includes(currentMember.id));
+    const isPrimaryAssignee = Boolean(currentMember.id && task.memberId === currentMember.id);
+    const isAuxiliaryAssignee = Boolean(
+      (currentMember.id && task.auxiliaryId === currentMember.id) ||
+      (Array.isArray(task.auxiliaryIds) && currentMember.id && task.auxiliaryIds.includes(currentMember.id))
+    );
     const isBacklogUnassignedOfMyProcess = 
       task.status === 'backlog' && 
       task.processId === currentMember.processId && 
@@ -287,11 +293,12 @@ export const isTaskVisibleForMember = (
  */
 export const isTaskBlocked = (id: string, allTasks: Task[]): { isBlocked: boolean; blockers: Task[] } => {
   const task = allTasks.find(t => t.id === id);
-  if (!task || !task.blockedByTaskIds || task.blockedByTaskIds.length === 0) return { isBlocked: false, blockers: [] };
+  if (!task || !Array.isArray(task.blockedByTaskIds) || task.blockedByTaskIds.length === 0) return { isBlocked: false, blockers: [] };
   
-  const activeBlockers = allTasks.filter(t => task.blockedByTaskIds?.includes(t.id) && t.status !== 'done');
+  const activeBlockers = allTasks.filter(t => Array.isArray(task.blockedByTaskIds) && task.blockedByTaskIds.includes(t.id) && t.status !== 'done');
   return {
     isBlocked: activeBlockers.length > 0,
     blockers: activeBlockers
   };
 };
+

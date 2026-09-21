@@ -8,6 +8,7 @@ import {
 } from '../../types';
 import { ProcessDashboardView } from '../processes/ProcessDashboardView';
 import { TasksView } from '../tasks/TasksView';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import { ManagementView } from '../management/ManagementView';
 import { ImportacionesView } from '../importaciones/ImportacionesView';
 import { MarketingView } from '../marketing/MarketingView';
@@ -566,33 +567,35 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
       )}
 
       {activeTab === 'tasks' && (
-        <TasksView
-          tasks={tasks}
-          filteredTasks={filteredTasks}
-          sortedTasks={sortedTasks}
-          members={members}
-          sortedMembers={sortedMembers}
-          processes={processes}
-          projects={projects}
-          roles={roles}
-          tasksSubTab={tasksSubTab}
-          taskViewMode={taskViewMode}
-          tableFilters={tableFilters}
-          setTableFilters={setTableFilters}
-          tableSort={tableSort}
-          setTableSort={setTableSort}
-          handleTableSort={handleTableSort}
-          collapsedColumns={collapsedColumns}
-          setCollapsedColumns={setCollapsedColumns}
-          showAllDoneTasks={showAllDoneTasks}
-          setShowAllDoneTasks={setShowAllDoneTasks}
-          currentMember={currentMember}
-          openAddTaskModal={openAddTaskModal}
-          openEditTask={openEditTask}
-          updateTaskStatus={updateTaskStatus}
-          handleDeleteTask={handleDeleteTask}
-          parseLocalDate={parseLocalDate}
-        />
+        <ErrorBoundary fallbackTitle="Error al cargar el Tablero de Tareas">
+          <TasksView
+            tasks={tasks}
+            filteredTasks={filteredTasks}
+            sortedTasks={sortedTasks}
+            members={members}
+            sortedMembers={sortedMembers}
+            processes={processes}
+            projects={projects}
+            roles={roles}
+            tasksSubTab={tasksSubTab}
+            taskViewMode={taskViewMode}
+            tableFilters={tableFilters}
+            setTableFilters={setTableFilters}
+            tableSort={tableSort}
+            setTableSort={setTableSort}
+            handleTableSort={handleTableSort}
+            collapsedColumns={collapsedColumns}
+            setCollapsedColumns={setCollapsedColumns}
+            showAllDoneTasks={showAllDoneTasks}
+            setShowAllDoneTasks={setShowAllDoneTasks}
+            currentMember={currentMember}
+            openAddTaskModal={openAddTaskModal}
+            openEditTask={openEditTask}
+            updateTaskStatus={updateTaskStatus}
+            handleDeleteTask={handleDeleteTask}
+            parseLocalDate={parseLocalDate}
+          />
+        </ErrorBoundary>
       )}
 
       {activeTab === 'planner' && (

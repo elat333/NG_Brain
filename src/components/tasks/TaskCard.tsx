@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Trash2, Calendar, Clock, MessageSquare, AlertCircle } from 'lucide-react';
 import { Task, TeamMember, Process, Project } from '../../types';
+import { parseLocalDate } from '../../lib/dateUtils';
 
 export interface TaskCardProps {
   task: Task;
@@ -27,6 +28,24 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const safeAuxiliaries = useMemo(() => {
+    return Array.isArray(auxiliaries) ? auxiliaries : [];
+  }, [auxiliaries]);
+
+  const formattedPlannedDate = useMemo(() => {
+    if (!task.plannedDate) return null;
+    const d = parseLocalDate(task.plannedDate);
+    if (!d || isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }).replace('.', '');
+  }, [task.plannedDate]);
+
+  const formattedDueDate = useMemo(() => {
+    if (!task.dueDate) return null;
+    const d = parseLocalDate(task.dueDate);
+    if (!d || isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }).replace('.', '');
+  }, [task.dueDate]);
+
   return (
     <div
       onClick={() => onEdit(task)}
@@ -147,14 +166,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           )}
 
           {/* 3. Divisor 2 y Auxiliares */}
-          {auxiliaries && auxiliaries.length > 0 && (
+          {safeAuxiliaries.length > 0 && (
             <div className="flex items-center gap-0.5 shrink-0">
               <div className="h-3.5 w-[1.5px] bg-gray-200/90 rounded-full shrink-0 mx-0.5" />
               <div
                 className="flex items-center -space-x-1.5 shrink-0"
-                title={`Auxiliares: ${auxiliaries.map(a => a.name).join(', ')}`}
+                title={`Auxiliares: ${safeAuxiliaries.map(a => a.name).join(', ')}`}
               >
-                {auxiliaries.slice(0, 2).map((a: any, aIdx: number) => (
+                {safeAuxiliaries.slice(0, 2).map((a: any, aIdx: number) => (
                   <div
                     key={`task_card_${task.id || 't'}_aux_${a.id || aIdx}_${aIdx}`}
                     className="w-[18px] h-[18px] rounded-full ring-1 ring-purple-300 border border-white overflow-hidden bg-purple-50 text-purple-700 flex items-center justify-center text-[7.5px] font-bold shadow-xs shrink-0"
@@ -172,12 +191,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                     )}
                   </div>
                 ))}
-                {auxiliaries.length > 2 && (
+                {safeAuxiliaries.length > 2 && (
                   <div
                     className="w-[18px] h-[18px] rounded-full bg-gray-100 ring-1 ring-gray-300 border border-white text-gray-600 flex items-center justify-center text-[7px] font-black shrink-0"
-                    title={`+${auxiliaries.length - 2} auxiliares más`}
+                    title={`+${safeAuxiliaries.length - 2} auxiliares más`}
                   >
-                    +{auxiliaries.length - 2}
+                    +{safeAuxiliaries.length - 2}
                   </div>
                 )}
               </div>
@@ -186,14 +205,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </div>
         
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-          {task.plannedDate && (
+          {formattedPlannedDate && (
             <span className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-200/60 px-1.5 py-0.5 rounded flex items-center gap-1 shadow-2xs" title="Fecha Planificada">
-              <Calendar size={10} className="text-blue-500" /> {new Date(task.plannedDate + 'T00:00:00').toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }).replace('.', '')}
+              <Calendar size={10} className="text-blue-500" /> {formattedPlannedDate}
             </span>
           )}
-          {task.dueDate && (
+          {formattedDueDate && (
             <span className="text-[9px] font-bold text-red-600 bg-red-50 border border-red-200/60 px-1.5 py-0.5 rounded flex items-center gap-1 shadow-2xs" title="Fecha Límite">
-              <Calendar size={10} className="text-red-500" /> {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }).replace('.', '')}
+              <Calendar size={10} className="text-red-500" /> {formattedDueDate}
             </span>
           )}
           {task.plannedHours ? (

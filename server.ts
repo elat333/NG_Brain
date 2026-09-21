@@ -562,7 +562,65 @@ ${activeProfile.prompt}
     }
   });
 
-  // Error handler middleware (catch payload too large, JSON syntax errors, etc.)
+  // Endpoints para sincronización con la App Móvil Novagreen EPP
+  app.get('/api/mobile/catalogs', async (req, res) => {
+    try {
+      const { initialMembers, initialProducts } = await import('./src/lib/initialData.js');
+
+      const teamMembers = (initialMembers || []).map((m: any) => ({
+        id: m.id,
+        fullName: m.name || m.fullName || '',
+        idNumber: m.identificationId || m.ruc || '',
+        role: m.role || 'Colaborador',
+        department: m.processId || m.department || '',
+        email: m.email || '',
+        phone: m.phone || '',
+      }));
+
+      const eppProducts = (initialProducts || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        category: p.category === 'epp' ? 'Protección Personal (EPP)' : (p.subcategory || p.category || 'EPP General'),
+        availableSizes: ['Estándar', 'Ajustable'],
+        unit: 'unidad',
+        currentStock: 50,
+        stockByWarehouse: {
+          'bodega-central': 50
+        }
+      }));
+
+      const warehouses = [
+        {
+          id: 'bodega-central',
+          name: 'Bodega Central Novagreen',
+          code: 'BOD-CENTRAL',
+          location: 'Instalaciones Principales Novagreen',
+          isActive: true
+        }
+      ];
+
+      res.json({
+        warehouses,
+        products: eppProducts,
+        teamMembers,
+        lastUpdated: new Date().toISOString()
+      });
+    } catch (e: any) {
+      console.error('Error al servir catálogos móviles:', e);
+      res.status(500).json({ error: e?.message || 'Error en catálogos móviles' });
+    }
+  });
+
+  app.post('/api/mobile/deliveries', async (req, res) => {
+    try {
+      const delivery = req.body;
+      console.log('Solicitud de entrega recibida desde app móvil:', delivery?.requestCode || delivery?.id);
+      res.json({ success: true, message: 'Entrega recibida correctamente en ERP' });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message });
+    }
+  });
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (err.type === 'entity.too.large' || err.status === 413) {
       return res.status(413).json({ error: 'El archivo excede el tamaño máximo permitido (100MB). Por favor comprime el archivo o utiliza una versión más ligera.' });
