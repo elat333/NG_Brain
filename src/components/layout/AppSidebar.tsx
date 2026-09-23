@@ -43,7 +43,8 @@ import {
   Zap,
   MessageSquare,
   FileCheck,
-  Receipt
+  Receipt,
+  Kanban
 } from 'lucide-react';
 import { TeamMember, Role } from '../../types';
 
@@ -247,8 +248,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 <NavButton 
                   key="sidebar_nav_btn_tasks"
                   active={isTasksGroupActive} 
-                  icon={<CheckCircle2 size={20} />} 
-                  label="Tareas" 
+                  icon={<Kanban size={20} />} 
+                  label="Scrum" 
                   onClick={() => {
                     toggleNavModule('tasks', () => {
                       if (hasTasksAccess) {
@@ -275,7 +276,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                           <SubNavButton 
                             key="subnav_tasks_btn_board"
                             active={activeTab === 'tasks' && tasksSubTab === 'board'} 
-                            label="Tablero de Tareas" 
+                            label="Historias" 
                             icon={<CheckCircle2 size={14} />} 
                             onClick={() => {
                               setExpandedNavModule('tasks');
@@ -292,17 +293,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                               setExpandedNavModule('tasks');
                               handleTabClick('tasks');
                               setTasksSubTab('permissions');
-                            }} 
-                          />
-                          <SubNavButton 
-                            key="subnav_tasks_btn_comments"
-                            active={activeTab === 'tasks' && tasksSubTab === 'comments'} 
-                            label="Observaciones & Revisiones" 
-                            icon={<MessageSquare size={14} />} 
-                            onClick={() => {
-                              setExpandedNavModule('tasks');
-                              handleTabClick('tasks');
-                              setTasksSubTab('comments');
                             }} 
                           />
                         </React.Fragment>
@@ -356,6 +346,20 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             );
           })()}
 
+          {/* Módulo Transversal: Comentarios */}
+          {getModuleAccess(currentMember, roles, 'comments') !== 'ninguno' && (
+            <NavButton 
+              key="sidebar_nav_btn_comments"
+              active={activeTab === 'comments'} 
+              icon={<MessageSquare size={20} />} 
+              label="Comentarios" 
+              onClick={() => {
+                setExpandedNavModule(null);
+                handleTabClick('comments');
+              }} 
+            />
+          )}
+
           {/* 3. Gestión (Procesos / XD) */}
           {getModuleAccess(currentMember, roles, 'process_dashboard') !== 'ninguno' && (
             <React.Fragment key="sidebar_nav_group_process_dashboard">
@@ -378,7 +382,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     <SubNavButton 
                       key="subnav_proc_summary"
                       active={processSubTab === 'summary'} 
-                      label="Horas y Tareas" 
+                      label="Horas e Historias" 
                       icon={<Clock size={14} />} 
                       onClick={() => {
                         setExpandedNavModule('process_dashboard');

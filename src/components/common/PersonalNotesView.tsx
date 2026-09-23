@@ -38,12 +38,14 @@ import {
   Lightbulb,
   Info,
   Edit3,
-  CheckCheck
+  CheckCheck,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { TeamMember, PersonalNote, NoteShareAccess } from '../../types';
+import { UniversalCommentsModal } from './UniversalCommentsThread';
 
 interface PersonalNotesViewProps {
   currentMember: TeamMember | null;
@@ -79,6 +81,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
   const [activeNote, setActiveNote] = useState<PersonalNote | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editorMode, setEditorMode] = useState<ViewMode>('live');
+  const [activeCommentNote, setActiveCommentNote] = useState<PersonalNote | null>(null);
 
   // Form Editor State
   const [formTitle, setFormTitle] = useState<string>('');
@@ -1258,6 +1261,17 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                                   )}
                                   <button
                                     type="button"
+                                    title="Comentarios y Observaciones"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveCommentNote(note);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                  >
+                                    <MessageSquare size={12} className="text-blue-500" />
+                                  </button>
+                                  <button
+                                    type="button"
                                     title="Descargar archivo .md"
                                     onClick={(e) => handleDownloadMd(note, e)}
                                     className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
@@ -1445,6 +1459,18 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                       </>
                     )}
                   </button>
+
+                  {activeNote?.id && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveCommentNote(activeNote)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-bold text-xs transition-all border border-blue-200 cursor-pointer"
+                      title="Ver y añadir comentarios a esta nota"
+                    >
+                      <MessageSquare size={14} className="text-blue-600" />
+                      <span>Comentarios</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -2090,6 +2116,18 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      {/* MODAL DE COMENTARIOS UNIVERSALES */}
+      <UniversalCommentsModal
+        isOpen={!!activeCommentNote}
+        onClose={() => setActiveCommentNote(null)}
+        entityType="note"
+        entityId={activeCommentNote?.id || ''}
+        entityTitle={activeCommentNote?.title || ''}
+        processId={activeCommentNote?.processId}
+        currentMember={currentMember}
+        members={teamMembers}
+      />
     </div>
   );
 };

@@ -24,6 +24,7 @@ import { ProjectsView } from '../projects/ProjectsView';
 import DirectoryView from '../directory/DirectoryView';
 import { PlannerView } from '../planner/PlannerView';
 import { TranscriptView } from '../transcript/TranscriptView';
+import { CommentsModule } from '../comments/CommentsModule';
 import { MainTabType, SettingsSubTabType, DirectorySubTabType, ProcessSubTabType, ManagementSubTabType, ImportacionesSubTabType, AcreditacionSubTabType, VentasSubTabType, InventarioSubTabType } from '../../hooks/useAppNavigation';
 import { MarketingSubTab } from '../MarketingModule';
 import { CapacitacionSubTab } from '../CapacitacionModule';
@@ -322,10 +323,10 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
               </div>
               <div className="text-slate-400 text-left">Módulo:</div>
               <div className="font-extrabold text-slate-700 capitalize text-left">
-                {activeTab === 'dashboard' ? 'Resumen' :
-                 activeTab === 'gerencia' ? 'Gerencia' :
-                 activeTab === 'tasks' ? 'Tareas' :
-                 activeTab === 'planner' ? 'Planificador IA' :
+                 {activeTab === 'dashboard' ? 'Resumen' :
+                  activeTab === 'gerencia' ? 'Gerencia' :
+                  activeTab === 'tasks' ? 'Scrum' :
+                  activeTab === 'planner' ? 'Planificador IA' :
                  activeTab === 'projects' ? 'Proyectos' :
                  activeTab === 'directory' ? 'Directorio' :
                  activeTab === 'transcript' ? 'Analizar Reunión' :
@@ -567,7 +568,7 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
       )}
 
       {activeTab === 'tasks' && (
-        <ErrorBoundary fallbackTitle="Error al cargar el Tablero de Tareas">
+        <ErrorBoundary fallbackTitle="Error al cargar el Tablero de Historias">
           <TasksView
             tasks={tasks}
             filteredTasks={filteredTasks}
@@ -603,6 +604,32 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
           members={members}
           processes={processes}
           onCreateActivityAsTask={createActivityAsTask}
+        />
+      )}
+
+      {activeTab === 'comments' && (
+        <CommentsModule
+          tasks={tasks}
+          members={members}
+          processes={processes}
+          projects={projects}
+          currentMember={currentMember}
+          onOpenTask={openEditTask}
+          onNavigateToTab={(tab, subTab, id) => {
+            if (tab === 'tasks') {
+              handleTabClick('tasks');
+              if (subTab) setTasksSubTab(subTab as any);
+            } else if (tab === 'process_dashboard') {
+              if (id) setSelectedProcessId(id);
+              handleTabClick('process_dashboard');
+              if (subTab) setProcessSubTab(subTab as any);
+            } else if (tab === 'marketing') {
+              handleTabClick('marketing');
+              if (subTab) setMarketingSubTab(subTab as any);
+            } else {
+              handleTabClick(tab as any);
+            }
+          }}
         />
       )}
 

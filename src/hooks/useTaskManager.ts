@@ -354,7 +354,8 @@ export function useTaskManager({
         actualHours: newTaskData.actualHours || 0,
         dueDate: newTaskData.dueDate || '',
         blockedByTaskIds: newTaskData.blockedByTaskIds,
-        comments: newTaskData.comments || [],
+        commentsCount: 0,
+        hasPendingReview: false,
         createdAt: new Date().toISOString(),
         history: [initialHistoryItem]
       };
@@ -597,7 +598,6 @@ export function useTaskManager({
           actualEndDate: newTaskData.actualEndDate || '',
           actualStartTime: newTaskData.actualStartTime || '',
           actualEndTime: newTaskData.actualEndTime || '',
-          comments: newTaskData.comments || [],
           history: updatedHistory
         }));
       } else {
@@ -629,7 +629,6 @@ export function useTaskManager({
           actualHours: newTaskData.actualHours || 0,
           dueDate: newTaskData.dueDate || '',
           blockedByTaskIds: newTaskData.blockedByTaskIds,
-          comments: newTaskData.comments || [],
           history: updatedHistory
         }));
       }

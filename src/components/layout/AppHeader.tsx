@@ -259,7 +259,7 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
                 {activeTab === 'qhse' && 'Módulo de QHSE'}
                 {activeTab === 'transcript' && 'Análisis de Transcripciones'}
                 {activeTab === 'projects' && 'Gestión de Proyectos'}
-                {activeTab === 'tasks' && 'Seguimiento de Tareas'}
+                {activeTab === 'tasks' && 'Historias'}
                 {activeTab === 'planner' && 'Asistente de Planificación'}
                 {activeTab === 'directory' && (
                   directorySubTab === 'people' ? 'Directorio de Personas' : 
@@ -290,10 +290,10 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
                     ? 'bg-slate-900 text-ng-lime border-slate-900 shadow-md shadow-slate-900/10'
                     : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
                 }`}
-                title={myActivitiesOnly ? 'Mostrando solo mis tareas (haz clic para ver todas)' : 'Filtrar tareas donde soy responsable, auxiliar o revisor'}
+                title={myActivitiesOnly ? 'Mostrando solo mis historias (haz clic para ver todas)' : 'Filtrar historias donde soy responsable, auxiliar o revisor'}
               >
                 <UserCheck size={14} className={myActivitiesOnly ? 'text-ng-lime' : 'text-slate-500'} />
-                <span>Mis Actividades</span>
+                <span>Mis Historias</span>
                 {myActivitiesCount !== undefined && (
                   <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
                     myActivitiesOnly ? 'bg-ng-lime/20 text-ng-lime' : 'bg-slate-100 text-slate-700'
@@ -977,10 +977,10 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
                     {!isReadOnly && (
                       <button 
                         onClick={() => openAddTaskModal()}
-                        className="flex items-center gap-1.5 px-4 py-1.5 bg-ng-lime text-ng-black text-[11px] font-black rounded-xl hover:opacity-90 transition-all shadow-md shadow-ng-lime/10 uppercase tracking-wider whitespace-nowrap"
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-ng-lime text-ng-black text-[11px] font-black rounded-xl hover:opacity-90 transition-all shadow-md shadow-ng-lime/10 uppercase tracking-wider whitespace-nowrap cursor-pointer"
                       >
                         <Plus size={16} />
-                        Nueva Tarea
+                        Nueva Historia
                       </button>
                     )}
                   </>

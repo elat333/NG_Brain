@@ -28,9 +28,11 @@ import {
   ExternalLink,
   Layers,
   MapPin,
-  AlertTriangle
+  AlertTriangle,
+  MessageSquare
 } from 'lucide-react';
 import { MarketingCampaign, Task, Project, TeamMember, Process } from '../../types';
+import { UniversalCommentsModal, UniversalCommentsThread } from '../common/UniversalCommentsThread';
 
 interface CampaignsViewProps {
   campaigns: MarketingCampaign[];
@@ -76,6 +78,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [selectedCampaign, setSelectedCampaign] = useState<MarketingCampaign | null>(null);
+  const [activeCommentCampaign, setActiveCommentCampaign] = useState<MarketingCampaign | null>(null);
   const [campaignToDelete, setCampaignToDelete] = useState<MarketingCampaign | null>(null);
   const [isEditingModalOpen, setIsEditingModalOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Partial<MarketingCampaign>>({});
@@ -669,9 +672,24 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                  <Calendar size={12} />
-                  <span>{camp.startDate}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    title="Ver observaciones y comentarios de la campaña"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveCommentCampaign(camp);
+                    }}
+                    className="p-1 px-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors flex items-center gap-1 font-bold text-[10px] cursor-pointer"
+                  >
+                    <MessageSquare size={12} className="text-blue-500" />
+                    <span>Comentarios</span>
+                  </button>
+
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                    <Calendar size={12} />
+                    <span>{camp.startDate}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -717,6 +735,15 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveCommentCampaign(selectedCampaign)}
+                    className="p-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-xl transition-all text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                    title="Ver Observaciones & Comentarios"
+                  >
+                    <MessageSquare size={14} className="text-blue-400" />
+                    <span className="hidden sm:inline">Comentarios</span>
+                  </button>
                   {!isReadOnly && (
                     <button
                       onClick={() => handleOpenEdit(selectedCampaign)}
@@ -1390,6 +1417,17 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      {/* MODAL DE COMENTARIOS UNIVERSALES */}
+      <UniversalCommentsModal
+        isOpen={!!activeCommentCampaign}
+        onClose={() => setActiveCommentCampaign(null)}
+        entityType="campaign"
+        entityId={activeCommentCampaign?.id || ''}
+        entityTitle={`${activeCommentCampaign?.code ? `[${activeCommentCampaign.code}] ` : ''}${activeCommentCampaign?.name || ''}`}
+        currentMember={currentMember}
+        members={members}
+      />
     </div>
   );
 };

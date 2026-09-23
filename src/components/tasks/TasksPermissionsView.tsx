@@ -71,14 +71,14 @@ export const TasksPermissionsView: React.FC<TasksPermissionsViewProps> = ({
                   Marco de Gobernanza
                 </span>
                 <span className="px-2.5 py-0.5 bg-blue-100 text-blue-700 font-extrabold text-[11px] rounded-full uppercase tracking-wider">
-                  Módulo de Tareas
+                  Módulo Scrum &bull; Historias
                 </span>
               </div>
               <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight mt-1">
                 Arquitectura de Reglas, Permisos y Niveles de Acceso
               </h1>
               <p className="text-slate-500 text-sm mt-1 max-w-2xl leading-relaxed">
-                El módulo de tareas se rige por una arquitectura multidimensional dividida en <strong>4 Capas Estructurales (A, B, C, D)</strong> y un <strong>Protocolo Central de Comentarios y Revisiones</strong> para garantizar la integridad cronológica, presupuestaria y operativa de la empresa.
+                El flujo ágil de Scrum e historias se rige por una arquitectura multidimensional dividida en <strong>4 Capas Estructurales (A, B, C, D)</strong> y un <strong>Protocolo Central de Comentarios y Revisiones</strong> para garantizar la integridad cronológica, presupuestaria y operativa de la empresa.
               </p>
             </div>
           </div>

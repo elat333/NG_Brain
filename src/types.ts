@@ -113,7 +113,7 @@ export interface TaskComment {
   mentionedMemberIds?: string[];
 }
 
-export type CommentEntityType = 'task' | 'link' | 'note' | 'project';
+export type CommentEntityType = 'task' | 'link' | 'note' | 'campaign' | 'project';
 
 export interface UniversalComment {
   id: string;
@@ -135,6 +135,12 @@ export interface UniversalComment {
   targetMemberId?: string;
   mentionedMemberIds?: string[];
 }
+
+/**
+ * Alias de compatibilidad Scrum: Story / UserStory representa un elemento del flujo ágil
+ */
+export type Story = Task;
+export type UserStory = Task;
 
 export interface Task {
   id: string;
@@ -165,7 +171,9 @@ export interface Task {
   taskTemplate?: 'standard' | 'design_post' | 'design_video' | 'design_carousel';
   designData?: DesignPostData;
   blockedByTaskIds?: string[]; // IDs de tareas que bloquean a esta tarea
-  comments?: TaskComment[]; // Comentarios y solicitudes de revisión
+  comments?: TaskComment[]; // Comentarios y solicitudes de revisión (retrocompatibilidad)
+  commentsCount?: number; // Contador ligero de comentarios desacoplados
+  hasPendingReview?: boolean; // Indicador ligero si hay observaciones pendientes
   createdAt: string;
   history?: TaskHistoryItem[]; // Historial de cambios
 }

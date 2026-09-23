@@ -21,7 +21,8 @@ export type MainTabType =
   | 'acreditacion' 
   | 'productos' 
   | 'inventario'
-  | 'qhse';
+  | 'qhse'
+  | 'comments';
 
 export type InventarioSubTabType = 'existencias' | 'bodegas' | 'solicitudes' | 'facturas';
 export type VentasSubTabType = 'links' | 'notes' | 'crm' | 'pipeline' | 'quotes' | 'goals';

@@ -21,12 +21,14 @@ import {
   Users,
   Eye,
   Save,
-  CheckCheck
+  CheckCheck,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { TeamMember, ProcessLink, NoteShareAccess } from '../../types';
+import { UniversalCommentsModal } from './UniversalCommentsThread';
 
 interface PersonalLinksViewProps {
   currentMember: TeamMember | null;
@@ -57,6 +59,7 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
 
   // Read-Only Detail View Modal State
   const [viewingLink, setViewingLink] = useState<ProcessLink | null>(null);
+  const [activeCommentLink, setActiveCommentLink] = useState<ProcessLink | null>(null);
 
   // Form State
   const [title, setTitle] = useState<string>('');
@@ -1046,6 +1049,16 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                                 <ArrowRight size={11} />
                               </button>
                               <button
+                                title="Ver comentarios y observaciones"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveCommentLink(link);
+                                }}
+                                className="p-0.5 text-slate-400 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                              >
+                                <MessageSquare size={11} className="text-blue-500" />
+                              </button>
+                              <button
                                 title="Compartir enlace"
                                 onClick={(e) => handleOpenShareLink(link, e)}
                                 className="p-0.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
@@ -1708,6 +1721,18 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      {/* MODAL DE COMENTARIOS UNIVERSALES */}
+      <UniversalCommentsModal
+        isOpen={!!activeCommentLink}
+        onClose={() => setActiveCommentLink(null)}
+        entityType="link"
+        entityId={activeCommentLink?.id || ''}
+        entityTitle={activeCommentLink?.title || ''}
+        processId={activeCommentLink?.processId}
+        currentMember={currentMember}
+        members={teamMembers}
+      />
     </div>
   );
 };

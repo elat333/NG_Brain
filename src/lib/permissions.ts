@@ -229,6 +229,15 @@ export const getModuleAccess = (
     }
     return 'colaborador';
   }
+
+  // Handle comments module (Módulo Universal de Comentarios)
+  if (moduleId === 'comments') {
+    if (member.moduleAccess && member.moduleAccess['comments'] !== undefined) {
+      return member.moduleAccess['comments'];
+    }
+    // Por defecto todos los miembros activos pueden colaborar en comentarios
+    return 'colaborador';
+  }
   
   // If the member has an explicit moduleAccess object, that object is the absolute source of truth
   if (member.moduleAccess) {

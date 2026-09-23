@@ -73,8 +73,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               {project.name}
             </span>
           )}
-          {task.comments && task.comments.length > 0 && (() => {
-            const pendingCount = task.comments.filter(c => c.requiresReview && c.status === 'pending').length;
+          {(((task.comments && task.comments.length > 0) || (typeof task.commentsCount === 'number' && task.commentsCount > 0))) && (() => {
+            const count = typeof task.commentsCount === 'number' ? task.commentsCount : (task.comments?.length || 0);
+            const pendingCount = task.comments 
+              ? task.comments.filter(c => c.requiresReview && c.status === 'pending').length 
+              : (task.hasPendingReview ? 1 : 0);
             return (
               <span
                 className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-2xs ${
@@ -82,10 +85,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                     ? 'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse'
                     : 'bg-gray-100 text-gray-600'
                 }`}
-                title={pendingCount > 0 ? `${pendingCount} solicitud(es) de revisión pendientes` : `${task.comments.length} comentarios`}
+                title={pendingCount > 0 ? `Solicitud(es) de revisión pendientes` : `${count} comentarios`}
               >
                 <MessageSquare size={10} />
-                <span>{task.comments.length}</span>
+                <span>{count}</span>
                 {pendingCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
               </span>
             );

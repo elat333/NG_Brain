@@ -1257,14 +1257,14 @@ export default function ProcessDashboard({
 
       {/* Contenido Dinámico de Sub-Módulos */}
       <div className="space-y-6">
-        {/* SUBTAB 1: HORAS Y TAREAS */}
+        {/* SUBTAB 1: HORAS E HISTORIAS */}
         {activeSubTab === 'summary' && (
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-base font-black text-slate-900">Resumen por Integrante</h3>
                 <p className="text-xs font-bold text-slate-400">
-                  Haz clic en cualquier integrante para desplegar sus horas y tareas en pantalla completa
+                  Haz clic en cualquier integrante para desplegar sus horas e historias en pantalla completa
                 </p>
               </div>
               <div className="text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
@@ -1276,7 +1276,7 @@ export default function ProcessDashboard({
               <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                 <Users size={32} className="mx-auto text-slate-300 mb-2" />
                 <p className="text-sm font-bold text-slate-400">No hay integrantes asignados directamente a este proceso.</p>
-                <p className="text-xs text-slate-400 mt-1">Los integrantes que realicen tareas en este proceso aparecerán con su resumen de horas.</p>
+                <p className="text-xs text-slate-400 mt-1">Los integrantes que realicen historias en este proceso aparecerán con su resumen de horas.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1376,7 +1376,7 @@ export default function ProcessDashboard({
                                   )}
                                   <div>
                                     <h4 className="text-sm font-black text-slate-900">
-                                      Detalle Completo de Horas y Tareas: {member.name}
+                                      Detalle Completo de Horas e Historias: {member.name}
                                     </h4>
                                     <p className="text-xs text-slate-500 font-medium">{member.role}</p>
                                   </div>

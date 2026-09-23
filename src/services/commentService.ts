@@ -13,7 +13,7 @@ import {
   onSnapshot,
   arrayUnion
 } from '../lib/firebase';
-import { TaskComment, Task } from '../types';
+import { TaskComment, Task, UniversalComment, CommentEntityType } from '../types';
 
 /**
  * Sanitiza objetos para Firestore eliminando valores undefined
@@ -287,38 +287,36 @@ export const commentService = {
 
     let savedToRemote = false;
 
-    // 2. Intentar guardar en el documento de la tarea tasks/{taskId}
-    if (commentData.taskId) {
-      try {
-        const taskRef = doc(db, 'tasks', commentData.taskId);
-        await updateDoc(taskRef, {
-          comments: arrayUnion(sanitizeForFirestore(fullComment))
-        });
-        savedToRemote = true;
-      } catch (taskErr) {
-        console.warn('arrayUnion no autorizado o falló en tarea:', taskErr);
-        try {
-          const taskRef = doc(db, 'tasks', commentData.taskId);
-          const taskSnap = await getDoc(taskRef);
-          if (taskSnap.exists()) {
-            const curComments = Array.isArray(taskSnap.data().comments) ? taskSnap.data().comments : [];
-            await updateDoc(taskRef, {
-              comments: sanitizeForFirestore([...curComments, fullComment])
-            });
-            savedToRemote = true;
-          }
-        } catch (retryErr) {
-          console.warn('Escritura directa en tasks/{taskId} denegada por reglas de Firestore:', retryErr);
-        }
-      }
-    }
-
-    // 3. Intentar guardar en la colección desacoplada task_comments
+    // 2. Guardar en la colección desacoplada task_comments (Almacenamiento primario independiente)
     try {
       await setDoc(doc(db, COMMENTS_COLLECTION, commentId), sanitizeForFirestore(fullComment));
       savedToRemote = true;
     } catch (colErr) {
       console.warn('Colección task_comments no autorizada o no disponible en Firestore:', colErr);
+    }
+
+    // 3. Actualizar metadatos ligeros (contador y badge) en el documento tasks/{taskId} sin engordar el documento
+    if (commentData.taskId) {
+      try {
+        const taskRef = doc(db, 'tasks', commentData.taskId);
+        const taskSnap = await getDoc(taskRef);
+        if (taskSnap.exists()) {
+          const taskData = taskSnap.data();
+          const currentCount = typeof taskData.commentsCount === 'number'
+            ? taskData.commentsCount
+            : (Array.isArray(taskData.comments) ? taskData.comments.length : 0);
+          
+          const metaUpdate: any = {
+            commentsCount: currentCount + 1
+          };
+          if (commentData.requiresReview) {
+            metaUpdate.hasPendingReview = true;
+          }
+          await updateDoc(taskRef, metaUpdate);
+        }
+      } catch (metaErr) {
+        // Silencioso si el usuario solo tiene permisos para comentar pero no para editar la tarea padre
+      }
     }
 
     // 4. Fallback en Firestore a nivel de notas de proceso si las reglas de tareas rechazan al colaborador
@@ -428,21 +426,232 @@ export const commentService = {
       console.warn('Error al eliminar de task_comments:', err);
     }
 
-    // 2. Respaldo secundario en tasks/{taskId}
+    // 2. Limpieza de retrocompatibilidad y decremento de contador en tasks/{taskId}
     if (taskId) {
       try {
         const taskRef = doc(db, 'tasks', taskId);
         const taskSnap = await getDoc(taskRef);
         if (taskSnap.exists()) {
           const taskData = taskSnap.data();
-          const comments = Array.isArray(taskData.comments) ? taskData.comments : [];
-          const updatedComments = comments.filter((c: any) => c.id !== commentId);
-          await updateDoc(taskRef, {
-            comments: sanitizeForFirestore(updatedComments)
-          });
+          const currentCount = typeof taskData.commentsCount === 'number'
+            ? taskData.commentsCount
+            : (Array.isArray(taskData.comments) ? taskData.comments.length : 1);
+          
+          const updatePayload: any = {
+            commentsCount: Math.max(0, currentCount - 1)
+          };
+          if (Array.isArray(taskData.comments)) {
+            updatePayload.comments = sanitizeForFirestore(taskData.comments.filter((c: any) => c.id !== commentId));
+          }
+          await updateDoc(taskRef, updatePayload);
         }
       } catch (taskErr) {
         // Silencioso si no tiene permisos
+      }
+    }
+  },
+
+  /**
+   * Suscribe en tiempo real a TODOS los comentarios universales de la organización
+   * (Tareas, Enlaces, Notas, Campañas, Proyectos), unificando la colección 'comments'
+   * con retrocompatibilidad de 'task_comments' y comentarios embebidos.
+   */
+  subscribeAllUniversalComments(
+    callback: (comments: UniversalComment[]) => void,
+    tasksFallback: Task[] = []
+  ): () => void {
+    let universalFetched: UniversalComment[] = [];
+    let legacyFetched: UniversalComment[] = [];
+
+    const notify = () => {
+      const existingIds = new Set<string>();
+      const combined: UniversalComment[] = [];
+
+      // 1. Prioridad: colección universal 'comments'
+      universalFetched.forEach(c => {
+        if (c && c.id && !existingIds.has(c.id)) {
+          existingIds.add(c.id);
+          combined.push(c);
+        }
+      });
+
+      // 2. Legacy 'task_comments'
+      legacyFetched.forEach(c => {
+        if (c && c.id && !existingIds.has(c.id)) {
+          existingIds.add(c.id);
+          combined.push(c);
+        }
+      });
+
+      // 3. Fallback de tareas en memoria
+      tasksFallback.forEach(task => {
+        if (task.comments && Array.isArray(task.comments)) {
+          task.comments.forEach(c => {
+            if (c && c.id && !existingIds.has(c.id)) {
+              existingIds.add(c.id);
+              combined.push({
+                id: c.id,
+                entityType: 'task',
+                entityId: c.taskId || task.id,
+                entityTitle: c.taskTitle || task.title,
+                processId: task.processId,
+                authorId: c.authorId,
+                authorName: c.authorName,
+                authorRole: c.authorRole,
+                authorAvatar: c.authorAvatar,
+                text: c.text,
+                createdAt: c.createdAt,
+                requiresReview: c.requiresReview,
+                status: c.status,
+                resolvedAt: c.resolvedAt,
+                resolvedBy: c.resolvedBy,
+                targetMemberId: c.targetMemberId,
+                mentionedMemberIds: c.mentionedMemberIds
+              });
+            }
+          });
+        }
+      });
+
+      combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      callback(combined);
+    };
+
+    // 1. Listener a la colección raíz 'comments'
+    let unsubComments: (() => void) | null = null;
+    try {
+      const qComments = query(collection(db, 'comments'), limit(1000));
+      unsubComments = onSnapshot(qComments, (snapshot) => {
+        const list: UniversalComment[] = [];
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data() as UniversalComment;
+          list.push({
+            ...data,
+            id: docSnap.id,
+            entityType: data.entityType || 'task'
+          });
+        });
+        universalFetched = list;
+        notify();
+      }, (err) => {
+        console.warn('Error en listener de universal comments:', err);
+        notify();
+      });
+    } catch (e) {
+      console.warn('Error configurando listener universal:', e);
+    }
+
+    // 2. Listener a la colección legacy 'task_comments'
+    let unsubLegacy: (() => void) | null = null;
+    try {
+      const qLegacy = query(collection(db, 'task_comments'), limit(500));
+      unsubLegacy = onSnapshot(qLegacy, (snapshot) => {
+        const list: UniversalComment[] = [];
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data() as any;
+          list.push({
+            id: docSnap.id,
+            entityType: 'task',
+            entityId: data.taskId || docSnap.id,
+            entityTitle: data.taskTitle || 'Tarea',
+            authorId: data.authorId,
+            authorName: data.authorName,
+            authorRole: data.authorRole,
+            authorAvatar: data.authorAvatar,
+            text: data.text,
+            createdAt: data.createdAt,
+            requiresReview: data.requiresReview,
+            status: data.status,
+            resolvedAt: data.resolvedAt,
+            resolvedBy: data.resolvedBy,
+            targetMemberId: data.targetMemberId,
+            mentionedMemberIds: data.mentionedMemberIds
+          });
+        });
+        legacyFetched = list;
+        notify();
+      }, (err) => {
+        console.warn('Error en listener de legacy task_comments:', err);
+        notify();
+      });
+    } catch (e) {
+      console.warn('Error configurando listener legacy:', e);
+    }
+
+    return () => {
+      if (unsubComments) unsubComments();
+      if (unsubLegacy) unsubLegacy();
+    };
+  },
+
+  /**
+   * Agrega un comentario universal en Firestore (/comments)
+   */
+  async addUniversalComment(
+    commentData: Omit<UniversalComment, 'id' | 'createdAt'>
+  ): Promise<UniversalComment> {
+    const commentId = `cmt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const fullComment: UniversalComment = sanitizeForFirestore({
+      ...commentData,
+      id: commentId,
+      createdAt: new Date().toISOString()
+    });
+
+    try {
+      await setDoc(doc(db, 'comments', commentId), fullComment);
+    } catch (err) {
+      console.error('Error guardando en colección comments:', err);
+      // Respaldo secundario si es tarea
+      if (commentData.entityType === 'task' && commentData.entityId) {
+        saveLocalCommentForTask(commentData.entityId, {
+          ...fullComment,
+          taskId: commentData.entityId,
+          taskTitle: commentData.entityTitle
+        });
+      }
+    }
+
+    return fullComment;
+  },
+
+  /**
+   * Cambia el estado de cualquier comentario ('pending' | 'resolved')
+   */
+  async toggleUniversalCommentStatus(
+    commentId: string,
+    newStatus: 'pending' | 'resolved',
+    resolvedBy?: string
+  ): Promise<void> {
+    const updateData: any = {
+      status: newStatus,
+      resolvedAt: newStatus === 'resolved' ? new Date().toISOString() : null,
+      resolvedBy: newStatus === 'resolved' ? (resolvedBy || 'Usuario') : null
+    };
+
+    try {
+      await updateDoc(doc(db, 'comments', commentId), sanitizeForFirestore(updateData));
+    } catch (err) {
+      console.warn('No se pudo actualizar en /comments, intentando en legacy:', err);
+      try {
+        await updateDoc(doc(db, 'task_comments', commentId), sanitizeForFirestore(updateData));
+      } catch (errLegacy) {
+        console.warn('Fallo en fallback legacy status:', errLegacy);
+      }
+    }
+  },
+
+  /**
+   * Elimina un comentario universal
+   */
+  async deleteUniversalComment(commentId: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, 'comments', commentId));
+    } catch (err) {
+      console.warn('No se pudo eliminar de /comments, probando legacy:', err);
+      try {
+        await deleteDoc(doc(db, 'task_comments', commentId));
+      } catch (errLegacy) {
+        // Silencioso
       }
     }
   }
