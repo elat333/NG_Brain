@@ -11,19 +11,22 @@ import {
   Company, 
   Industry,
   ProductItem,
-  TeamMember 
+  TeamMember,
+  Process 
 } from '../types';
 import { PersonalLinksView } from './common/PersonalLinksView';
 import { PersonalNotesView } from './common/PersonalNotesView';
 import { AcreditacionAlliesView } from './acreditacion/AcreditacionAlliesView';
 import { AcreditacionCertificationsView } from './acreditacion/AcreditacionCertificationsView';
+import { ModulePermissionsTab } from './common/ModulePermissionsTab';
 
-export type AcreditacionSubTab = 'links' | 'notes' | 'allies' | 'certifications';
+export type AcreditacionSubTab = 'links' | 'notes' | 'allies' | 'certifications' | 'permissions';
 
 interface AcreditacionModuleProps {
   currentMember: TeamMember | null;
   members: TeamMember[];
   companies: Company[];
+  processes?: Process[];
   industries?: Industry[];
   products?: ProductItem[];
   activeSubTab?: AcreditacionSubTab;
@@ -34,6 +37,7 @@ export const AcreditacionModule: React.FC<AcreditacionModuleProps> = ({
   currentMember,
   members,
   companies,
+  processes = [],
   industries = [],
   products: initialProducts,
   activeSubTab = 'links',
@@ -163,6 +167,24 @@ export const AcreditacionModule: React.FC<AcreditacionModuleProps> = ({
               products={products}
               currentMember={currentMember}
               loading={loadingCerts}
+            />
+          </motion.div>
+        )}
+
+        {activeSubTab === 'permissions' && (
+          <motion.div
+            key="acreditacion-permissions"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.15 }}
+          >
+            <ModulePermissionsTab
+              moduleId="acreditacion"
+              moduleName="Acreditación"
+              currentMember={currentMember}
+              members={members}
+              processes={processes}
             />
           </motion.div>
         )}

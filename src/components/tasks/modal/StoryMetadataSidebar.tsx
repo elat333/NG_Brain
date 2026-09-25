@@ -14,7 +14,7 @@ import {
   Trash 
 } from 'lucide-react';
 import { TaskDependenciesSection } from './TaskDependenciesSection';
-import { Member, Process, Project, Task } from '../../../types';
+import { TeamMember, Process, Project, Task } from '../../../types';
 
 interface StoryMetadataSidebarProps {
   newTaskData: any;
@@ -22,7 +22,7 @@ interface StoryMetadataSidebarProps {
   editingTask: Task | null;
   processes: Process[];
   projects: Project[];
-  sortedMembers: Member[];
+  sortedMembers: TeamMember[];
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   canEditMetadataField: boolean;

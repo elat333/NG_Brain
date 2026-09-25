@@ -35,6 +35,7 @@ interface TrainersViewProps {
   onSaveTrainer: (trainer: Partial<Trainer>) => Promise<void>;
   onDeleteTrainer: (id: string) => Promise<void>;
   onCreateMember?: (member: Partial<TeamMember>) => Promise<string>;
+  isReadOnly?: boolean;
 }
 
 export const TrainersView: React.FC<TrainersViewProps> = ({ 
@@ -47,7 +48,8 @@ export const TrainersView: React.FC<TrainersViewProps> = ({
   spaces = [],
   onSaveTrainer, 
   onDeleteTrainer, 
-  onCreateMember 
+  onCreateMember,
+  isReadOnly = false
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -227,13 +229,15 @@ export const TrainersView: React.FC<TrainersViewProps> = ({
             Gestión de instructores internos y externos.
           </p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/20"
-        >
-          <Plus size={16} />
-          <span>Nuevo Capacitador</span>
-        </button>
+        {!isReadOnly && (
+          <button 
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/20"
+          >
+            <Plus size={16} />
+            <span>Nuevo Capacitador</span>
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
@@ -321,24 +325,28 @@ export const TrainersView: React.FC<TrainersViewProps> = ({
                         >
                           <Eye size={16} />
                         </button>
-                        <button 
-                          onClick={() => handleOpenModal(trainer)}
-                          title="Editar Ficha"
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            if (confirm('¿Está seguro de eliminar este capacitador?')) {
-                              onDeleteTrainer(trainer.id);
-                            }
-                          }}
-                          title="Eliminar"
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {!isReadOnly && (
+                          <>
+                            <button 
+                              onClick={() => handleOpenModal(trainer)}
+                              title="Editar Ficha"
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                if (confirm('¿Está seguro de eliminar este capacitador?')) {
+                                  onDeleteTrainer(trainer.id);
+                                }
+                              }}
+                              title="Eliminar"
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

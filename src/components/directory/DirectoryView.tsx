@@ -15,10 +15,12 @@ import {
 import { TeamMember, Company, Industry, Process, SystemRole } from '../../types';
 import { MemberEditorView } from '../common/MemberEditorView';
 import { CompanyEditorView } from '../common/CompanyEditorView';
+import { ModulePermissionsTab } from '../common/ModulePermissionsTab';
 
 interface DirectoryViewProps {
-  directorySubTab: 'people' | 'companies' | 'industries';
-  setDirectorySubTab: (tab: 'people' | 'companies' | 'industries') => void;
+  currentMember?: TeamMember | null;
+  directorySubTab: 'people' | 'companies' | 'industries' | 'permissions';
+  setDirectorySubTab: (tab: 'people' | 'companies' | 'industries' | 'permissions') => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   members: TeamMember[];
@@ -51,6 +53,7 @@ interface DirectoryViewProps {
 }
 
 export const DirectoryView: React.FC<DirectoryViewProps> = ({
+  currentMember,
   directorySubTab,
   setDirectorySubTab,
   searchQuery,
@@ -183,9 +186,19 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
               >
                 Industrias ({industries.length})
               </button>
+              <button
+                onClick={() => setDirectorySubTab('permissions')}
+                className={`px-6 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
+                  directorySubTab === 'permissions'
+                    ? 'bg-ng-lime text-ng-black shadow-lg shadow-ng-lime/20'
+                    : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'
+                }`}
+              >
+                Permisos
+              </button>
             </div>
 
-            {searchQuery && (
+            {searchQuery && directorySubTab !== 'permissions' && (
               <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100">
                 <span className="text-[11px] font-bold text-blue-700">
                   Filtrado por: <strong>"{searchQuery}"</strong>
@@ -200,7 +213,16 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
             )}
           </div>
 
-          {directorySubTab === 'people' ? (
+          {directorySubTab === 'permissions' ? (
+            <ModulePermissionsTab
+              moduleId="directory"
+              moduleName="Directorio Organizacional"
+              currentMember={currentMember}
+              members={members}
+              processes={processes}
+              roles={roles as any}
+            />
+          ) : directorySubTab === 'people' ? (
             <div className="bg-white rounded-[2rem] border border-gray-100 shadow-xl overflow-hidden">
               <table className="w-full text-left border-collapse">
                 <thead>

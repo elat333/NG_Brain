@@ -221,6 +221,8 @@ export interface Project {
   processId: string; // Relacionado con un proceso
   status: 'activo' | 'completado' | 'pausado';
   city?: string; // Ciudad a la que pertenece la campaña/proyecto
+  leaderId?: string; // Líder / Responsable asignado al proyecto
+  auxiliaryMemberIds?: string[]; // Auxiliares / Colaboradores asignados
   createdAt: string;
 }
 
@@ -317,12 +319,15 @@ export interface NoteShareAccess {
   sharedByMemberId?: string;
 }
 
+export type PersonalLink = ProcessLink;
+
 export interface PersonalNote {
   id: string;
   title: string;
   content: string; // Markdown body
   category?: string; // Folder/Category
   tags?: string[];
+  processId?: string;
   createdByMemberId: string;
   createdByName?: string;
   createdAt: string;

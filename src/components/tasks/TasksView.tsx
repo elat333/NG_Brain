@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   Plus, Search, X, ArrowUp, ArrowDown, ArrowUpDown, 
-  Edit, Trash2 as Trash, Calendar, Clock 
+  Trash2 as Trash, Calendar, Clock, GripVertical 
 } from 'lucide-react';
 import { Task, TeamMember, Process, Project, Role } from '../../types';
 import { parseLocalDate as defaultParseLocalDate } from '../../lib/dateUtils';
@@ -91,6 +91,214 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const [isBoardDragging, setIsBoardDragging] = useState(false);
   const [isListDragging, setIsListDragging] = useState(false);
 
+  // Clave de almacenamiento por usuario para que cada colaborador tenga su propio orden independiente
+  const memberStorageKey = useMemo(() => {
+    return currentMember?.id ? `ng_story_order_${currentMember.id}` : 'ng_story_order_guest';
+  }, [currentMember?.id]);
+
+  const listMemberStorageKey = useMemo(() => {
+    return currentMember?.id ? `ng_story_list_order_${currentMember.id}` : 'ng_story_list_order_guest';
+  }, [currentMember?.id]);
+
+  // Estado del orden de historias por columna (Tablero)
+  const [userStoryOrder, setUserStoryOrder] = useState<Record<string, string[]>>(() => {
+    try {
+      const saved = localStorage.getItem(memberStorageKey);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Estado del orden de historias en lista (Vista Lista)
+  const [listStoryOrder, setListStoryOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(listMemberStorageKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Sincronizar al cambiar de usuario
+  useEffect(() => {
+    try {
+      const savedBoard = localStorage.getItem(memberStorageKey);
+      setUserStoryOrder(savedBoard ? JSON.parse(savedBoard) : {});
+      const savedList = localStorage.getItem(listMemberStorageKey);
+      setListStoryOrder(savedList ? JSON.parse(savedList) : []);
+    } catch {}
+  }, [memberStorageKey, listMemberStorageKey]);
+
+  // Estados de Drag & Drop para Tablero Kanban (Intra-columna exclusivamente)
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [draggedTaskStatus, setDraggedTaskStatus] = useState<string | null>(null);
+  const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
+
+  // Estados de Drag & Drop para Vista Lista
+  const [draggedListTaskId, setDraggedListTaskId] = useState<string | null>(null);
+  const [dragOverListTargetId, setDragOverListTargetId] = useState<string | null>(null);
+  const [dropListPosition, setDropListPosition] = useState<'before' | 'after' | null>(null);
+
+  // Handlers Drag & Drop Tablero (Movimiento exclusivamente vertical dentro de la misma columna)
+  const handleDragStartCard = (e: React.DragEvent, task: Task) => {
+    e.dataTransfer.setData('text/plain', task.id);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedTaskId(task.id);
+    setDraggedTaskStatus(task.status);
+  };
+
+  const handleDragOverCard = (e: React.DragEvent, task: Task) => {
+    // Solo permitir dentro del mismo estado/columna y evitar auto-colisión
+    if (!draggedTaskId || task.status !== draggedTaskStatus || task.id === draggedTaskId) {
+      return;
+    }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const pos = e.clientY < midY ? 'before' : 'after';
+
+    setDragOverTargetId(task.id);
+    setDropPosition(pos);
+  };
+
+  const handleDragLeaveCard = (e: React.DragEvent, task: Task) => {
+    if (dragOverTargetId === task.id) {
+      setDragOverTargetId(null);
+      setDropPosition(null);
+    }
+  };
+
+  const handleDropCard = (e: React.DragEvent, targetTask: Task) => {
+    e.preventDefault();
+    if (
+      !draggedTaskId ||
+      !draggedTaskStatus ||
+      targetTask.status !== draggedTaskStatus ||
+      draggedTaskId === targetTask.id
+    ) {
+      setDragOverTargetId(null);
+      setDropPosition(null);
+      setDraggedTaskId(null);
+      setDraggedTaskStatus(null);
+      return;
+    }
+
+    const colStatus = targetTask.status;
+    const currentTasksOfCol = filteredTasks.filter(t => t.status === colStatus);
+    const existingOrder = userStoryOrder[colStatus] || [];
+    
+    // Lista completa de IDs preservando orden actual
+    const currentIds = currentTasksOfCol
+      .map(t => t.id)
+      .sort((a, b) => {
+        const idxA = existingOrder.indexOf(a);
+        const idxB = existingOrder.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return 0;
+      });
+
+    // Remover el elemento arrastrado
+    const filtered = currentIds.filter(id => id !== draggedTaskId);
+    const targetIdx = filtered.indexOf(targetTask.id);
+    const insertIdx = dropPosition === 'before' ? Math.max(0, targetIdx) : targetIdx + 1;
+    filtered.splice(insertIdx, 0, draggedTaskId);
+
+    const updatedOrder = { ...userStoryOrder, [colStatus]: filtered };
+    setUserStoryOrder(updatedOrder);
+
+    try {
+      localStorage.setItem(memberStorageKey, JSON.stringify(updatedOrder));
+    } catch {}
+
+    setDragOverTargetId(null);
+    setDropPosition(null);
+    setDraggedTaskId(null);
+    setDraggedTaskStatus(null);
+  };
+
+  const handleDragEndCard = () => {
+    setDragOverTargetId(null);
+    setDropPosition(null);
+    setDraggedTaskId(null);
+    setDraggedTaskStatus(null);
+  };
+
+  // Handlers Drag & Drop Vista Lista
+  const handleDragStartListRow = (e: React.DragEvent, taskId: string) => {
+    e.dataTransfer.setData('text/plain', taskId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedListTaskId(taskId);
+  };
+
+  const handleDragOverListRow = (e: React.DragEvent, taskId: string) => {
+    if (!draggedListTaskId || taskId === draggedListTaskId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const pos = e.clientY < midY ? 'before' : 'after';
+
+    setDragOverListTargetId(taskId);
+    setDropListPosition(pos);
+  };
+
+  const handleDragLeaveListRow = (e: React.DragEvent, taskId: string) => {
+    if (dragOverListTargetId === taskId) {
+      setDragOverListTargetId(null);
+      setDropListPosition(null);
+    }
+  };
+
+  const handleDropListRow = (e: React.DragEvent, targetTaskId: string) => {
+    e.preventDefault();
+    if (!draggedListTaskId || draggedListTaskId === targetTaskId) {
+      setDragOverListTargetId(null);
+      setDropListPosition(null);
+      setDraggedListTaskId(null);
+      return;
+    }
+
+    const currentIds = finalSortedListTasks.map(t => t.id);
+    const filtered = currentIds.filter(id => id !== draggedListTaskId);
+    const targetIdx = filtered.indexOf(targetTaskId);
+    const insertIdx = dropListPosition === 'before' ? Math.max(0, targetIdx) : targetIdx + 1;
+    filtered.splice(insertIdx, 0, draggedListTaskId);
+
+    setListStoryOrder(filtered);
+    try {
+      localStorage.setItem(listMemberStorageKey, JSON.stringify(filtered));
+    } catch {}
+
+    setDragOverListTargetId(null);
+    setDropListPosition(null);
+    setDraggedListTaskId(null);
+  };
+
+  // Lista final para vista de tabla, aplicando el orden personalizado de lista si no hay sort de columna activo
+  const finalSortedListTasks = useMemo(() => {
+    if (tableSort.column) {
+      return sortedTasks;
+    }
+    if (listStoryOrder.length === 0) {
+      return sortedTasks;
+    }
+    return [...sortedTasks].sort((a, b) => {
+      const idxA = listStoryOrder.indexOf(a.id);
+      const idxB = listStoryOrder.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return 0;
+    });
+  }, [sortedTasks, listStoryOrder, tableSort.column]);
+
   return (
     <motion.div 
       key="tasks"
@@ -102,6 +310,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
       {tasksSubTab === 'permissions' ? (
         <TasksPermissionsView 
           currentMember={currentMember}
+          members={members}
           processes={processes}
           roles={roles}
         />
@@ -173,6 +382,17 @@ export const TasksView: React.FC<TasksViewProps> = ({
               });
               hiddenDoneCount = allColTasks.length - visibleColTasks.length;
             }
+
+            // Ordenamiento personalizado por usuario en cada columna
+            const colOrder = userStoryOrder[column.id] || [];
+            const sortedColTasks = [...visibleColTasks].sort((a, b) => {
+              const idxA = colOrder.indexOf(a.id);
+              const idxB = colOrder.indexOf(b.id);
+              if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+              if (idxA !== -1) return -1;
+              if (idxB !== -1) return 1;
+              return 0;
+            });
 
             if (isCollapsed) {
               return (
@@ -250,7 +470,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     </div>
                   )}
 
-                  {visibleColTasks.map((task, taskIdx) => (
+                  {sortedColTasks.map((task, taskIdx) => (
                     <TaskCard 
                       key={`col_${column.id}_task_${task.id || taskIdx}_${taskIdx}`} 
                       task={task} 
@@ -263,7 +483,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
                       project={projects.find(p => p.id === task.projectId)}
                       onUpdateStatus={updateTaskStatus} 
                       onEdit={openEditTask} 
-                      onDelete={handleDeleteTask} 
+                      onDelete={handleDeleteTask}
+                      onDragStartCard={handleDragStartCard}
+                      onDragOverCard={handleDragOverCard}
+                      onDragLeaveCard={handleDragLeaveCard}
+                      onDropCard={handleDropCard}
+                      onDragEndCard={handleDragEndCard}
+                      isBeingDragged={draggedTaskId === task.id}
+                      dropPosition={dragOverTargetId === task.id ? dropPosition : null}
                     />
                   ))}
 
@@ -325,14 +552,21 @@ export const TasksView: React.FC<TasksViewProps> = ({
         >
           <table className="w-full text-left border-collapse min-w-[1250px]">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50 sticky top-0 z-20 backdrop-blur-md">
-                {/* Tarea / Descripción Column Header */}
-                <th className="px-6 py-4 text-[10px] bg-gray-50/50 w-[24%] align-top border-r border-gray-100/50">
+              <tr className="border-b border-gray-100 bg-gray-50/90 sticky top-0 z-20 backdrop-blur-md">
+                {/* Columna 0: Agarre / Orden Fijo */}
+                <th className="px-2 py-4 text-[10px] bg-gray-50 sticky left-0 z-30 w-10 text-center align-middle border-r border-gray-100">
+                  <span className="text-gray-400" title="Arrastrar para ordenar">
+                    <GripVertical size={14} className="mx-auto" />
+                  </span>
+                </th>
+
+                {/* Columna 1: HISTORIA (Fija en horizontal - sticky left-10) */}
+                <th className="px-6 py-4 text-[10px] bg-gray-50 sticky left-10 z-30 w-[24%] align-top border-r border-gray-100 shadow-xs">
                   <div 
                     onClick={() => handleTableSort('title')}
-                    className="flex items-center gap-1.5 font-black text-gray-500 uppercase tracking-[0.15em] cursor-pointer hover:text-gray-900 transition-colors mb-2.5 group"
+                    className="flex items-center gap-1.5 font-black text-gray-700 uppercase tracking-[0.15em] cursor-pointer hover:text-gray-900 transition-colors mb-2.5 group"
                   >
-                    Tarea / Descripción
+                    Historia
                     {tableSort.column === 'title' ? (
                       tableSort.direction === 'asc' ? <ArrowUp size={11} className="text-blue-600 animate-bounce" /> : <ArrowDown size={11} className="text-blue-600 animate-bounce" />
                     ) : (
@@ -343,7 +577,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={12} />
                     <input
                       type="text"
-                      placeholder="Buscar por nombre/desc..."
+                      placeholder="Buscar por historia..."
                       className="w-full pl-7.5 pr-6 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-medium"
                       value={tableFilters.title}
                       onChange={(e) => setTableFilters(prev => ({ ...prev, title: e.target.value }))}
@@ -465,14 +699,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     >
                       <option value="" className="font-bold">TODOS</option>
                       {sortedMembers.map((m, mIdx) => (
-                        <option key={`th_filter_m_${m.id || mIdx}_${mIdx}`} value={m.id} className="font-medium">{m.name}</option>
+                        <option key={`th_filter_member_${m.id || mIdx}_${mIdx}`} value={m.id} className="font-medium">{m.name}</option>
                       ))}
                     </select>
                   </div>
                 </th>
 
                 {/* Auxiliar Column Header */}
-                <th className="px-6 py-4 text-[10px] bg-gray-50/50 w-[13%] align-top border-r border-gray-100/50">
+                <th className="px-6 py-4 text-[10px] bg-gray-50/50 w-[10%] align-top border-r border-gray-100/50">
                   <div 
                     onClick={() => handleTableSort('auxiliary')}
                     className="flex items-center gap-1.5 font-black text-gray-500 uppercase tracking-[0.15em] cursor-pointer hover:text-gray-900 transition-colors mb-2.5 group"
@@ -499,7 +733,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                 </th>
 
                 {/* Revisor Column Header */}
-                <th className="px-6 py-4 text-[10px] bg-gray-50/50 w-[13%] align-top border-r border-gray-100/50">
+                <th className="px-6 py-4 text-[10px] bg-gray-50/50 w-[11%] align-top border-r border-gray-100/50">
                   <div 
                     onClick={() => handleTableSort('revisor')}
                     className="flex items-center gap-1.5 font-black text-gray-500 uppercase tracking-[0.15em] cursor-pointer hover:text-gray-900 transition-colors mb-2.5 group"
@@ -525,14 +759,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
                   </div>
                 </th>
 
-                {/* Plan/Real Column Header */}
-                <th className="px-6 py-4 text-[10px] bg-gray-50/50 w-[8%] align-top border-r border-gray-100/50">
+                {/* Horas Column Header */}
+                <th className="px-6 py-4 text-[10px] bg-gray-50/50 w-[6%] align-top border-r border-gray-100/50">
                   <div 
-                    onClick={() => handleTableSort('hours')}
+                    onClick={() => handleTableSort('plannedHours')}
                     className="flex items-center gap-1.5 font-black text-gray-500 uppercase tracking-[0.15em] cursor-pointer hover:text-gray-900 transition-colors mb-2.5 group"
                   >
                     Horas
-                    {tableSort.column === 'hours' ? (
+                    {tableSort.column === 'plannedHours' ? (
                       tableSort.direction === 'asc' ? <ArrowUp size={11} className="text-blue-600" /> : <ArrowDown size={11} className="text-blue-600" />
                     ) : (
                       <ArrowUpDown size={11} className="text-gray-300 opacity-60 group-hover:opacity-100 transition-all" />
@@ -598,17 +832,42 @@ export const TasksView: React.FC<TasksViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedTasks.map((task, taskIdx) => {
+              {finalSortedListTasks.map((task, taskIdx) => {
                 const member = members.find(m => m.id === task.memberId);
                 const auxiliary = members.find(m => m.id === task.auxiliaryId);
                 const taskAuxiliaries = Array.isArray(task.auxiliaryIds) ? members.filter(m => task.auxiliaryIds!.includes(m.id)) : (auxiliary ? [auxiliary] : []);
                 const process = processes.find(p => p.id === task.processId);
                 const project = projects.find(p => p.id === task.projectId);
+                const isOverThisRow = dragOverListTargetId === task.id;
                 
                 return (
-                  <tr key={`list_task_${task.id || taskIdx}_${taskIdx}`} className="hover:bg-gray-50/50 transition-colors group">
-                    {/* Tarea Cell */}
-                    <td className="px-6 py-4.5 align-middle">
+                  <tr 
+                    key={`list_task_${task.id || taskIdx}_${taskIdx}`} 
+                    onDragOver={(e) => handleDragOverListRow(e, task.id)}
+                    onDragLeave={(e) => handleDragLeaveListRow(e, task.id)}
+                    onDrop={(e) => handleDropListRow(e, task.id)}
+                    className={`hover:bg-gray-50/50 transition-colors group relative ${
+                      draggedListTaskId === task.id ? 'opacity-30 bg-blue-50/30' : ''
+                    } ${
+                      isOverThisRow && dropListPosition === 'before' ? 'border-t-2 border-blue-500' : ''
+                    } ${
+                      isOverThisRow && dropListPosition === 'after' ? 'border-b-2 border-blue-500' : ''
+                    }`}
+                  >
+                    {/* Columna 0: Botón de Agarre (Tres Puntos / Grip) */}
+                    <td className="px-2 py-4.5 align-middle text-center sticky left-0 bg-white z-10 border-r border-gray-100">
+                      <div
+                        draggable={true}
+                        onDragStart={(e) => handleDragStartListRow(e, task.id)}
+                        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-700 p-1 rounded-md hover:bg-gray-100 inline-flex items-center justify-center transition-colors"
+                        title="Arrastrar fila hacia arriba o abajo para ordenar"
+                      >
+                        <GripVertical size={16} />
+                      </div>
+                    </td>
+
+                    {/* Columna 1: HISTORIA (Fija en horizontal - sticky left-10) */}
+                    <td className="px-6 py-4.5 align-middle sticky left-10 bg-white z-10 border-r border-gray-100 shadow-xs">
                       <div 
                         onClick={() => openEditTask(task)}
                         className="font-black text-gray-900 leading-snug cursor-pointer hover:text-blue-600 transition-colors text-sm mb-0.5 line-clamp-2"
@@ -747,53 +1006,49 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     </td>
                     
                     {/* Horas Cell */}
-                    <td className="px-6 py-4.5 align-middle font-mono text-xs text-gray-700">
-                      <div className="flex flex-col">
-                        <div className="flex items-baseline gap-0.5">
-                          <span className="font-black text-gray-900">{task.actualHours || 0}h</span>
-                          <span className="text-gray-400 text-[10px]">/{task.plannedHours || 0}h</span>
-                        </div>
-                        <span className="text-[8px] text-gray-400 font-black uppercase tracking-wider">Real / Plan</span>
+                    <td className="px-6 py-4.5 align-middle">
+                      <div className="flex items-center gap-1 font-mono text-xs">
+                        <span className="font-black text-gray-900">{task.actualHours || 0}</span>
+                        <span className="text-gray-300">/</span>
+                        <span className="text-gray-500 font-semibold">{task.plannedHours || 0}h</span>
                       </div>
                     </td>
-                    
+
                     {/* Fecha Límite Cell */}
-                    <td className="px-6 py-4.5 align-middle text-xs font-black text-gray-900">
+                    <td className="px-6 py-4.5 align-middle">
                       {task.dueDate ? (
-                        <span className="uppercase text-xs font-black">
-                          {parseLocalDate(task.dueDate)?.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Calendar size={13} className="text-gray-400 shrink-0" />
+                          <span className="text-xs font-bold text-gray-700 whitespace-nowrap">
+                            {task.dueDate}
+                          </span>
+                        </div>
                       ) : (
-                        <span className="text-gray-300 font-medium">Sin fecha</span>
+                        <span className="text-xs text-gray-300 italic">Sin fecha</span>
                       )}
                     </td>
-                    
+
                     {/* Acciones Cell */}
                     <td className="px-6 py-4.5 align-middle text-right">
-                      <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => openEditTask(task)}
-                          className="p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm"
-                          title="Editar"
-                        >
-                          <Edit size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTask(task.id)}
-                          className="p-2 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-red-500 hover:border-red-100 transition-all shadow-sm"
-                          title="Eliminar"
-                        >
-                          <Trash size={13} />
-                        </button>
-                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTask(task.id);
+                        }}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        title="Eliminar tarea"
+                      >
+                        <Trash size={14} />
+                      </button>
                     </td>
                   </tr>
                 );
               })}
-              {sortedTasks.length === 0 && (
+
+              {finalSortedListTasks.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-[10px]">
-                    No hay tareas asociadas que coincidan con los filtros
+                  <td colSpan={11} className="py-12 text-center text-gray-400 text-xs">
+                    No se encontraron historias con los filtros seleccionados
                   </td>
                 </tr>
               )}

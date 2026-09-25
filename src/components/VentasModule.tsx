@@ -10,8 +10,9 @@ import { SalesQuotesView } from './ventas/SalesQuotesView';
 import { SalesGoalsView } from './ventas/SalesGoalsView';
 import { PersonalLinksView } from './common/PersonalLinksView';
 import { PersonalNotesView } from './common/PersonalNotesView';
+import { ModulePermissionsTab } from './common/ModulePermissionsTab';
 
-export type VentasSubTab = 'links' | 'notes' | 'crm' | 'pipeline' | 'quotes' | 'goals';
+export type VentasSubTab = 'links' | 'notes' | 'crm' | 'pipeline' | 'quotes' | 'goals' | 'permissions';
 
 interface VentasModuleProps {
   onCreateCompany?: (company: Partial<Company>) => Promise<string>;
@@ -250,6 +251,24 @@ export const VentasModule: React.FC<VentasModuleProps> = ({
             deals={deals}
             clients={clients}
             quotes={quotes}
+          />
+        </motion.div>
+      )}
+
+      {/* Permissions Subtab */}
+      {activeSubTab === 'permissions' && (
+        <motion.div
+          key="permissions"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+        >
+          <ModulePermissionsTab
+            moduleId="ventas"
+            moduleName="Ventas"
+            currentMember={currentMember}
+            members={members}
+            processes={processes}
           />
         </motion.div>
       )}

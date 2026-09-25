@@ -11,10 +11,18 @@ interface TrainingManagementViewProps {
   trainers: Trainer[];
   onSaveManagement: (management: Partial<TrainingManagement>) => Promise<void>;
   onDeleteManagement: (id: string) => Promise<void>;
+  isReadOnly?: boolean;
 }
 
 export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({ 
-  managements, plans, clients, campaigns, trainers, onSaveManagement, onDeleteManagement 
+  managements, 
+  plans, 
+  clients, 
+  campaigns, 
+  trainers, 
+  onSaveManagement, 
+  onDeleteManagement,
+  isReadOnly = false
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -111,13 +119,15 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
             Registro, horas y análisis de costos por capacitación.
           </p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/20"
-        >
-          <Plus size={16} />
-          <span>Registrar Capacitación</span>
-        </button>
+        {!isReadOnly && (
+          <button 
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/20"
+          >
+            <Plus size={16} />
+            <span>Registrar Capacitación</span>
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
@@ -189,22 +199,26 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => handleOpenModal(mgmt)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            if (confirm('¿Eliminar este registro?')) onDeleteManagement(mgmt.id);
-                          }}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                      {!isReadOnly ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => handleOpenModal(mgmt)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (confirm('¿Eliminar este registro?')) onDeleteManagement(mgmt.id);
+                            }}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-xs italic font-medium">Solo lectura</span>
+                      )}
                     </td>
                   </tr>
                 );

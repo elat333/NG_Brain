@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { TeamMember, ProductItem, Company } from '../../types';
+import { TeamMember, ProductItem, Company, Process, Role } from '../../types';
 import { ProductosModule, ProductSubTab } from '../ProductosModule';
 
 interface ProductsViewProps {
@@ -8,6 +8,8 @@ interface ProductsViewProps {
   products: ProductItem[];
   companies: Company[];
   members: TeamMember[];
+  processes?: Process[];
+  roles?: Role[];
   activeSubTab: ProductSubTab;
   onSubTabChange: (tab: ProductSubTab) => void;
   accessLevel: 'ninguno' | 'lector' | 'colaborador' | 'lider' | 'administrador';
@@ -18,6 +20,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   products,
   companies,
   members,
+  processes = [],
+  roles = [],
   activeSubTab,
   onSubTabChange,
   accessLevel,
@@ -35,6 +39,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         products={products}
         companies={companies}
         members={members}
+        processes={processes}
+        roles={roles}
         activeSubTab={activeSubTab}
         onSubTabChange={onSubTabChange}
         accessLevel={accessLevel}

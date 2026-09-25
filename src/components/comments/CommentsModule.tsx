@@ -3,7 +3,7 @@ import {
   MessageSquare, CheckCircle2, Clock, AlertCircle, 
   Search, Check, Trash2, Megaphone, Link as LinkIcon, 
   FileText, CheckSquare, FolderKanban, ShieldCheck, 
-  ArrowRight, AtSign
+  ArrowRight, AtSign, Shield, Bookmark, Users
 } from 'lucide-react';
 import { 
   UniversalComment, 
@@ -11,10 +11,19 @@ import {
   TeamMember, 
   Process, 
   Project, 
-  Task 
+  Task,
+  Role,
+  PersonalNote,
+  PersonalLink
 } from '../../types';
+import { db, collection, onSnapshot } from '../../lib/firebase';
 import { commentService } from '../../services/commentService';
 import { renderCommentWithMentions } from '../common/UniversalCommentsThread';
+import { CommentsPermissionsMatrix } from './CommentsPermissionsMatrix';
+import { PersonalNotesView } from '../common/PersonalNotesView';
+import { PersonalLinksView } from '../common/PersonalLinksView';
+
+export type CommentsSubTab = 'inbox' | 'notes' | 'links' | 'permissions';
 
 export interface CommentsModuleProps {
   tasks: Task[];
@@ -22,6 +31,9 @@ export interface CommentsModuleProps {
   processes: Process[];
   projects: Project[];
   currentMember: TeamMember | null;
+  roles?: Role[];
+  activeSubTab?: CommentsSubTab;
+  onSubTabChange?: (subTab: CommentsSubTab) => void;
   onOpenTask?: (task: Task) => void;
   onNavigateToTab?: (tab: string, subTab?: string, id?: string) => void;
 }
@@ -32,17 +44,29 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
   processes,
   projects,
   currentMember,
+  roles = [],
+  activeSubTab = 'inbox',
+  onSubTabChange,
   onOpenTask,
   onNavigateToTab
 }) => {
+  const [internalSubTab, setInternalSubTab] = useState<CommentsSubTab>(activeSubTab);
+  const currentSubTab = onSubTabChange ? activeSubTab : internalSubTab;
+  const setSubTab = (tab: CommentsSubTab) => {
+    if (onSubTabChange) onSubTabChange(tab);
+    setInternalSubTab(tab);
+  };
+
   const [comments, setComments] = useState<UniversalComment[]>([]);
+  const [allNotes, setAllNotes] = useState<PersonalNote[]>([]);
+  const [allLinks, setAllLinks] = useState<PersonalLink[]>([]);
   const [filterEntity, setFilterEntity] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'resolved'>('all');
   const [filterProcessId, setFilterProcessId] = useState<string>('all');
   const [onlyMentionsMe, setOnlyMentionsMe] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  // Suscripción universal en tiempo real
+  // Suscripción universal en tiempo real a comentarios
   useEffect(() => {
     const unsubscribe = commentService.subscribeAllUniversalComments((fetchedComments) => {
       setComments(fetchedComments);
@@ -53,8 +77,34 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
     };
   }, [tasks]);
 
-  // Mapa rápido de tareas
+  // Suscripción en tiempo real a notas y enlaces para verificación de pertenencia / asignación
+  useEffect(() => {
+    const unsubNotes = onSnapshot(collection(db, 'user_personal_notes'), (snapshot) => {
+      const fetched: PersonalNote[] = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      })) as PersonalNote[];
+      setAllNotes(fetched);
+    }, (err) => console.warn('Error en notas listener:', err));
+
+    const unsubLinks = onSnapshot(collection(db, 'user_personal_links'), (snapshot) => {
+      const fetched: PersonalLink[] = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      })) as PersonalLink[];
+      setAllLinks(fetched);
+    }, (err) => console.warn('Error en links listener:', err));
+
+    return () => {
+      unsubNotes();
+      unsubLinks();
+    };
+  }, []);
+
+  // Mapas rápidos de acceso por ID
   const taskMap = useMemo(() => new Map(tasks.map(t => [t.id, t])), [tasks]);
+  const notesMap = useMemo(() => new Map(allNotes.map(n => [n.id, n])), [allNotes]);
+  const linksMap = useMemo(() => new Map(allLinks.map(l => [l.id, l])), [allLinks]);
 
   // Filtrado reactivo de comentarios
   const filteredComments = useMemo(() => {
@@ -104,9 +154,95 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
         }
       }
 
+      // 6. Verificación granular de permisos por tipo, proceso y rol de competencia
+      const isUserAdmin = Boolean(
+        currentMember?.isSystemAdmin || 
+        currentMember?.systemRoleId === 'role-admin' ||
+        currentMember?.role === 'superadmin' ||
+        currentMember?.role === 'admin' ||
+        currentMember?.moduleAccess?.['comments'] === 'administrador'
+      );
+
+      if (!isUserAdmin && currentMember) {
+        const isAuthor = comment.authorId === currentMember.id;
+        const isTarget = comment.targetMemberId === currentMember.id;
+        const isMentioned = comment.mentionedMemberIds?.includes(currentMember.id) || 
+          comment.text.toLowerCase().includes(`@${currentMember.name.toLowerCase()}`);
+
+        // 6.1 Permiso por tipo de entidad (bloqueo absoluto 'ninguno')
+        if (comment.entityType === 'task') {
+          const taskPerm = currentMember.moduleAccess?.['comments_tasks'];
+          if (taskPerm === 'ninguno') return false;
+        } else if (comment.entityType === 'note') {
+          const notePerm = currentMember.moduleAccess?.['comments_notes'];
+          if (notePerm === 'ninguno') return false;
+        } else if (comment.entityType === 'link') {
+          const linkPerm = currentMember.moduleAccess?.['comments_links'];
+          if (linkPerm === 'ninguno') return false;
+        }
+
+        // 6.2 Permiso por proceso departamental
+        const effectiveProcId = comment.processId || (comment.entityType === 'task' ? taskMap.get(comment.entityId)?.processId : undefined);
+        if (effectiveProcId) {
+          const procPerm = currentMember.moduleAccess?.[`comments_${effectiveProcId}`];
+          if (procPerm === 'ninguno') return false;
+        }
+
+        // 6.3 Determinar si el usuario es Líder de este proceso/módulo
+        const processPerm = effectiveProcId ? currentMember.moduleAccess?.[`comments_${effectiveProcId}`] : undefined;
+        const globalPerm = currentMember.moduleAccess?.['comments'];
+        const isLeaderForThis = (processPerm === 'lider' || processPerm === 'administrador' || globalPerm === 'lider');
+
+        // Si NO es líder de este proceso ni administrador, aplica la regla estricta de Colaborador / Lector
+        if (!isLeaderForThis) {
+          let isDirectlyInvolved = isAuthor || isTarget || isMentioned;
+
+          // Si no está mencionado directamente, comprobar pertenencia al elemento padre
+          if (!isDirectlyInvolved) {
+            if (comment.entityType === 'task') {
+              const task = taskMap.get(comment.entityId);
+              if (task) {
+                const isResponsible = task.memberId === currentMember.id;
+                const isAuxiliary = task.auxiliaryId === currentMember.id || 
+                  (task.auxiliaryIds && task.auxiliaryIds.includes(currentMember.id));
+                const isRevisor = task.revisorId === currentMember.id;
+                if (isResponsible || isAuxiliary || isRevisor) {
+                  isDirectlyInvolved = true;
+                }
+              }
+            } else if (comment.entityType === 'note') {
+              const note = notesMap.get(comment.entityId);
+              if (note) {
+                const isCreator = note.createdByMemberId === currentMember.id;
+                const isShared = (note.sharedMemberIds && note.sharedMemberIds.includes(currentMember.id)) ||
+                                 (note.sharedWith && note.sharedWith.some(s => s.memberId === currentMember.id));
+                if (isCreator || isShared) {
+                  isDirectlyInvolved = true;
+                }
+              }
+            } else if (comment.entityType === 'link') {
+              const link = linksMap.get(comment.entityId);
+              if (link) {
+                const isCreator = link.createdByMemberId === currentMember.id;
+                const isShared = (link.sharedMemberIds && link.sharedMemberIds.includes(currentMember.id)) ||
+                                 (link.sharedWith && link.sharedWith.some(s => s.memberId === currentMember.id));
+                if (isCreator || isShared) {
+                  isDirectlyInvolved = true;
+                }
+              }
+            }
+          }
+
+          // Si no le compete la actividad/nota/link ni está involucrado, no puede ver el comentario
+          if (!isDirectlyInvolved) {
+            return false;
+          }
+        }
+      }
+
       return true;
     });
-  }, [comments, filterEntity, filterStatus, filterProcessId, onlyMentionsMe, searchTerm, currentMember, taskMap]);
+  }, [comments, filterEntity, filterStatus, filterProcessId, onlyMentionsMe, searchTerm, currentMember, taskMap, notesMap, linksMap]);
 
   // Estadísticas globales
   const stats = useMemo(() => {
@@ -214,68 +350,77 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
     }
   };
 
+  const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+  const canSeeCommentsPerms = isUserAdmin || currentMember?.moduleAccess?.['comments'] === 'lider' || currentMember?.moduleAccess?.['comments'] === 'administrador';
+
   return (
-    <div className="h-full flex flex-col p-6 space-y-6 overflow-y-auto custom-scrollbar">
-      {/* Encabezado Principal */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-600/20">
-              <MessageSquare size={20} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-                Centro de Comentarios & Observaciones
-              </h1>
-              <p className="text-xs text-gray-500 font-medium">
-                Gestión transversal de discusiones y solicitudes de revisión en toda la organización
-              </p>
-            </div>
-          </div>
-        </div>
+    <div className="flex flex-col space-y-3">
+      {/* Si está en la pestaña de Permisos, renderizar la matriz de permisos */}
+      {currentSubTab === 'permissions' ? (
+        <CommentsPermissionsMatrix
+          currentMember={currentMember}
+          members={members}
+          processes={processes}
+          roles={roles}
+        />
+      ) : currentSubTab === 'notes' ? (
+        <PersonalNotesView
+          currentMember={currentMember}
+          members={members}
+          moduleName="Colaboración"
+          accentColor="indigo"
+        />
+      ) : currentSubTab === 'links' ? (
+        <PersonalLinksView
+          currentMember={currentMember}
+          members={members}
+          moduleName="Colaboración"
+          accentColor="indigo"
+        />
+      ) : (
+        <>
+          {/* Tarjetas de Métricas Rápidas (solo en bandeja de comentarios) */}
+          <div className="flex items-center justify-between gap-2.5 flex-wrap">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="bg-white border border-gray-100 px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5">
+                <span className="text-xs font-bold text-gray-500">Total</span>
+                <span className="text-sm font-black text-gray-900">{stats.total}</span>
+              </div>
 
-        {/* Tarjetas de Métricas Rápidas */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="bg-white border border-gray-100 px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5">
-            <span className="text-xs font-bold text-gray-500">Total</span>
-            <span className="text-sm font-black text-gray-900">{stats.total}</span>
-          </div>
-
-          <div className={`border px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5 transition-colors ${
-            stats.pending > 0 ? 'bg-amber-50/80 border-amber-200 text-amber-900' : 'bg-white border-gray-100 text-gray-700'
-          }`}>
-            <AlertCircle size={14} className={stats.pending > 0 ? 'text-amber-600 animate-pulse' : 'text-gray-400'} />
-            <span className="text-xs font-bold">Por Revisar</span>
-            <span className="text-sm font-black">{stats.pending}</span>
-          </div>
-
-          <div className="bg-white border border-gray-100 px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5">
-            <CheckCircle2 size={14} className="text-emerald-500" />
-            <span className="text-xs font-bold text-gray-500">Resueltos</span>
-            <span className="text-sm font-black text-emerald-700">{stats.resolved}</span>
-          </div>
-
-          {currentMember && (
-            <button
-              onClick={() => setOnlyMentionsMe(!onlyMentionsMe)}
-              className={`border px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5 transition-all ${
-                onlyMentionsMe
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-blue-500/20'
-                  : 'bg-white border-gray-100 text-gray-700 hover:border-blue-200'
-              }`}
-            >
-              <AtSign size={14} className={onlyMentionsMe ? 'text-white' : 'text-blue-500'} />
-              <span className="text-xs font-bold">Menciones a mí</span>
-              <span className={`text-xs font-black px-1.5 py-0.2 rounded-full ${
-                onlyMentionsMe ? 'bg-white text-blue-600' : 'bg-blue-50 text-blue-700'
+              <div className={`border px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5 transition-colors ${
+                stats.pending > 0 ? 'bg-amber-50/80 border-amber-200 text-amber-900' : 'bg-white border-gray-100 text-gray-700'
               }`}>
-                {stats.mentionsCount}
-              </span>
-            </button>
-          )}
-        </div>
-      </div>
+                <AlertCircle size={14} className={stats.pending > 0 ? 'text-amber-600 animate-pulse' : 'text-gray-400'} />
+                <span className="text-xs font-bold">Por Revisar</span>
+                <span className="text-sm font-black">{stats.pending}</span>
+              </div>
 
+              <div className="bg-white border border-gray-100 px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5">
+                <CheckCircle2 size={14} className="text-emerald-500" />
+                <span className="text-xs font-bold text-gray-500">Resueltos</span>
+                <span className="text-sm font-black text-emerald-700">{stats.resolved}</span>
+              </div>
+            </div>
+
+            {currentMember && (
+              <button
+                onClick={() => setOnlyMentionsMe(!onlyMentionsMe)}
+                className={`border px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5 transition-all ${
+                  onlyMentionsMe
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-blue-500/20'
+                    : 'bg-white border-gray-100 text-gray-700 hover:border-blue-200'
+                }`}
+              >
+                <AtSign size={14} className={onlyMentionsMe ? 'text-white' : 'text-blue-500'} />
+                <span className="text-xs font-bold">Menciones a mí</span>
+                <span className={`text-xs font-black px-1.5 py-0.2 rounded-full ${
+                  onlyMentionsMe ? 'bg-white text-blue-600' : 'bg-blue-50 text-blue-700'
+                }`}>
+                  {stats.mentionsCount}
+                </span>
+              </button>
+            )}
+          </div>
       {/* Barra de Filtros */}
       <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-xs space-y-3">
         {/* Filtros de Entidad (Tabs) */}
@@ -528,6 +673,8 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
           })
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };

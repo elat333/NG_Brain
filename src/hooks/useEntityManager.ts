@@ -128,7 +128,9 @@ export function useEntityManager({
     description: '',
     processId: '',
     status: 'activo' as 'activo' | 'completado' | 'pausado',
-    city: ''
+    city: '',
+    leaderId: '',
+    auxiliaryMemberIds: [] as string[]
   });
 
   // Automatic reset when changing navigation
@@ -523,6 +525,8 @@ export function useEntityManager({
         processId: newProjectData.processId,
         status: newProjectData.status,
         city: newProjectData.city,
+        leaderId: newProjectData.leaderId || '',
+        auxiliaryMemberIds: newProjectData.auxiliaryMemberIds || [],
         createdAt: new Date().toISOString()
       };
 
@@ -532,7 +536,7 @@ export function useEntityManager({
     }
 
     setIsAddingProject(false);
-    setNewProjectData({ name: '', description: '', processId: '', status: 'activo', city: '' });
+    setNewProjectData({ name: '', description: '', processId: '', status: 'activo', city: '', leaderId: '', auxiliaryMemberIds: [] });
   };
 
   const handleUpdateProject = async (e: React.FormEvent) => {
@@ -556,7 +560,9 @@ export function useEntityManager({
         description: newProjectData.description,
         processId: newProjectData.processId,
         status: newProjectData.status,
-        city: newProjectData.city
+        city: newProjectData.city,
+        leaderId: newProjectData.leaderId || '',
+        auxiliaryMemberIds: newProjectData.auxiliaryMemberIds || []
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'projects');
@@ -564,7 +570,7 @@ export function useEntityManager({
 
     setIsAddingProject(false);
     setEditingProject(null);
-    setNewProjectData({ name: '', description: '', processId: '', status: 'activo', city: '' });
+    setNewProjectData({ name: '', description: '', processId: '', status: 'activo', city: '', leaderId: '', auxiliaryMemberIds: [] });
   };
 
   const handleDeleteProject = (projOrId: Project | string) => {
@@ -608,7 +614,9 @@ export function useEntityManager({
       description: proj.description,
       processId: proj.processId,
       status: proj.status,
-      city: proj.city || ''
+      city: proj.city || '',
+      leaderId: proj.leaderId || '',
+      auxiliaryMemberIds: proj.auxiliaryMemberIds || []
     });
     setIsAddingProject(true);
   };

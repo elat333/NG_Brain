@@ -45,12 +45,15 @@ import {
   InventoryInvoice,
   InventoryInvoiceItem,
   ProductItem, 
-  TeamMember 
+  TeamMember,
+  Process,
+  Role
 } from '../../types';
 import { InventarioSubTabType } from '../../hooks/useAppNavigation';
 import { EppExcelImporterModal } from './EppExcelImporterModal';
 import { EppDeliveryModal } from './EppDeliveryModal';
 import { EppDeliveryPrintModal } from './EppDeliveryPrintModal';
+import { ModulePermissionsTab } from '../common/ModulePermissionsTab';
 import { 
   db, 
   collection, 
@@ -70,6 +73,8 @@ export interface InventarioModuleProps {
   currentMember: TeamMember | null | undefined;
   products: ProductItem[];
   members: TeamMember[];
+  processes?: Process[];
+  roles?: Role[];
   activeSubTab: InventarioSubTabType;
   onSubTabChange: (subTab: InventarioSubTabType) => void;
   accessLevel: 'ninguno' | 'lector' | 'colaborador' | 'lider' | 'administrador';
@@ -79,6 +84,8 @@ export const InventarioModule: React.FC<InventarioModuleProps> = ({
   currentMember,
   products = [],
   members = [],
+  processes = [],
+  roles = [],
   activeSubTab,
   onSubTabChange,
   accessLevel
@@ -684,6 +691,19 @@ export const InventarioModule: React.FC<InventarioModuleProps> = ({
       setIsSavingInvoice(false);
     }
   };
+
+  if (activeSubTab === 'permissions') {
+    return (
+      <ModulePermissionsTab
+        moduleId="inventario"
+        moduleName="Inventario & Almacenes"
+        currentMember={currentMember}
+        members={members}
+        processes={processes}
+        roles={roles}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">

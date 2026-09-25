@@ -21,6 +21,14 @@ export const getModuleAccess = (
     return 'administrador';
   }
 
+  // Handle dashboard module (Accessible by default for all team members)
+  if (moduleId === 'dashboard') {
+    if (member.moduleAccess && member.moduleAccess['dashboard'] !== undefined) {
+      return member.moduleAccess['dashboard'];
+    }
+    return 'colaborador';
+  }
+
   // Handle process_dashboard (Gestión XD) module special case
   if (moduleId === 'process_dashboard') {
     const generalAccess = member.moduleAccess ? member.moduleAccess['process_dashboard'] : undefined;
@@ -74,6 +82,18 @@ export const getModuleAccess = (
     if (generalAccess !== undefined) return generalAccess;
   }
 
+  // Handle tasks import / export submodules
+  if (moduleId === 'tasks_import' || moduleId === 'tasks_export') {
+    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
+      return member.moduleAccess[moduleId];
+    }
+    const generalTasksAccess = member.moduleAccess ? member.moduleAccess['tasks'] : undefined;
+    if (generalTasksAccess !== undefined) {
+      return generalTasksAccess;
+    }
+    return 'colaborador';
+  }
+
   // Handle tasks_ process-specific module ID
   if (moduleId.startsWith('tasks_')) {
     const procId = moduleId.replace('tasks_', '');
@@ -109,18 +129,16 @@ export const getModuleAccess = (
       return 'colaborador';
     }
 
-    // 5. Fallback to general tasks access
-    const generalTasksAccess = member.moduleAccess ? member.moduleAccess['tasks'] : undefined;
-    if (generalTasksAccess !== undefined && generalTasksAccess !== 'ninguno') {
-      return generalTasksAccess;
-    }
+    // 5. Default isolation: If the member does not belong to this process and has no explicit permission for it,
+    // they do NOT inherit generalTasksAccess because that would leak stories of all other departments.
+    // Instead, return 'ninguno'. This ensures they only see tasks in this process if they are assigned as primary or auxiliary.
     return 'ninguno';
   }
 
   // Handle projects module special case
   if (moduleId === 'projects') {
     const generalAccess = member.moduleAccess ? member.moduleAccess['projects'] : undefined;
-    if (generalAccess !== undefined && generalAccess !== 'ninguno') {
+    if (generalAccess !== undefined) {
       return generalAccess;
     }
     if (member.moduleAccess) {
@@ -134,7 +152,6 @@ export const getModuleAccess = (
       if (specificLevels.includes('colaborador')) return 'colaborador';
       if (specificLevels.includes('lector')) return 'lector';
     }
-    if (generalAccess !== undefined) return generalAccess;
     return 'colaborador';
   }
 
@@ -143,15 +160,14 @@ export const getModuleAccess = (
     if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
       return member.moduleAccess[moduleId];
     }
-    const generalProjectsAccess = member.moduleAccess ? member.moduleAccess['projects'] : undefined;
-    if (generalProjectsAccess !== undefined) {
-      return generalProjectsAccess;
-    }
     const procId = moduleId.replace('projects_', '');
     if (member.processId === procId) {
-      return 'lider';
+      if (member.systemRoleId === 'role-lider' || (typeof member.role === 'string' && member.role.toLowerCase().includes('lider'))) {
+        return 'lider';
+      }
+      return 'colaborador';
     }
-    return 'colaborador';
+    return 'ninguno';
   }
 
   // Handle importaciones module
@@ -178,6 +194,39 @@ export const getModuleAccess = (
     return 'colaborador';
   }
 
+  // Handle capacitacion module
+  if (moduleId === 'capacitacion') {
+    const generalAccess = member.moduleAccess ? member.moduleAccess['capacitacion'] : undefined;
+    if (generalAccess !== undefined && generalAccess !== 'ninguno') {
+      return generalAccess;
+    }
+    if (member.moduleAccess) {
+      const keys = Object.keys(member.moduleAccess);
+      const specificLevels = keys
+        .filter(k => k.startsWith('capacitacion_'))
+        .map(k => member.moduleAccess![k]);
+      
+      if (specificLevels.includes('administrador')) return 'administrador';
+      if (specificLevels.includes('lider')) return 'lider';
+      if (specificLevels.includes('colaborador')) return 'colaborador';
+      if (specificLevels.includes('lector')) return 'lector';
+    }
+    if (generalAccess !== undefined) return generalAccess;
+    return 'colaborador';
+  }
+
+  // Handle capacitacion_ specific submodules
+  if (moduleId.startsWith('capacitacion_')) {
+    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
+      return member.moduleAccess[moduleId];
+    }
+    const generalAccess = member.moduleAccess ? member.moduleAccess['capacitacion'] : undefined;
+    if (generalAccess !== undefined) {
+      return generalAccess;
+    }
+    return 'colaborador';
+  }
+
   // Handle qhse module
   if (moduleId === 'qhse') {
     if (member.moduleAccess && member.moduleAccess['qhse'] !== undefined) {
@@ -189,7 +238,7 @@ export const getModuleAccess = (
   // Handle productos module
   if (moduleId === 'productos') {
     const generalAccess = member.moduleAccess ? member.moduleAccess['productos'] : undefined;
-    if (generalAccess !== undefined && generalAccess !== 'ninguno') {
+    if (generalAccess !== undefined) {
       return generalAccess;
     }
     if (member.moduleAccess) {
@@ -203,22 +252,20 @@ export const getModuleAccess = (
       if (specificLevels.includes('colaborador')) return 'colaborador';
       if (specificLevels.includes('lector')) return 'lector';
     }
-    if (generalAccess !== undefined) return generalAccess;
     return 'colaborador';
   }
 
   // Handle productos_ specific submodule
   if (moduleId.startsWith('productos_')) {
     const subAccess = member.moduleAccess ? member.moduleAccess[moduleId] : undefined;
+    if (subAccess !== undefined) {
+      return subAccess;
+    }
     const generalAccess = member.moduleAccess ? member.moduleAccess['productos'] : undefined;
-
-    const rankMap: Record<string, number> = { ninguno: 0, lector: 1, colaborador: 2, lider: 3, administrador: 4 };
-    const subRank = subAccess ? (rankMap[subAccess] ?? 0) : 2;
-    const generalRank = generalAccess ? (rankMap[generalAccess] ?? 0) : 2;
-
-    const effectiveRank = Math.max(subRank, generalRank);
-    const ranks = ['ninguno', 'lector', 'colaborador', 'lider', 'administrador'] as const;
-    return ranks[effectiveRank] || 'colaborador';
+    if (generalAccess !== undefined) {
+      return generalAccess;
+    }
+    return 'colaborador';
   }
 
   // Handle inventario module
@@ -231,11 +278,39 @@ export const getModuleAccess = (
   }
 
   // Handle comments module (Módulo Universal de Comentarios)
-  if (moduleId === 'comments') {
-    if (member.moduleAccess && member.moduleAccess['comments'] !== undefined) {
-      return member.moduleAccess['comments'];
+  if (moduleId === 'comments' || moduleId.startsWith('comments_')) {
+    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
+      return member.moduleAccess[moduleId];
+    }
+    const generalCommentsAccess = member.moduleAccess ? member.moduleAccess['comments'] : undefined;
+    if (generalCommentsAccess !== undefined) {
+      return generalCommentsAccess;
     }
     // Por defecto todos los miembros activos pueden colaborar en comentarios
+    return 'colaborador';
+  }
+
+  // Handle notes module / sub-keys (Notas de Colaboración)
+  if (moduleId === 'notes' || moduleId.startsWith('notes_')) {
+    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
+      return member.moduleAccess[moduleId];
+    }
+    const generalNotesAccess = member.moduleAccess ? member.moduleAccess['notes'] : undefined;
+    if (generalNotesAccess !== undefined) {
+      return generalNotesAccess;
+    }
+    return 'colaborador';
+  }
+
+  // Handle links module / sub-keys (Enlaces de Colaboración)
+  if (moduleId === 'links' || moduleId.startsWith('links_')) {
+    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
+      return member.moduleAccess[moduleId];
+    }
+    const generalLinksAccess = member.moduleAccess ? member.moduleAccess['links'] : undefined;
+    if (generalLinksAccess !== undefined) {
+      return generalLinksAccess;
+    }
     return 'colaborador';
   }
   
@@ -298,16 +373,48 @@ export const isTaskVisibleForMember = (
 };
 
 /**
- * Checks if a task is blocked by unfinished dependencies
+ * Determines if a subnav item (like notes or links) is visible for a specific module
  */
-export const isTaskBlocked = (id: string, allTasks: Task[]): { isBlocked: boolean; blockers: Task[] } => {
-  const task = allTasks.find(t => t.id === id);
-  if (!task || !Array.isArray(task.blockedByTaskIds) || task.blockedByTaskIds.length === 0) return { isBlocked: false, blockers: [] };
+export const isSubnavVisible = (
+  member: TeamMember | null | undefined,
+  type: 'notes' | 'links',
+  moduleKey: string
+): boolean => {
+  if (!member) return true;
+  if (member.isSystemAdmin || member.systemRoleId === 'role-admin') return true;
   
-  const activeBlockers = allTasks.filter(t => Array.isArray(task.blockedByTaskIds) && task.blockedByTaskIds.includes(t.id) && t.status !== 'done');
+  const key = `vis_${type}_${moduleKey}`;
+  const val = member.moduleAccess ? member.moduleAccess[key] : undefined;
+  
+  // If explicitly hidden or set to 'ninguno' / 'hidden'
+  if (val === 'ninguno' || (val as any) === 'hidden' || (val as any) === false || (val as any) === 'false') {
+    return false;
+  }
+  
+  return true;
+};
+
+/**
+ * Checks if a task is blocked by unfinished dependent tasks
+ */
+export const isTaskBlocked = (
+  taskId: string,
+  allTasks: Task[]
+): { isBlocked: boolean; blockers: Task[] } => {
+  const task = allTasks.find(t => t.id === taskId);
+  const blockerIds = task?.blockedByTaskIds || (task as any)?.blockedBy || [];
+  if (!task || blockerIds.length === 0) {
+    return { isBlocked: false, blockers: [] };
+  }
+
+  const blockers = allTasks.filter(
+    t => blockerIds.includes(t.id) && t.status !== 'done'
+  );
+
   return {
-    isBlocked: activeBlockers.length > 0,
-    blockers: activeBlockers
+    isBlocked: blockers.length > 0,
+    blockers
   };
 };
+
 

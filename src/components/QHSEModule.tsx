@@ -6,17 +6,20 @@ import {
 } from 'lucide-react';
 import { 
   Company, 
-  TeamMember 
+  TeamMember,
+  Process 
 } from '../types';
 import { PersonalLinksView } from './common/PersonalLinksView';
 import { PersonalNotesView } from './common/PersonalNotesView';
+import { ModulePermissionsTab } from './common/ModulePermissionsTab';
 
-export type QHSESubTab = 'links' | 'notes';
+export type QHSESubTab = 'links' | 'notes' | 'permissions';
 
 interface QHSEModuleProps {
   currentMember: TeamMember | null;
   members: TeamMember[];
   companies: Company[];
+  processes?: Process[];
   activeSubTab?: QHSESubTab;
   onSubTabChange?: (tab: QHSESubTab) => void;
   accessLevel?: 'ninguno' | 'lector' | 'colaborador' | 'lider' | 'administrador';
@@ -25,6 +28,8 @@ interface QHSEModuleProps {
 export const QHSEModule: React.FC<QHSEModuleProps> = ({
   currentMember,
   members,
+  companies,
+  processes = [],
   activeSubTab = 'links',
   accessLevel = 'colaborador',
 }) => {
@@ -64,6 +69,24 @@ export const QHSEModule: React.FC<QHSEModuleProps> = ({
               currentMember={currentMember}
               members={members}
               accentColor="emerald"
+            />
+          </motion.div>
+        )}
+
+        {activeSubTab === 'permissions' && (
+          <motion.div
+            key="qhse-permissions"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.15 }}
+          >
+            <ModulePermissionsTab
+              moduleId="qhse"
+              moduleName="QHSE"
+              currentMember={currentMember}
+              members={members}
+              processes={processes}
             />
           </motion.div>
         )}

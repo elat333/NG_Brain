@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Package,
   Award,
@@ -29,18 +30,20 @@ import {
   FileCheck,
   Briefcase
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { ProductItem, ProductCategory, TeamMember, Company } from '../types';
+import { ProductItem, ProductCategory, TeamMember, Company, Process, Role } from '../types';
 import { db, doc, setDoc, updateDoc, deleteDoc, OperationType, handleFirestoreError } from '../lib/firebase';
 import { cleanFirestoreData } from './common/CompanyEditorView';
+import { ProductsPermissionsMatrix } from './products/ProductsPermissionsMatrix';
 
-export type ProductSubTab = 'todos' | 'certificacion' | 'capacitacion' | 'qhse' | 'epp' | 'equipos';
+export type ProductSubTab = 'todos' | 'certificacion' | 'capacitacion' | 'qhse' | 'epp' | 'equipos' | 'permissions';
 
 interface ProductosModuleProps {
   currentMember: TeamMember | null;
   products: ProductItem[];
   members: TeamMember[];
   companies: Company[];
+  processes?: Process[];
+  roles?: Role[];
   activeSubTab: ProductSubTab;
   onSubTabChange: (subTab: ProductSubTab) => void;
   accessLevel: 'ninguno' | 'lector' | 'colaborador' | 'lider' | 'administrador';
@@ -94,6 +97,8 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
   products = [],
   members = [],
   companies = [],
+  processes = [],
+  roles = [],
   activeSubTab,
   onSubTabChange,
   accessLevel
@@ -131,7 +136,7 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
   }>({
     sku: '',
     name: '',
-    category: activeSubTab !== 'todos' ? activeSubTab : 'certificacion',
+    category: (activeSubTab !== 'todos' && activeSubTab !== 'permissions') ? activeSubTab : 'certificacion',
     subcategory: '',
     description: '',
     technicalSpecs: '',
@@ -169,9 +174,16 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
         (p.specialistName && p.specialistName.toLowerCase().includes(term)) ||
         (p.companyAllyName && p.companyAllyName.toLowerCase().includes(term));
 
+      // Verificación granular de permisos por submódulo
+      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+      if (!isUserAdmin && currentMember) {
+        const submodPerm = currentMember.moduleAccess?.[`productos_${p.category}`];
+        if (submodPerm === 'ninguno') return false;
+      }
+
       return matchesCategory && matchesStatus && matchesSearch;
     });
-  }, [products, activeSubTab, statusFilter, searchTerm]);
+  }, [products, activeSubTab, statusFilter, searchTerm, currentMember]);
 
   // Statistics Summary
   const stats = useMemo(() => {
@@ -187,7 +199,7 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
   }, [products]);
 
   const handleOpenCreateModal = () => {
-    const defaultCat: ProductCategory = activeSubTab !== 'todos' ? activeSubTab : 'certificacion';
+    const defaultCat: ProductCategory = (activeSubTab !== 'todos' && activeSubTab !== 'permissions') ? activeSubTab : 'certificacion';
     const prefix = defaultCat.substring(0, 4).toUpperCase();
     const count = products.filter(p => p.category === defaultCat).length + 1;
     const autoSku = `NG-${prefix}-${String(count).padStart(3, '0')}`;
@@ -358,6 +370,17 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
       handleFirestoreError(err, OperationType.DELETE, 'products');
     }
   };
+
+  if (activeSubTab === 'permissions') {
+    return (
+      <ProductsPermissionsMatrix
+        currentMember={currentMember}
+        members={members}
+        processes={processes}
+        roles={roles}
+      />
+    );
+  }
 
   return (
     <div id="productos-module-container" className="space-y-4">

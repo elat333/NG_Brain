@@ -86,7 +86,9 @@ export default function App() {
     showFicha,
     setShowFicha,
     showProcessPermissions,
-    setShowProcessPermissions
+    setShowProcessPermissions,
+    commentsSubTab,
+    setCommentsSubTab
   } = useAppNavigation();
 
   // Sincronización completa con Firestore y estado global mediante hook desacoplado
@@ -659,6 +661,8 @@ export default function App() {
         setDirectorySubTab={handleDirectorySubTabClick}
         importacionesSubTab={importacionesSubTab}
         setImportacionesSubTab={handleImportacionesSubTabClick}
+        commentsSubTab={commentsSubTab}
+        setCommentsSubTab={setCommentsSubTab}
         settingsSubTab={settingsSubTab}
         handleSettingsSubTabClick={handleSettingsSubTabClick}
       />
@@ -666,6 +670,7 @@ export default function App() {
       <main className="md:ml-64 h-screen flex flex-col overflow-hidden">
         <AppHeader
           activeTab={activeTab}
+          commentsSubTab={commentsSubTab}
           settingsSubTab={settingsSubTab}
           setSettingsSubTab={handleSettingsSubTabClick}
           isReadOnly={isReadOnly}
@@ -750,9 +755,10 @@ export default function App() {
           setEditingCompany={setEditingCompany}
           setNewCompanyData={setNewCompanyData}
           setIsAddingCompany={setIsAddingCompany}
+          handleTabClick={handleTabClick}
         />
 
-        <div className={`flex-1 ${activeTab === 'gerencia' && managementSubTab === 'consultant' ? 'overflow-hidden flex flex-col p-4 md:p-6' : 'overflow-y-auto custom-scrollbar ' + (activeTab === 'tasks' || (activeTab === 'gerencia' && (managementSubTab === 'notes' || managementSubTab === 'links')) || (activeTab === 'marketing' && (marketingSubTab === 'notes' || marketingSubTab === 'links')) || (activeTab === 'ventas' && (ventasSubTab === 'notes' || ventasSubTab === 'links')) || (activeTab === 'capacitacion' && (capacitacionSubTab === 'notes' || capacitacionSubTab === 'links')) || (activeTab === 'acreditacion' && (acreditacionSubTab === 'notes' || acreditacionSubTab === 'links')) || (activeTab === 'qhse' && (qhseSubTab === 'notes' || qhseSubTab === 'links')) || (activeTab === 'importaciones' && ((importacionesSubTab as any) === 'notes' || (importacionesSubTab as any) === 'links')) || (activeTab === 'productos' && ((productosSubTab as any) === 'notes' || (productosSubTab as any) === 'links')) ? 'pt-2.5 px-6 pb-6' : 'p-6')}`}>
+        <div className={`flex-1 ${activeTab === 'gerencia' && managementSubTab === 'consultant' ? 'overflow-hidden flex flex-col p-4 md:p-6' : activeTab === 'dashboard' ? 'overflow-hidden flex flex-col px-6 pt-3 pb-3.5' : 'overflow-y-auto custom-scrollbar ' + (activeTab === 'tasks' || activeTab === 'comments' || (activeTab === 'gerencia' && (managementSubTab === 'notes' || managementSubTab === 'links')) || (activeTab === 'marketing' && (marketingSubTab === 'notes' || marketingSubTab === 'links')) || (activeTab === 'ventas' && (ventasSubTab === 'notes' || ventasSubTab === 'links')) || (activeTab === 'capacitacion' && (capacitacionSubTab === 'notes' || capacitacionSubTab === 'links')) || (activeTab === 'acreditacion' && (acreditacionSubTab === 'notes' || acreditacionSubTab === 'links')) || (activeTab === 'qhse' && (qhseSubTab === 'notes' || qhseSubTab === 'links')) || (activeTab === 'importaciones' && ((importacionesSubTab as any) === 'notes' || (importacionesSubTab as any) === 'links')) || (activeTab === 'productos' && ((productosSubTab as any) === 'notes' || (productosSubTab as any) === 'links')) ? 'pt-2.5 px-6 pb-6' : 'p-6')}`}>
           <AnimatePresence mode="wait">
             <AppMainContent
               activeTab={activeTab}
@@ -803,8 +809,11 @@ export default function App() {
               setMarketingSubTab={setMarketingSubTab}
               directorySubTab={directorySubTab}
               handleDirectorySubTabClick={handleDirectorySubTabClick}
+              commentsSubTab={commentsSubTab}
+              setCommentsSubTab={setCommentsSubTab}
               settingsSubTab={settingsSubTab}
               tasksSubTab={tasksSubTab}
+              setTasksSubTab={setTasksSubTab}
               taskViewMode={taskViewMode}
               selectedProcessId={selectedProcessId}
               setSelectedProcessId={setSelectedProcessId}
@@ -918,6 +927,7 @@ export default function App() {
           newProjectData={newProjectData}
           setNewProjectData={setNewProjectData}
           processes={processes}
+          members={members}
           currentMember={currentMember}
           roles={roles}
           getModuleAccess={getModuleAccess}

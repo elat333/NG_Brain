@@ -29,8 +29,11 @@ import { TrainingCalendarView } from './capacitacion/TrainingCalendarView';
 import { TrainingManagementView } from './capacitacion/TrainingManagementView';
 import { PersonalLinksView } from './common/PersonalLinksView';
 import { PersonalNotesView } from './common/PersonalNotesView';
+import { ModulePermissionsTab } from './common/ModulePermissionsTab';
+import { CapacitacionPermissionsMatrix } from './capacitacion/CapacitacionPermissionsMatrix';
+import { getModuleAccess } from '../lib/permissions';
 
-export type CapacitacionSubTab = 'trainers' | 'physical_spaces' | 'virtual_spaces' | 'calendar' | 'management' | 'links' | 'notes';
+export type CapacitacionSubTab = 'trainers' | 'physical_spaces' | 'virtual_spaces' | 'calendar' | 'management' | 'links' | 'notes' | 'permissions';
 
 interface CapacitacionModuleProps {
   members?: TeamMember[];
@@ -129,6 +132,12 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
   };
   const handleDeleteMgmt = async (id: string) => await deleteDoc(doc(db, 'training_managements', id));
 
+  const isTrainersReadOnly = getModuleAccess(currentMember, roles, 'capacitacion_trainers') === 'lector';
+  const isPhysicalSpacesReadOnly = getModuleAccess(currentMember, roles, 'capacitacion_physical_spaces') === 'lector';
+  const isVirtualSpacesReadOnly = getModuleAccess(currentMember, roles, 'capacitacion_virtual_spaces') === 'lector';
+  const isCalendarReadOnly = getModuleAccess(currentMember, roles, 'capacitacion_calendar') === 'lector';
+  const isManagementReadOnly = getModuleAccess(currentMember, roles, 'capacitacion_management') === 'lector';
+
   return (
     <div className="h-[calc(100vh-6rem)] w-full">
       <div className="h-full overflow-y-auto custom-scrollbar pr-2">
@@ -146,6 +155,7 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
                 onSaveTrainer={handleSaveTrainer} 
                 onDeleteTrainer={handleDeleteTrainer}
                 onCreateMember={onCreateMember}
+                isReadOnly={isTrainersReadOnly}
               />
             </motion.div>
           )}
@@ -155,6 +165,7 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
                 spaces={spaces} 
                 onSaveSpace={handleSaveSpace} 
                 onDeleteSpace={handleDeleteSpace} 
+                isReadOnly={isPhysicalSpacesReadOnly}
               />
             </motion.div>
           )}
@@ -164,6 +175,7 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
                 spaces={spaces} 
                 onSaveSpace={handleSaveSpace} 
                 onDeleteSpace={handleDeleteSpace} 
+                isReadOnly={isVirtualSpacesReadOnly}
               />
             </motion.div>
           )}
@@ -176,6 +188,7 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
                 members={members}
                 onSavePlan={handleSavePlan} 
                 onDeletePlan={handleDeletePlan} 
+                isReadOnly={isCalendarReadOnly}
               />
             </motion.div>
           )}
@@ -189,6 +202,7 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
                 trainers={trainers}
                 onSaveManagement={handleSaveMgmt} 
                 onDeleteManagement={handleDeleteMgmt} 
+                isReadOnly={isManagementReadOnly}
               />
             </motion.div>
           )}
@@ -209,6 +223,16 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
                 members={members}
                 moduleName="Capacitación"
                 accentColor="indigo"
+              />
+            </motion.div>
+          )}
+          {currentTab === 'permissions' && (
+            <motion.div key="permissions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              <CapacitacionPermissionsMatrix 
+                currentMember={currentMember}
+                members={members || []}
+                processes={processes || []}
+                roles={roles || []}
               />
             </motion.div>
           )}

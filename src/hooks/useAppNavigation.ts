@@ -24,15 +24,16 @@ export type MainTabType =
   | 'qhse'
   | 'comments';
 
-export type InventarioSubTabType = 'existencias' | 'bodegas' | 'solicitudes' | 'facturas';
-export type VentasSubTabType = 'links' | 'notes' | 'crm' | 'pipeline' | 'quotes' | 'goals';
+export type InventarioSubTabType = 'existencias' | 'bodegas' | 'solicitudes' | 'facturas' | 'permissions';
+export type VentasSubTabType = 'links' | 'notes' | 'crm' | 'pipeline' | 'quotes' | 'goals' | 'permissions';
 export type SettingsSubTabType = 'roles' | 'processes' | 'members' | 'general';
-export type DirectorySubTabType = 'people' | 'companies' | 'industries';
-export type ProcessSubTabType = 'summary' | 'projects' | 'links' | 'notes';
-export type ManagementSubTabType = 'consultant' | 'notes' | 'strategy' | 'governance' | 'links';
-export type ImportacionesSubTabType = 'products' | 'suppliers' | 'proformas' | 'upload_proforma';
-export type AcreditacionSubTabType = 'links' | 'notes' | 'allies' | 'certifications';
+export type DirectorySubTabType = 'people' | 'companies' | 'industries' | 'permissions';
+export type ProcessSubTabType = 'summary' | 'projects' | 'links' | 'notes' | 'permissions';
+export type ManagementSubTabType = 'consultant' | 'notes' | 'strategy' | 'governance' | 'links' | 'permissions';
+export type ImportacionesSubTabType = 'products' | 'suppliers' | 'proformas' | 'upload_proforma' | 'permissions';
+export type AcreditacionSubTabType = 'links' | 'notes' | 'allies' | 'certifications' | 'permissions';
 export type TasksSubTabType = 'board' | 'permissions' | 'comments';
+export type CommentsSubTabType = 'inbox' | 'notes' | 'links' | 'permissions';
 
 export function useAppNavigation() {
   const [activeTab, setActiveTab] = useState<MainTabType>('dashboard');
@@ -42,6 +43,7 @@ export function useAppNavigation() {
   // Sub-pestañas de cada módulo
   const [inventarioSubTab, setInventarioSubTab] = useState<InventarioSubTabType>('existencias');
   const [tasksSubTab, setTasksSubTab] = useState<TasksSubTabType>('board');
+  const [commentsSubTab, setCommentsSubTab] = useState<CommentsSubTabType>('inbox');
   const [ventasSubTab, setVentasSubTab] = useState<VentasSubTabType>('links');
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTabType>('general');
   const [directorySubTab, setDirectorySubTab] = useState<DirectorySubTabType>('people');
@@ -87,7 +89,8 @@ export function useAppNavigation() {
     inventarioSubTab,
     qhseSubTab, 
     importacionesSubTab,
-    tasksSubTab
+    tasksSubTab,
+    commentsSubTab
   ]);
 
   return {
@@ -100,6 +103,8 @@ export function useAppNavigation() {
     toggleNavModule,
     tasksSubTab,
     setTasksSubTab,
+    commentsSubTab,
+    setCommentsSubTab,
     ventasSubTab,
     setVentasSubTab,
     settingsSubTab,

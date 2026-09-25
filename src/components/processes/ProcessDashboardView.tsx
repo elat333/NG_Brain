@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import ProcessDashboard from '../ProcessDashboard';
 import { Process, TeamMember, Task, Project, Role } from '../../types';
+import { ModulePermissionsTab } from '../common/ModulePermissionsTab';
 
 export interface ProcessDashboardViewProps {
   currentMember: TeamMember | null | undefined;
@@ -12,7 +13,7 @@ export interface ProcessDashboardViewProps {
   roles: Role[];
   processLinks: any[];
   processNotes: any[];
-  activeSubTab?: 'summary' | 'projects' | 'links' | 'notes' | any;
+  activeSubTab?: 'summary' | 'projects' | 'links' | 'notes' | 'permissions' | any;
   setActiveSubTab: (tab: any) => void;
   selectedProcessId: string | null;
   setSelectedProcessId: (id: string | null) => void;
@@ -46,23 +47,34 @@ export const ProcessDashboardView: React.FC<ProcessDashboardViewProps> = ({
       exit={{ opacity: 0, y: -10 }}
       className="max-w-7xl mx-auto w-full"
     >
-      <ProcessDashboard
-        currentMember={currentMember}
-        processes={processes}
-        members={members}
-        tasks={tasks}
-        projects={projects}
-        roles={roles}
-        processLinks={processLinks}
-        processNotes={processNotes}
-        activeSubTab={activeSubTab}
-        setActiveSubTab={setActiveSubTab}
-        selectedProcessId={selectedProcessId}
-        setSelectedProcessId={setSelectedProcessId}
-        showFicha={showFicha}
-        setShowFicha={setShowFicha}
-        onOpenTask={onOpenTask}
-      />
+      {activeSubTab === 'permissions' ? (
+        <ModulePermissionsTab
+          moduleId="process_dashboard"
+          moduleName="Gestión por Procesos"
+          currentMember={currentMember}
+          members={members}
+          processes={processes}
+          roles={roles}
+        />
+      ) : (
+        <ProcessDashboard
+          currentMember={currentMember}
+          processes={processes}
+          members={members}
+          tasks={tasks}
+          projects={projects}
+          roles={roles}
+          processLinks={processLinks}
+          processNotes={processNotes}
+          activeSubTab={activeSubTab}
+          setActiveSubTab={setActiveSubTab}
+          selectedProcessId={selectedProcessId}
+          setSelectedProcessId={setSelectedProcessId}
+          showFicha={showFicha}
+          setShowFicha={setShowFicha}
+          onOpenTask={onOpenTask}
+        />
+      )}
     </motion.div>
   );
 };

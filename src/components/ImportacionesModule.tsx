@@ -87,7 +87,7 @@ interface ImportacionesModuleProps {
   onSubTabChange?: (tab: ImportacionesSubTab) => void;
 }
 
-export type ImportacionesSubTab = 'products' | 'suppliers' | 'proformas' | 'upload_proforma';
+export type ImportacionesSubTab = 'products' | 'suppliers' | 'proformas' | 'upload_proforma' | 'permissions';
 
 const SAMPLE_PRODUCTS: ImportProduct[] = [
   {

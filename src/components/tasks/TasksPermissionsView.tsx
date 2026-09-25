@@ -33,18 +33,22 @@ import {
 } from 'lucide-react';
 import { TeamMember, Process, Role } from '../../types';
 import { getModuleAccess } from '../../lib/permissions';
+import { ScrumPermissionsMatrix } from './ScrumPermissionsMatrix';
 
 interface TasksPermissionsViewProps {
   currentMember?: TeamMember | null;
+  members?: TeamMember[];
   processes?: Process[];
   roles?: Role[];
 }
 
 export const TasksPermissionsView: React.FC<TasksPermissionsViewProps> = ({
   currentMember,
+  members = [],
   processes = [],
   roles = []
 }) => {
+  const [scrumPermsTab, setScrumPermsTab] = useState<'matrix' | 'governance'>('matrix');
   const [selectedProcessId, setSelectedProcessId] = useState<string>(processes[0]?.id || 'global');
   const [activeLayerTab, setActiveLayerTab] = useState<'all' | 'capa-a' | 'capa-b' | 'capa-c' | 'capa-d' | 'capa-comments'>('all');
 
@@ -57,6 +61,41 @@ export const TasksPermissionsView: React.FC<TasksPermissionsViewProps> = ({
 
   return (
     <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full pb-24 px-4 custom-scrollbar">
+      {/* Switcher Superior de Permisos Scrum */}
+      <div className="flex items-center gap-2 mb-4 mt-2 bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs w-fit">
+        <button
+          onClick={() => setScrumPermsTab('matrix')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+            scrumPermsTab === 'matrix'
+              ? 'bg-purple-600 text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Shield size={15} />
+          Gestión de Accesos en Scrum
+        </button>
+        <button
+          onClick={() => setScrumPermsTab('governance')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+            scrumPermsTab === 'governance'
+              ? 'bg-purple-600 text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Activity size={15} />
+          Marco de Gobernanza (Capas A, B, C, D)
+        </button>
+      </div>
+
+      {scrumPermsTab === 'matrix' ? (
+        <ScrumPermissionsMatrix
+          currentMember={currentMember}
+          members={members}
+          processes={processes}
+          roles={roles}
+        />
+      ) : (
+        <>
       {/* Hero Header */}
       <div className="bg-gradient-to-br from-white via-purple-50/20 to-indigo-50/30 rounded-3xl p-8 shadow-sm border border-purple-100/60 mt-4 relative overflow-hidden">
         <div className="absolute -right-12 -top-12 w-64 h-64 bg-purple-200/20 rounded-full blur-3xl pointer-events-none" />
@@ -968,6 +1007,8 @@ export const TasksPermissionsView: React.FC<TasksPermissionsViewProps> = ({
           </section>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };

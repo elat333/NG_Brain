@@ -26,6 +26,7 @@ interface TrainingCalendarViewProps {
   members: TeamMember[];
   onSavePlan: (plan: Partial<TrainingPlan>) => Promise<void>;
   onDeletePlan: (id: string) => Promise<void>;
+  isReadOnly?: boolean;
 }
 
 export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({ 
@@ -34,7 +35,8 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
   spaces, 
   members, 
   onSavePlan, 
-  onDeletePlan 
+  onDeletePlan,
+  isReadOnly = false
 }) => {
   const [showEditorModal, setShowEditorModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Partial<TrainingPlan> | null>(null);
@@ -94,15 +96,17 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => handleOpenEditor()}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/20 active:scale-95"
-          >
-            <Plus size={16} />
-            <span>Agendar Capacitación</span>
-          </button>
-        </div>
+        {!isReadOnly && (
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => handleOpenEditor()}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/20 active:scale-95"
+            >
+              <Plus size={16} />
+              <span>Agendar Capacitación</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Barra de Filtros y Búsqueda */}
@@ -257,25 +261,29 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
                     <span>Ver Ficha</span>
                   </button>
 
-                  <button 
-                    onClick={() => handleOpenEditor(plan)}
-                    title="Editar Planificación"
-                    className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors"
-                  >
-                    <Edit2 size={16} />
-                  </button>
+                  {!isReadOnly && (
+                    <>
+                      <button 
+                        onClick={() => handleOpenEditor(plan)}
+                        title="Editar Planificación"
+                        className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors"
+                      >
+                        <Edit2 size={16} />
+                      </button>
 
-                  <button 
-                    onClick={() => {
-                      if (confirm(`¿Estás seguro de eliminar la capacitación "${plan.title}"?`)) {
-                        onDeletePlan(plan.id);
-                      }
-                    }}
-                    title="Eliminar Planificación"
-                    className="p-2 text-rose-600 hover:bg-rose-50 border border-rose-100 rounded-xl transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                      <button 
+                        onClick={() => {
+                          if (confirm(`¿Estás seguro de eliminar la capacitación "${plan.title}"?`)) {
+                            onDeletePlan(plan.id);
+                          }
+                        }}
+                        title="Eliminar Planificación"
+                        className="p-2 text-rose-600 hover:bg-rose-50 border border-rose-100 rounded-xl transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             );

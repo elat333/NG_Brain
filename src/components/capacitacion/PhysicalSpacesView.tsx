@@ -7,9 +7,15 @@ interface PhysicalSpacesViewProps {
   spaces: TrainingSpace[];
   onSaveSpace: (space: Partial<TrainingSpace>) => Promise<void>;
   onDeleteSpace: (id: string) => Promise<void>;
+  isReadOnly?: boolean;
 }
 
-export const PhysicalSpacesView: React.FC<PhysicalSpacesViewProps> = ({ spaces, onSaveSpace, onDeleteSpace }) => {
+export const PhysicalSpacesView: React.FC<PhysicalSpacesViewProps> = ({ 
+  spaces, 
+  onSaveSpace, 
+  onDeleteSpace,
+  isReadOnly = false 
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [cityFilter, setCityFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -53,13 +59,15 @@ export const PhysicalSpacesView: React.FC<PhysicalSpacesViewProps> = ({ spaces, 
             Gestión de salas, auditorios y locaciones.
           </p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/20"
-        >
-          <Plus size={16} />
-          <span>Nuevo Lugar</span>
-        </button>
+        {!isReadOnly && (
+          <button 
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/20"
+          >
+            <Plus size={16} />
+            <span>Nuevo Lugar</span>
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
@@ -109,22 +117,26 @@ export const PhysicalSpacesView: React.FC<PhysicalSpacesViewProps> = ({ spaces, 
                     </span>
                   </td>
                   <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button 
-                        onClick={() => handleOpenModal(space)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button 
-                        onClick={() => {
-                          if (confirm('¿Eliminar este lugar?')) onDeleteSpace(space.id);
-                        }}
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                    {!isReadOnly ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => handleOpenModal(space)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (confirm('¿Eliminar este lugar?')) onDeleteSpace(space.id);
+                          }}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 text-xs italic font-medium">Solo lectura</span>
+                    )}
                   </td>
                 </tr>
               ))}

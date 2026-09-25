@@ -24,10 +24,13 @@ import {
   ChevronDown,
   FileSpreadsheet,
   UserCheck,
-  BarChart3
+  BarChart3,
+  ArrowRight,
+  Quote
 } from 'lucide-react';
 import { Process, TeamMember, Task } from '../../types';
 import { normalizeText } from '../../lib/textUtils';
+import { getDailyMotivationalQuote } from '../../lib/motivationalQuotes';
 
 export interface AppHeaderProps {
   activeTab: string;
@@ -233,6 +236,7 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
     accessibleProcesses = processes,
     showFicha = false,
     setShowFicha = () => {},
+    commentsSubTab,
     myActivitiesOnly = false,
     setMyActivitiesOnly = () => {},
     myActivitiesCount = 0,
@@ -241,39 +245,57 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
 
   return (
         <header className={`flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white text-ng-black border-b border-gray-100 shadow-2xs relative z-30 transition-all ${
-          ['tasks', 'gerencia', 'marketing', 'ventas', 'capacitacion', 'acreditacion', 'qhse', 'importaciones', 'process_dashboard', 'productos', 'inventario'].includes(activeTab) ? 'px-6 py-2.5' : 'p-6'
+          ['tasks', 'gerencia', 'marketing', 'ventas', 'capacitacion', 'acreditacion', 'qhse', 'importaciones', 'process_dashboard', 'productos', 'inventario', 'comments'].includes(activeTab) ? 'px-6 py-2.5' : 'p-6'
         }`}>
           <div className="flex flex-wrap items-center gap-3">
             <div>
-              <h1 className={`font-black tracking-tight ${['tasks', 'gerencia', 'marketing', 'ventas', 'capacitacion', 'acreditacion', 'qhse', 'importaciones', 'process_dashboard', 'productos', 'inventario'].includes(activeTab) ? 'text-lg md:text-xl' : 'text-2xl'}`}>
-                {activeTab === 'dashboard' && 'Panel de Control'}
-                {activeTab === 'gerencia' && 'Módulo de Gerencia & Dirección'}
-                {activeTab === 'process_dashboard' && 'Gestión de Procesos'}
-                {activeTab === 'importaciones' && 'Módulo de Importaciones'}
-                {activeTab === 'marketing' && 'Módulo de Marketing'}
-                {activeTab === 'ventas' && 'Módulo de Ventas'}
-                {activeTab === 'capacitacion' && 'Módulo de Capacitación'}
-                {activeTab === 'acreditacion' && 'Módulo de Acreditación'}
-                {activeTab === 'productos' && 'Módulo de Productos'}
-                {activeTab === 'inventario' && 'Módulo de Inventario & Bodegas'}
-                {activeTab === 'qhse' && 'Módulo de QHSE'}
-                {activeTab === 'transcript' && 'Análisis de Transcripciones'}
-                {activeTab === 'projects' && 'Gestión de Proyectos'}
-                {activeTab === 'tasks' && 'Historias'}
-                {activeTab === 'planner' && 'Asistente de Planificación'}
-                {activeTab === 'directory' && (
-                  directorySubTab === 'people' ? 'Directorio de Personas' : 
-                  directorySubTab === 'companies' ? 'Directorio de Compañías' : 
-                  'Industrias y Sectores'
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className={`font-black tracking-tight ${['tasks', 'gerencia', 'marketing', 'ventas', 'capacitacion', 'acreditacion', 'qhse', 'importaciones', 'process_dashboard', 'productos', 'inventario', 'comments'].includes(activeTab) ? 'text-lg md:text-xl' : 'text-2xl'}`}>
+                  {activeTab === 'dashboard' && 'Dashboard'}
+                  {activeTab === 'gerencia' && 'Módulo de Gerencia & Dirección'}
+                  {activeTab === 'process_dashboard' && 'Gestión de Procesos'}
+                  {activeTab === 'importaciones' && 'Módulo de Importaciones'}
+                  {activeTab === 'marketing' && 'Módulo de Marketing'}
+                  {activeTab === 'ventas' && 'Módulo de Ventas'}
+                  {activeTab === 'capacitacion' && 'Módulo de Capacitación'}
+                  {activeTab === 'acreditacion' && 'Módulo de Acreditación'}
+                  {activeTab === 'productos' && 'Módulo de Productos'}
+                  {activeTab === 'inventario' && 'Módulo de Inventario & Bodegas'}
+                  {activeTab === 'qhse' && 'Módulo de QHSE'}
+                  {activeTab === 'comments' && (
+                    commentsSubTab === 'notes' ? 'Notas' :
+                    commentsSubTab === 'links' ? 'Enlaces de Interés' :
+                    commentsSubTab === 'permissions' ? 'Permisos de Colaboración' :
+                    'Comentarios'
+                  )}
+                  {activeTab === 'transcript' && 'Análisis de Transcripciones'}
+                  {activeTab === 'projects' && 'Gestión de Proyectos'}
+                  {activeTab === 'tasks' && 'Historias'}
+                  {activeTab === 'planner' && 'Asistente de Planificación'}
+                  {activeTab === 'directory' && (
+                    directorySubTab === 'people' ? 'Directorio de Personas' : 
+                    directorySubTab === 'companies' ? 'Directorio de Compañías' : 
+                    'Industrias y Sectores'
+                  )}
+                  {activeTab === 'settings' && (
+                    settingsSubTab === 'roles' ? 'Permisos por Integrante' :
+                    settingsSubTab === 'processes' ? 'Gestión de Procesos' :
+                    settingsSubTab === 'members' ? 'Gestión de Equipo' :
+                    'Configuración del Sistema'
+                  )}
+                </h1>
+                {activeTab === 'dashboard' && (
+                  <span className="text-[11px] text-gray-500 font-bold capitalize bg-gray-100 px-2.5 py-0.5 rounded-md border border-gray-200">
+                    {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  </span>
                 )}
-                {activeTab === 'settings' && (
-                  settingsSubTab === 'roles' ? 'Permisos por Integrante' :
-                  settingsSubTab === 'processes' ? 'Gestión de Procesos' :
-                  settingsSubTab === 'members' ? 'Gestión de Equipo' :
-                  'Configuración del Sistema'
-                )}
-              </h1>
-              {activeTab !== 'tasks' && (
+              </div>
+              {activeTab === 'dashboard' ? (
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium italic mt-1">
+                  <Quote size={12} className="text-blue-500 shrink-0 opacity-80" />
+                  <span className="line-clamp-1">{getDailyMotivationalQuote()}</span>
+                </div>
+              ) : activeTab !== 'tasks' && (
                 <p className="text-ng-black/40 text-[10px] font-bold uppercase tracking-widest mt-1">
                   Inteligencia colectiva para un futuro sostenible
                 </p>
@@ -827,6 +849,16 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
                   </div>
                 )}
               </div>
+            ) : activeTab === 'dashboard' ? (
+              <button
+                type="button"
+                onClick={() => props.handleTabClick ? props.handleTabClick('tasks') : (props.onNavigateToScrum ? props.onNavigateToScrum() : null)}
+                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shadow-xs hover:scale-102 transition-all flex items-center gap-2 cursor-pointer shrink-0"
+              >
+                <Trello size={14} />
+                <span>Tablero de Historias Scrum</span>
+                <ArrowRight size={13} />
+              </button>
             ) : (
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />

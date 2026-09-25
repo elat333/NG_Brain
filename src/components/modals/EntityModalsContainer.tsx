@@ -24,6 +24,8 @@ interface EntityModalsContainerProps {
     processId: string;
     status: 'activo' | 'pausado' | 'completado';
     city?: string;
+    leaderId?: string;
+    auxiliaryMemberIds?: string[];
   };
   setNewProjectData: React.Dispatch<
     React.SetStateAction<{
@@ -32,9 +34,12 @@ interface EntityModalsContainerProps {
       processId: string;
       status: 'activo' | 'pausado' | 'completado';
       city?: string;
+      leaderId?: string;
+      auxiliaryMemberIds?: string[];
     }>
   >;
   processes: Process[];
+  members?: TeamMember[];
   currentMember: TeamMember | null;
   roles: SystemRole[];
   getModuleAccess: (member: TeamMember | null, roles: SystemRole[], moduleId: string) => string;
@@ -70,6 +75,7 @@ export const EntityModalsContainer: React.FC<EntityModalsContainerProps> = ({
   newProjectData,
   setNewProjectData,
   processes,
+  members,
   currentMember,
   roles,
   getModuleAccess,
@@ -117,6 +123,7 @@ export const EntityModalsContainer: React.FC<EntityModalsContainerProps> = ({
           newProjectData={newProjectData}
           setNewProjectData={setNewProjectData}
           processes={processes}
+          members={members}
           currentMember={currentMember}
           roles={roles}
           getModuleAccess={getModuleAccess}

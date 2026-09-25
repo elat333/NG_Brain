@@ -25,7 +25,7 @@ import DirectoryView from '../directory/DirectoryView';
 import { PlannerView } from '../planner/PlannerView';
 import { TranscriptView } from '../transcript/TranscriptView';
 import { CommentsModule } from '../comments/CommentsModule';
-import { MainTabType, SettingsSubTabType, DirectorySubTabType, ProcessSubTabType, ManagementSubTabType, ImportacionesSubTabType, AcreditacionSubTabType, VentasSubTabType, InventarioSubTabType } from '../../hooks/useAppNavigation';
+import { MainTabType, SettingsSubTabType, DirectorySubTabType, ProcessSubTabType, ManagementSubTabType, ImportacionesSubTabType, AcreditacionSubTabType, VentasSubTabType, InventarioSubTabType, CommentsSubTabType } from '../../hooks/useAppNavigation';
 import { MarketingSubTab } from '../MarketingModule';
 import { CapacitacionSubTab } from '../CapacitacionModule';
 import { ProductSubTab } from '../ProductosModule';
@@ -82,8 +82,11 @@ export interface AppMainContentProps {
   setMarketingSubTab: (tab: MarketingSubTab) => void;
   directorySubTab: DirectorySubTabType;
   handleDirectorySubTabClick: (tab: DirectorySubTabType) => void;
+  commentsSubTab?: CommentsSubTabType;
+  setCommentsSubTab?: (tab: CommentsSubTabType) => void;
   settingsSubTab: SettingsSubTabType;
   tasksSubTab: 'board' | 'permissions' | 'comments';
+  setTasksSubTab?: (tab: 'board' | 'permissions' | 'comments') => void;
   taskViewMode: 'board' | 'list' | 'calendar';
   // Selected Process & Ficha
   selectedProcessId: string;
@@ -214,8 +217,11 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
   setMarketingSubTab,
   directorySubTab,
   handleDirectorySubTabClick,
+  commentsSubTab = 'inbox',
+  setCommentsSubTab,
   settingsSubTab,
   tasksSubTab,
+  setTasksSubTab,
   taskViewMode,
   selectedProcessId,
   setSelectedProcessId,
@@ -323,7 +329,7 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
               </div>
               <div className="text-slate-400 text-left">Módulo:</div>
               <div className="font-extrabold text-slate-700 capitalize text-left">
-                 {activeTab === 'dashboard' ? 'Resumen' :
+                 {activeTab === 'dashboard' ? 'Dashboard' :
                   activeTab === 'gerencia' ? 'Gerencia' :
                   activeTab === 'tasks' ? 'Scrum' :
                   activeTab === 'planner' ? 'Planificador IA' :
@@ -358,13 +364,14 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={{ duration: 0.15 }}
-      className="w-full"
+      className={activeTab === 'dashboard' ? 'w-full h-full flex flex-col min-h-0' : 'w-full'}
     >
       {activeTab === 'gerencia' && (
         <ManagementView
           currentMember={currentMember}
           members={members}
           processes={processes}
+          roles={roles}
           notes={managementNotes}
           strategy={managementStrategy}
           governance={managementGovernance}
@@ -428,6 +435,8 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
           currentMember={currentMember}
           members={members}
           companies={companies}
+          processes={processes}
+          roles={roles}
           industries={industries}
           activeSubTab={acreditacionSubTab}
           onSubTabChange={(tab) => setAcreditacionSubTab(tab)}
@@ -440,6 +449,8 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
           products={products}
           companies={companies}
           members={members}
+          processes={processes}
+          roles={roles}
           activeSubTab={productosSubTab}
           onSubTabChange={(tab) => setProductosSubTab(tab)}
           accessLevel={getModuleAccess(currentMember, roles, 'productos')}
@@ -451,6 +462,8 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
           currentMember={currentMember}
           products={products}
           members={members}
+          processes={processes}
+          roles={roles}
           activeSubTab={inventarioSubTab}
           onSubTabChange={(tab) => setInventarioSubTab && setInventarioSubTab(tab)}
           accessLevel={getModuleAccess(currentMember, roles, 'inventario')}
@@ -462,6 +475,7 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
           currentMember={currentMember}
           members={members}
           companies={companies}
+          processes={processes}
           activeSubTab={qhseSubTab}
           onSubTabChange={(tab) => setQhseSubTab(tab)}
           accessLevel={getModuleAccess(currentMember, roles, 'qhse')}
@@ -472,6 +486,9 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
         <ImportacionesView
           companies={companies}
           currentMember={currentMember}
+          members={members}
+          processes={processes}
+          roles={roles}
           accessLevel={getModuleAccess(currentMember, roles, 'importaciones')}
           activeSubTab={importacionesSubTab}
           onSubTabChange={(tab) => setImportacionesSubTab(tab)}
@@ -498,18 +515,27 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
 
       {activeTab === 'dashboard' && (
         <DashboardView
-          members={members}
+          tasks={tasks}
+          projects={projects}
           processes={processes}
+          members={members}
+          currentMember={currentMember}
+          roles={roles}
+          onOpenTask={openEditTask}
+          onAddTask={() => openAddTaskModal('todo')}
+          onNavigateToScrum={() => handleTabClick('tasks')}
           onNavigateToTranscript={() => handleTabClick('transcript')}
           onNavigateToProcess={(processId) => {
             setSelectedProcessId(processId);
             handleTabClick('process_dashboard');
           }}
+          isTaskVisibleForMember={isTaskVisibleForMember}
         />
       )}
 
       {activeTab === 'directory' && (
         <DirectoryView
+          currentMember={currentMember}
           directorySubTab={directorySubTab}
           setDirectorySubTab={handleDirectorySubTabClick}
           searchQuery={searchQuery}
@@ -557,6 +583,7 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
           processes={processes}
           projects={projects}
           tasks={tasks}
+          members={members}
           currentMember={currentMember}
           roles={roles}
           showCompletedProjects={showCompletedProjects}
@@ -614,6 +641,9 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
           processes={processes}
           projects={projects}
           currentMember={currentMember}
+          roles={roles}
+          activeSubTab={commentsSubTab}
+          onSubTabChange={setCommentsSubTab}
           onOpenTask={openEditTask}
           onNavigateToTab={(tab, subTab, id) => {
             if (tab === 'tasks') {

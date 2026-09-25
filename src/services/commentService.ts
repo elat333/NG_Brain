@@ -654,5 +654,42 @@ export const commentService = {
         // Silencioso
       }
     }
+  },
+
+  /**
+   * Registra una solicitud formal de cambio de permisos para un módulo
+   */
+  async requestPermissionChange(params: {
+    requesterId: string;
+    requesterName: string;
+    targetMemberId: string;
+    targetMemberName: string;
+    moduleId: string;
+    moduleName: string;
+    currentLevel?: string;
+    requestedLevel: string;
+    justification: string;
+  }): Promise<void> {
+    const requestId = `perm_req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const requestData = {
+      id: requestId,
+      ...params,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      await setDoc(doc(db, 'permission_requests', requestId), sanitizeForFirestore(requestData));
+    } catch (err) {
+      console.warn('No se pudo registrar solicitud en permission_requests, guardando local:', err);
+      try {
+        const localKey = 'ng_permission_requests';
+        const current = JSON.parse(localStorage.getItem(localKey) || '[]');
+        localStorage.setItem(localKey, JSON.stringify([...current, requestData]));
+      } catch (localErr) {
+        console.error('Error en fallback local de solicitud de permisos:', localErr);
+      }
+    }
   }
 };
+

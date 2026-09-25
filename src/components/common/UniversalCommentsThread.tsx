@@ -106,6 +106,38 @@ export const UniversalCommentsThread: React.FC<UniversalCommentsThreadProps> = (
   const [requiresReview, setRequiresReview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Verificar si el usuario tiene acceso de solo lectura (Lector)
+  const isReadOnly = useMemo(() => {
+    if (!currentMember) return true;
+    if (
+      currentMember.isSystemAdmin || 
+      currentMember.systemRoleId === 'role-admin' || 
+      currentMember.role === 'admin' || 
+      currentMember.role === 'superadmin'
+    ) {
+      return false;
+    }
+
+    // Permiso por entidad
+    let entityAccess: string | undefined;
+    if (entityType === 'task') {
+      entityAccess = currentMember.moduleAccess?.['comments_tasks'] || currentMember.moduleAccess?.['comments'];
+    } else if (entityType === 'note') {
+      entityAccess = currentMember.moduleAccess?.['comments_notes'] || currentMember.moduleAccess?.['comments'];
+    } else if (entityType === 'link') {
+      entityAccess = currentMember.moduleAccess?.['comments_links'] || currentMember.moduleAccess?.['comments'];
+    } else {
+      entityAccess = currentMember.moduleAccess?.['comments'];
+    }
+
+    if (processId) {
+      const procPerm = currentMember.moduleAccess?.[`comments_${processId}`];
+      if (procPerm === 'lector') return true;
+    }
+
+    return entityAccess === 'lector';
+  }, [currentMember, entityType, processId]);
+
   // Estados para autocompletado de menciones @
   const [mentionQuery, setMentionQuery] = useState('');
   const [isMentionOpen, setIsMentionOpen] = useState(false);
@@ -382,26 +414,28 @@ export const UniversalCommentsThread: React.FC<UniversalCommentsThreadProps> = (
                       </span>
                     )}
 
-                    <button
-                      onClick={() => toggleCommentStatus(
-                        comment.id, 
-                        comment.status === 'resolved' ? 'pending' : 'resolved'
-                      )}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 ${
-                        comment.status === 'resolved'
-                          ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
-                      }`}
-                    >
-                      {comment.status === 'resolved' ? (
-                        'Reabrir revisión'
-                      ) : (
-                        <>
-                          <Check size={12} />
-                          <span>Marcar como resuelto</span>
-                        </>
-                      )}
-                    </button>
+                    {!isReadOnly && (
+                      <button
+                        onClick={() => toggleCommentStatus(
+                          comment.id, 
+                          comment.status === 'resolved' ? 'pending' : 'resolved'
+                        )}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 ${
+                          comment.status === 'resolved'
+                            ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
+                        }`}
+                      >
+                        {comment.status === 'resolved' ? (
+                          'Reabrir revisión'
+                        ) : (
+                          <>
+                            <Check size={12} />
+                            <span>Marcar como resuelto</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -410,91 +444,100 @@ export const UniversalCommentsThread: React.FC<UniversalCommentsThreadProps> = (
         )}
       </div>
 
-      {/* Caja de entrada para nuevo comentario */}
-      <div className="p-3 bg-gray-50/70 border-t border-gray-100 relative">
-        {/* Menú de menciones flotante */}
-        {isMentionOpen && filteredMembers.length > 0 && (
-          <div className="absolute bottom-full left-3 mb-1 w-64 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-20 max-h-48 overflow-y-auto">
-            <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-              Mencionar a un miembro (@)
-            </div>
-            {filteredMembers.map((m, idx) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => handleSelectMember(m)}
-                className={`w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-blue-50 transition-colors ${
-                  idx === selectedMentionIndex ? 'bg-blue-50 text-blue-900' : 'text-gray-700'
-                }`}
-              >
-                {m.avatar ? (
-                  <img src={m.avatar} alt={m.name} className="w-5 h-5 rounded-full object-cover shrink-0" />
-                ) : (
-                  <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center shrink-0">
-                    {m.name.charAt(0)}
+      {/* Caja de entrada para nuevo comentario o banner de Lector */}
+      {isReadOnly ? (
+        <div className="p-3 bg-amber-50/80 border-t border-amber-200/60 flex items-center gap-2 text-amber-900 text-xs">
+          <AlertCircle size={15} className="text-amber-600 shrink-0" />
+          <span>
+            <strong>Modo Solo Lectura:</strong> Tu nivel de permiso es <em>Lector</em>. Puedes consultar los comentarios de este elemento pero no publicar nuevos.
+          </span>
+        </div>
+      ) : (
+        <div className="p-3 bg-gray-50/70 border-t border-gray-100 relative">
+          {/* Menú de menciones flotante */}
+          {isMentionOpen && filteredMembers.length > 0 && (
+            <div className="absolute bottom-full left-3 mb-1 w-64 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-20 max-h-48 overflow-y-auto">
+              <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                Mencionar a un miembro (@)
+              </div>
+              {filteredMembers.map((m, idx) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => handleSelectMember(m)}
+                  className={`w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-blue-50 transition-colors ${
+                    idx === selectedMentionIndex ? 'bg-blue-50 text-blue-900' : 'text-gray-700'
+                  }`}
+                >
+                  {m.avatar ? (
+                    <img src={m.avatar} alt={m.name} className="w-5 h-5 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                      {m.name.charAt(0)}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold truncate">{m.name}</div>
+                    <div className="text-[10px] text-gray-400 truncate">{m.role || 'Miembro'}</div>
                   </div>
-                )}
-                <div className="min-w-0">
-                  <div className="text-xs font-bold truncate">{m.name}</div>
-                  <div className="text-[10px] text-gray-400 truncate">{m.role || 'Miembro'}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+                </button>
+              ))}
+            </div>
+          )}
 
-        <div className="bg-white rounded-xl border border-gray-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/10 transition-all p-2">
-          <textarea
-            ref={textareaRef}
-            value={commentText}
-            onChange={handleTextChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Escribe un comentario u observación... (usa @ para mencionar)"
-            rows={2}
-            className="w-full text-xs text-gray-800 placeholder-gray-400 bg-transparent resize-none focus:outline-hidden"
-          />
+          <div className="bg-white rounded-xl border border-gray-200 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/10 transition-all p-2">
+            <textarea
+              ref={textareaRef}
+              value={commentText}
+              onChange={handleTextChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Escribe un comentario u observación... (usa @ para mencionar)"
+              rows={2}
+              className="w-full text-xs text-gray-800 placeholder-gray-400 bg-transparent resize-none focus:outline-hidden"
+            />
 
-          <div className="flex items-center justify-between pt-2 border-t border-gray-100 gap-2">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100 gap-2">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommentText(prev => prev + '@');
+                    setIsMentionOpen(true);
+                    if (textareaRef.current) textareaRef.current.focus();
+                  }}
+                  className="text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1 text-[11px] font-medium"
+                >
+                  <AtSign size={13} />
+                  <span>Mencionar</span>
+                </button>
+
+                <label className="flex items-center gap-1.5 cursor-pointer text-gray-600 hover:text-gray-900 select-none">
+                  <input
+                    type="checkbox"
+                    checked={requiresReview}
+                    onChange={(e) => setRequiresReview(e.target.checked)}
+                    className="w-3.5 h-3.5 text-amber-500 rounded border-gray-300 focus:ring-amber-400 focus:ring-offset-0"
+                  />
+                  <span className="text-[11px] font-semibold flex items-center gap-1">
+                    <AlertCircle size={12} className={requiresReview ? 'text-amber-500' : 'text-gray-400'} />
+                    Solicitar revisión
+                  </span>
+                </label>
+              </div>
+
               <button
                 type="button"
-                onClick={() => {
-                  setCommentText(prev => prev + '@');
-                  setIsMentionOpen(true);
-                  if (textareaRef.current) textareaRef.current.focus();
-                }}
-                className="text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1 text-[11px] font-medium"
+                onClick={handleSubmit}
+                disabled={!commentText.trim() || isSubmitting}
+                className="px-3.5 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs flex items-center gap-1.5"
               >
-                <AtSign size={13} />
-                <span>Mencionar</span>
+                <Send size={12} />
+                <span>{isSubmitting ? 'Enviando...' : 'Comentar'}</span>
               </button>
-
-              <label className="flex items-center gap-1.5 cursor-pointer text-gray-600 hover:text-gray-900 select-none">
-                <input
-                  type="checkbox"
-                  checked={requiresReview}
-                  onChange={(e) => setRequiresReview(e.target.checked)}
-                  className="w-3.5 h-3.5 text-amber-500 rounded border-gray-300 focus:ring-amber-400 focus:ring-offset-0"
-                />
-                <span className="text-[11px] font-semibold flex items-center gap-1">
-                  <AlertCircle size={12} className={requiresReview ? 'text-amber-500' : 'text-gray-400'} />
-                  Solicitar revisión
-                </span>
-              </label>
             </div>
-
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!commentText.trim() || isSubmitting}
-              className="px-3.5 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs flex items-center gap-1.5"
-            >
-              <Send size={12} />
-              <span>{isSubmitting ? 'Enviando...' : 'Comentar'}</span>
-            </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

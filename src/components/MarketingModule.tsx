@@ -12,7 +12,8 @@ import {
   TrendingUp,
   SlidersHorizontal,
   DollarSign,
-  Link2
+  Link2,
+  Shield
 } from 'lucide-react';
 import { 
   MarketingCampaign, 
@@ -46,8 +47,9 @@ import { ContentCalendarView } from './marketing/ContentCalendarView';
 import { MetricsAnalyticsView } from './marketing/MetricsAnalyticsView';
 import { PersonalLinksView } from './common/PersonalLinksView';
 import { PersonalNotesView } from './common/PersonalNotesView';
+import { ModulePermissionsTab } from './common/ModulePermissionsTab';
 
-export type MarketingSubTab = 'campaigns' | 'content_calendar' | 'metrics_analytics' | 'links' | 'notes';
+export type MarketingSubTab = 'campaigns' | 'content_calendar' | 'metrics_analytics' | 'links' | 'notes' | 'permissions';
 
 interface MarketingModuleProps {
   currentMember: TeamMember | null;
@@ -378,11 +380,19 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
     }
   };
 
+  const canSeePermissions = Boolean(
+    currentMember?.isSystemAdmin || 
+    currentMember?.systemRoleId === 'role-admin' || 
+    accessLevel === 'lider' || 
+    accessLevel === 'administrador'
+  );
+
   const subTabsList: { id: MarketingSubTab; label: string; icon: any; count?: number }[] = [
     { id: 'links', label: 'Enlaces de Interés', icon: <Link2 size={16} /> },
     { id: 'campaigns', label: 'Campañas', icon: <Target size={16} />, count: campaigns.length },
     { id: 'content_calendar', label: 'Contenido & Calendario', icon: <Calendar size={16} />, count: contents.length },
-    { id: 'metrics_analytics', label: 'Métricas & KPIs', icon: <BarChart2 size={16} /> }
+    { id: 'metrics_analytics', label: 'Métricas & KPIs', icon: <BarChart2 size={16} /> },
+    ...(canSeePermissions ? [{ id: 'permissions' as MarketingSubTab, label: 'Permisos', icon: <Shield size={16} /> }] : [])
   ];
 
   return (
@@ -482,6 +492,23 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
               members={members}
               moduleName="Marketing"
               accentColor="purple"
+            />
+          </motion.div>
+        )}
+
+        {activeSubTab === 'permissions' && (
+          <motion.div
+            key="permissions"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+          >
+            <ModulePermissionsTab
+              moduleId="marketing"
+              moduleName="Marketing"
+              currentMember={currentMember}
+              members={members}
+              processes={processes}
             />
           </motion.div>
         )}

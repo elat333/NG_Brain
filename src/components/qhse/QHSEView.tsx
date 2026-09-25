@@ -1,12 +1,13 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { TeamMember, Company } from '../../types';
+import { TeamMember, Company, Process } from '../../types';
 import { QHSEModule, QHSESubTab } from '../QHSEModule';
 
 interface QHSEViewProps {
   currentMember: TeamMember | null | undefined;
   members: TeamMember[];
   companies: Company[];
+  processes?: Process[];
   activeSubTab: QHSESubTab;
   onSubTabChange: (tab: QHSESubTab) => void;
   accessLevel: 'ninguno' | 'lector' | 'colaborador' | 'lider' | 'administrador';
@@ -16,6 +17,7 @@ export const QHSEView: React.FC<QHSEViewProps> = ({
   currentMember,
   members,
   companies,
+  processes = [],
   activeSubTab,
   onSubTabChange,
   accessLevel,
@@ -32,6 +34,7 @@ export const QHSEView: React.FC<QHSEViewProps> = ({
         currentMember={currentMember}
         members={members}
         companies={companies}
+        processes={processes}
         activeSubTab={activeSubTab}
         onSubTabChange={onSubTabChange}
         accessLevel={accessLevel}

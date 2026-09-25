@@ -47,6 +47,7 @@ import {
   Kanban
 } from 'lucide-react';
 import { TeamMember, Role } from '../../types';
+import { isSubnavVisible } from '../../lib/permissions';
 
 interface NavButtonProps {
   active: boolean;
@@ -151,9 +152,12 @@ interface AppSidebarProps {
   
   inventarioSubTab?: string;
   setInventarioSubTab?: (tab: any) => void;
+
+  commentsSubTab?: string;
+  setCommentsSubTab?: (tab: any) => void;
   
   directorySubTab: string;
-  setDirectorySubTab: (tab: 'people' | 'companies' | 'industries') => void;
+  setDirectorySubTab: (tab: any) => void;
   
   importacionesSubTab: string;
   setImportacionesSubTab: (tab: any) => void;
@@ -182,6 +186,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   isMigrating,
   tasksSubTab,
   setTasksSubTab,
+  commentsSubTab,
+  setCommentsSubTab,
   handleExportTasks,
   fileInputRef,
   processSubTab,
@@ -220,12 +226,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         </div>
 
         <nav className="space-y-1">
-          {/* 1. Resumen */}
+          {/* 1. Dashboard */}
           {getModuleAccess(currentMember, roles, 'dashboard') !== 'ninguno' && (
             <NavButton 
               active={activeTab === 'dashboard'} 
               icon={<TrendingUp size={20} />} 
-              label="Resumen" 
+              label="Dashboard" 
               onClick={() => {
                 setExpandedNavModule(null);
                 handleTabClick('dashboard');
@@ -238,6 +244,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             const hasTasksAccess = getModuleAccess(currentMember, roles, 'tasks') !== 'ninguno';
             const hasPlannerAccess = getModuleAccess(currentMember, roles, 'planner') !== 'ninguno';
             const hasProjectsAccess = getModuleAccess(currentMember, roles, 'projects') !== 'ninguno';
+            const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+            const canSeeScrumPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'tasks') === 'lider';
             const isTasksGroupActive = activeTab === 'tasks' || activeTab === 'planner' || activeTab === 'projects';
             const isTasksExpanded = expandedNavModule === 'tasks';
 
@@ -272,30 +280,17 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       className="ml-8 mt-1 space-y-1 overflow-hidden"
                     >
                       {hasTasksAccess && (
-                        <React.Fragment key="subnav_tasks_primary_group">
-                          <SubNavButton 
-                            key="subnav_tasks_btn_board"
-                            active={activeTab === 'tasks' && tasksSubTab === 'board'} 
-                            label="Historias" 
-                            icon={<CheckCircle2 size={14} />} 
-                            onClick={() => {
-                              setExpandedNavModule('tasks');
-                              handleTabClick('tasks');
-                              setTasksSubTab('board');
-                            }} 
-                          />
-                          <SubNavButton 
-                            key="subnav_tasks_btn_permissions"
-                            active={activeTab === 'tasks' && tasksSubTab === 'permissions'} 
-                            label="Reglas y Permisos" 
-                            icon={<Shield size={14} />} 
-                            onClick={() => {
-                              setExpandedNavModule('tasks');
-                              handleTabClick('tasks');
-                              setTasksSubTab('permissions');
-                            }} 
-                          />
-                        </React.Fragment>
+                        <SubNavButton 
+                          key="subnav_tasks_btn_board"
+                          active={activeTab === 'tasks' && tasksSubTab === 'board'} 
+                          label="Historias" 
+                          icon={<CheckCircle2 size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('tasks');
+                            handleTabClick('tasks');
+                            setTasksSubTab('board');
+                          }} 
+                        />
                       )}
                       {hasProjectsAccess && (
                         <SubNavButton 
@@ -321,23 +316,36 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                           }} 
                         />
                       )}
-                      {hasTasksAccess && (
-                        <React.Fragment key="subnav_tasks_actions_group">
-                          <SubNavButton 
-                            key="subnav_tasks_btn_export"
-                            active={false} 
-                            label="Exportar tareas" 
-                            icon={<Download size={14} />} 
-                            onClick={handleExportTasks} 
-                          />
-                          <SubNavButton 
-                            key="subnav_tasks_btn_import"
-                            active={false} 
-                            label="Importar tareas" 
-                            icon={<UploadCloud size={14} />} 
-                            onClick={() => fileInputRef.current?.click()} 
-                          />
-                        </React.Fragment>
+                      {hasTasksAccess && getModuleAccess(currentMember, roles, 'tasks_export') !== 'ninguno' && (
+                        <SubNavButton 
+                          key="subnav_tasks_btn_export"
+                          active={false} 
+                          label="Exportar tareas" 
+                          icon={<Download size={14} />} 
+                          onClick={handleExportTasks} 
+                        />
+                      )}
+                      {hasTasksAccess && getModuleAccess(currentMember, roles, 'tasks_import') !== 'ninguno' && (
+                        <SubNavButton 
+                          key="subnav_tasks_btn_import"
+                          active={false} 
+                          label="Importar tareas" 
+                          icon={<UploadCloud size={14} />} 
+                          onClick={() => fileInputRef.current?.click()} 
+                        />
+                      )}
+                      {canSeeScrumPerms && (
+                        <SubNavButton 
+                          key="subnav_tasks_btn_permissions"
+                          active={activeTab === 'tasks' && tasksSubTab === 'permissions'} 
+                          label="Permisos Scrum" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('tasks');
+                            handleTabClick('tasks');
+                            setTasksSubTab('permissions');
+                          }} 
+                        />
                       )}
                     </motion.div>
                   )}
@@ -346,18 +354,85 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             );
           })()}
 
-          {/* Módulo Transversal: Comentarios */}
+          {/* Módulo Transversal: Colaboración */}
           {getModuleAccess(currentMember, roles, 'comments') !== 'ninguno' && (
-            <NavButton 
-              key="sidebar_nav_btn_comments"
-              active={activeTab === 'comments'} 
-              icon={<MessageSquare size={20} />} 
-              label="Comentarios" 
-              onClick={() => {
-                setExpandedNavModule(null);
-                handleTabClick('comments');
-              }} 
-            />
+            <React.Fragment key="sidebar_nav_group_comments">
+              <NavButton 
+                key="sidebar_nav_btn_comments"
+                active={activeTab === 'comments'} 
+                icon={<Users size={20} />} 
+                label="Colaboración" 
+                onClick={() => {
+                  toggleNavModule('comments', () => {
+                    handleTabClick('comments');
+                    if (setCommentsSubTab) setCommentsSubTab('inbox');
+                  });
+                }} 
+              />
+              <AnimatePresence>
+                {expandedNavModule === 'comments' && (
+                  <motion.div 
+                    key="sidebar_subnav_comments"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="ml-8 mt-1 space-y-1 overflow-hidden"
+                  >
+                    <SubNavButton 
+                      key="subnav_comments_inbox"
+                      active={activeTab === 'comments' && (!commentsSubTab || commentsSubTab === 'inbox')} 
+                      label="Comentarios" 
+                      icon={<MessageSquare size={14} />} 
+                      onClick={() => {
+                        setExpandedNavModule('comments');
+                        handleTabClick('comments');
+                        if (setCommentsSubTab) setCommentsSubTab('inbox');
+                      }} 
+                    />
+                    <SubNavButton 
+                      key="subnav_comments_notes"
+                      active={activeTab === 'comments' && commentsSubTab === 'notes'} 
+                      label="Notas" 
+                      icon={<FileText size={14} />} 
+                      onClick={() => {
+                        setExpandedNavModule('comments');
+                        handleTabClick('comments');
+                        if (setCommentsSubTab) setCommentsSubTab('notes');
+                      }} 
+                    />
+                    <SubNavButton 
+                      key="subnav_comments_links"
+                      active={activeTab === 'comments' && commentsSubTab === 'links'} 
+                      label="Enlaces de Interés" 
+                      icon={<Bookmark size={14} />} 
+                      onClick={() => {
+                        setExpandedNavModule('comments');
+                        handleTabClick('comments');
+                        if (setCommentsSubTab) setCommentsSubTab('links');
+                      }} 
+                    />
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeCommentsPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'comments') === 'lider';
+                      if (!canSeeCommentsPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_comments_permissions"
+                          active={activeTab === 'comments' && commentsSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('comments');
+                            handleTabClick('comments');
+                            if (setCommentsSubTab) setCommentsSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </React.Fragment>
           )}
 
           {/* 3. Gestión (Procesos / XD) */}
@@ -423,6 +498,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         setProcessSubTab('links');
                       }} 
                     />
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeProcPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'process_dashboard') === 'lider';
+                      if (!canSeeProcPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_proc_permissions"
+                          active={processSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('process_dashboard');
+                            handleTabClick('process_dashboard');
+                            setProcessSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -448,28 +541,32 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     exit={{ height: 0, opacity: 0 }}
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
-                    <SubNavButton 
-                      key="subnav_gerencia_links"
-                      active={managementSubTab === 'links'} 
-                      label="Enlaces de Interés" 
-                      icon={<LinkIcon size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('gerencia');
-                        handleTabClick('gerencia');
-                        setManagementSubTab('links');
-                      }} 
-                    />
-                    <SubNavButton 
-                      key="subnav_gerencia_notes"
-                      active={managementSubTab === 'notes'} 
-                      label="Notas" 
-                      icon={<BookOpen size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('gerencia');
-                        handleTabClick('gerencia');
-                        setManagementSubTab('notes');
-                      }} 
-                    />
+                    {isSubnavVisible(currentMember, 'links', 'gerencia') && (
+                      <SubNavButton 
+                        key="subnav_gerencia_links"
+                        active={managementSubTab === 'links'} 
+                        label="Enlaces de Interés" 
+                        icon={<LinkIcon size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('gerencia');
+                          handleTabClick('gerencia');
+                          setManagementSubTab('links');
+                        }} 
+                      />
+                    )}
+                    {isSubnavVisible(currentMember, 'notes', 'gerencia') && (
+                      <SubNavButton 
+                        key="subnav_gerencia_notes"
+                        active={managementSubTab === 'notes'} 
+                        label="Notas" 
+                        icon={<BookOpen size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('gerencia');
+                          handleTabClick('gerencia');
+                          setManagementSubTab('notes');
+                        }} 
+                      />
+                    )}
                     <SubNavButton 
                       key="subnav_gerencia_consultant"
                       active={managementSubTab === 'consultant'} 
@@ -503,6 +600,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         setManagementSubTab('governance');
                       }} 
                     />
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeGerenciaPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'gerencia') === 'lider';
+                      if (!canSeeGerenciaPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_gerencia_permissions"
+                          active={managementSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('gerencia');
+                            handleTabClick('gerencia');
+                            setManagementSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -528,28 +643,32 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     exit={{ height: 0, opacity: 0 }}
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
-                    <SubNavButton 
-                      key="subnav_acred_links"
-                      active={acreditacionSubTab === 'links'} 
-                      label="Enlaces de Interés" 
-                      icon={<Link2 size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('acreditacion');
-                        handleTabClick('acreditacion');
-                        setAcreditacionSubTab('links');
-                      }} 
-                    />
-                    <SubNavButton 
-                      key="subnav_acred_notes"
-                      active={acreditacionSubTab === 'notes'} 
-                      label="Notas" 
-                      icon={<FileText size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('acreditacion');
-                        handleTabClick('acreditacion');
-                        setAcreditacionSubTab('notes');
-                      }} 
-                    />
+                    {isSubnavVisible(currentMember, 'links', 'acreditacion') && (
+                      <SubNavButton 
+                        key="subnav_acred_links"
+                        active={acreditacionSubTab === 'links'} 
+                        label="Enlaces de Interés" 
+                        icon={<Link2 size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('acreditacion');
+                          handleTabClick('acreditacion');
+                          setAcreditacionSubTab('links');
+                        }} 
+                      />
+                    )}
+                    {isSubnavVisible(currentMember, 'notes', 'acreditacion') && (
+                      <SubNavButton 
+                        key="subnav_acred_notes"
+                        active={acreditacionSubTab === 'notes'} 
+                        label="Notas" 
+                        icon={<FileText size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('acreditacion');
+                          handleTabClick('acreditacion');
+                          setAcreditacionSubTab('notes');
+                        }} 
+                      />
+                    )}
                     <SubNavButton 
                       key="subnav_acred_allies"
                       active={acreditacionSubTab === 'allies'} 
@@ -572,6 +691,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         setAcreditacionSubTab('certifications');
                       }} 
                     />
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeAcredPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'acreditacion') === 'lider';
+                      if (!canSeeAcredPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_acred_permissions"
+                          active={acreditacionSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('acreditacion');
+                            handleTabClick('acreditacion');
+                            setAcreditacionSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -597,83 +734,115 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     exit={{ height: 0, opacity: 0 }}
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
-                    <SubNavButton 
-                      key="subnav_cap_links"
-                      active={capacitacionSubTab === 'links'} 
-                      label="Enlaces de Interés" 
-                      icon={<LinkIcon size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('capacitacion');
-                        handleTabClick('capacitacion');
-                        setCapacitacionSubTab('links');
-                      }} 
-                    />
-                    <SubNavButton 
-                      key="subnav_cap_notes"
-                      active={capacitacionSubTab === 'notes'} 
-                      label="Notas" 
-                      icon={<FileText size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('capacitacion');
-                        handleTabClick('capacitacion');
-                        setCapacitacionSubTab('notes');
-                      }} 
-                    />
-                    <SubNavButton 
-                      key="subnav_cap_calendar"
-                      active={capacitacionSubTab === 'calendar'} 
-                      label="Calendario" 
-                      icon={<Calendar size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('capacitacion');
-                        handleTabClick('capacitacion');
-                        setCapacitacionSubTab('calendar');
-                      }} 
-                    />
-                    <SubNavButton 
-                      key="subnav_cap_management"
-                      active={capacitacionSubTab === 'management'} 
-                      label="Gestión de Capacitaciones" 
-                      icon={<BarChart2 size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('capacitacion');
-                        handleTabClick('capacitacion');
-                        setCapacitacionSubTab('management');
-                      }} 
-                    />
-                    <SubNavButton 
-                      key="subnav_cap_trainers"
-                      active={capacitacionSubTab === 'trainers'} 
-                      label="Capacitadores" 
-                      icon={<Users size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('capacitacion');
-                        handleTabClick('capacitacion');
-                        setCapacitacionSubTab('trainers');
-                      }} 
-                    />
-                    <SubNavButton 
-                      key="subnav_cap_physical_spaces"
-                      active={capacitacionSubTab === 'physical_spaces'} 
-                      label="Lugares" 
-                      icon={<Building2 size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('capacitacion');
-                        handleTabClick('capacitacion');
-                        setCapacitacionSubTab('physical_spaces');
-                      }} 
-                    />
-                    <SubNavButton 
-                      key="subnav_cap_virtual_spaces"
-                      active={capacitacionSubTab === 'virtual_spaces'} 
-                      label="Aulas Virtuales" 
-                      icon={<Monitor size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('capacitacion');
-                        handleTabClick('capacitacion');
-                        setCapacitacionSubTab('virtual_spaces');
-                      }} 
-                    />
+                    {isSubnavVisible(currentMember, 'links', 'capacitacion') && (
+                      <SubNavButton 
+                        key="subnav_cap_links"
+                        active={capacitacionSubTab === 'links'} 
+                        label="Enlaces de Interés" 
+                        icon={<LinkIcon size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('capacitacion');
+                          handleTabClick('capacitacion');
+                          setCapacitacionSubTab('links');
+                        }} 
+                      />
+                    )}
+                    {isSubnavVisible(currentMember, 'notes', 'capacitacion') && (
+                      <SubNavButton 
+                        key="subnav_cap_notes"
+                        active={capacitacionSubTab === 'notes'} 
+                        label="Notas" 
+                        icon={<FileText size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('capacitacion');
+                          handleTabClick('capacitacion');
+                          setCapacitacionSubTab('notes');
+                        }} 
+                      />
+                    )}
+                    {getModuleAccess(currentMember, roles, 'capacitacion_calendar') !== 'ninguno' && (
+                      <SubNavButton 
+                        key="subnav_cap_calendar"
+                        active={capacitacionSubTab === 'calendar'} 
+                        label="Calendario" 
+                        icon={<Calendar size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('capacitacion');
+                          handleTabClick('capacitacion');
+                          setCapacitacionSubTab('calendar');
+                        }} 
+                      />
+                    )}
+                    {getModuleAccess(currentMember, roles, 'capacitacion_management') !== 'ninguno' && (
+                      <SubNavButton 
+                        key="subnav_cap_management"
+                        active={capacitacionSubTab === 'management'} 
+                        label="Gestión de Capacitaciones" 
+                        icon={<BarChart2 size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('capacitacion');
+                          handleTabClick('capacitacion');
+                          setCapacitacionSubTab('management');
+                        }} 
+                      />
+                    )}
+                    {getModuleAccess(currentMember, roles, 'capacitacion_trainers') !== 'ninguno' && (
+                      <SubNavButton 
+                        key="subnav_cap_trainers"
+                        active={capacitacionSubTab === 'trainers'} 
+                        label="Capacitadores" 
+                        icon={<Users size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('capacitacion');
+                          handleTabClick('capacitacion');
+                          setCapacitacionSubTab('trainers');
+                        }} 
+                      />
+                    )}
+                    {getModuleAccess(currentMember, roles, 'capacitacion_physical_spaces') !== 'ninguno' && (
+                      <SubNavButton 
+                        key="subnav_cap_physical_spaces"
+                        active={capacitacionSubTab === 'physical_spaces'} 
+                        label="Lugares" 
+                        icon={<Building2 size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('capacitacion');
+                          handleTabClick('capacitacion');
+                          setCapacitacionSubTab('physical_spaces');
+                        }} 
+                      />
+                    )}
+                    {getModuleAccess(currentMember, roles, 'capacitacion_virtual_spaces') !== 'ninguno' && (
+                      <SubNavButton 
+                        key="subnav_cap_virtual_spaces"
+                        active={capacitacionSubTab === 'virtual_spaces'} 
+                        label="Aulas Virtuales" 
+                        icon={<Monitor size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('capacitacion');
+                          handleTabClick('capacitacion');
+                          setCapacitacionSubTab('virtual_spaces');
+                        }} 
+                      />
+                    )}
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeCapPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'capacitacion') === 'lider';
+                      if (!canSeeCapPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_cap_permissions"
+                          active={capacitacionSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('capacitacion');
+                            handleTabClick('capacitacion');
+                            setCapacitacionSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -699,28 +868,50 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     exit={{ height: 0, opacity: 0 }}
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
-                    <SubNavButton 
-                      key="subnav_qhse_links"
-                      active={qhseSubTab === 'links'} 
-                      label="Enlaces de Interés" 
-                      icon={<LinkIcon size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('qhse');
-                        handleTabClick('qhse');
-                        setQhseSubTab('links');
-                      }} 
-                    />
-                    <SubNavButton 
-                      key="subnav_qhse_notes"
-                      active={qhseSubTab === 'notes'} 
-                      label="Notas" 
-                      icon={<FileText size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('qhse');
-                        handleTabClick('qhse');
-                        setQhseSubTab('notes');
-                      }} 
-                    />
+                    {isSubnavVisible(currentMember, 'links', 'qhse') && (
+                      <SubNavButton 
+                        key="subnav_qhse_links"
+                        active={qhseSubTab === 'links'} 
+                        label="Enlaces de Interés" 
+                        icon={<LinkIcon size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('qhse');
+                          handleTabClick('qhse');
+                          setQhseSubTab('links');
+                        }} 
+                      />
+                    )}
+                    {isSubnavVisible(currentMember, 'notes', 'qhse') && (
+                      <SubNavButton 
+                        key="subnav_qhse_notes"
+                        active={qhseSubTab === 'notes'} 
+                        label="Notas" 
+                        icon={<FileText size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('qhse');
+                          handleTabClick('qhse');
+                          setQhseSubTab('notes');
+                        }} 
+                      />
+                    )}
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeQhsePerms = isUserAdmin || getModuleAccess(currentMember, roles, 'qhse') === 'lider';
+                      if (!canSeeQhsePerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_qhse_permissions"
+                          active={qhseSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('qhse');
+                            handleTabClick('qhse');
+                            setQhseSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -746,28 +937,32 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     exit={{ height: 0, opacity: 0 }}
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
-                    <SubNavButton 
-                      key="subnav_mkt_links"
-                      active={marketingSubTab === 'links'} 
-                      label="Enlaces de Interés" 
-                      icon={<LinkIcon size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('marketing');
-                        handleTabClick('marketing');
-                        setMarketingSubTab('links');
-                      }} 
-                    />
-                    <SubNavButton 
-                      key="subnav_mkt_notes"
-                      active={marketingSubTab === 'notes'} 
-                      label="Notas" 
-                      icon={<FileText size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('marketing');
-                        handleTabClick('marketing');
-                        setMarketingSubTab('notes');
-                      }} 
-                    />
+                    {isSubnavVisible(currentMember, 'links', 'marketing') && (
+                      <SubNavButton 
+                        key="subnav_mkt_links"
+                        active={marketingSubTab === 'links'} 
+                        label="Enlaces de Interés" 
+                        icon={<LinkIcon size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('marketing');
+                          handleTabClick('marketing');
+                          setMarketingSubTab('links');
+                        }} 
+                      />
+                    )}
+                    {isSubnavVisible(currentMember, 'notes', 'marketing') && (
+                      <SubNavButton 
+                        key="subnav_mkt_notes"
+                        active={marketingSubTab === 'notes'} 
+                        label="Notas" 
+                        icon={<FileText size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('marketing');
+                          handleTabClick('marketing');
+                          setMarketingSubTab('notes');
+                        }} 
+                      />
+                    )}
                     <SubNavButton 
                       key="subnav_mkt_campaigns"
                       active={marketingSubTab === 'campaigns'} 
@@ -801,6 +996,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         setMarketingSubTab('metrics_analytics');
                       }} 
                     />
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeMarketingPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'marketing') === 'lider';
+                      if (!canSeeMarketingPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_mkt_permissions"
+                          active={marketingSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('marketing');
+                            handleTabClick('marketing');
+                            setMarketingSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -826,28 +1039,32 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     exit={{ height: 0, opacity: 0 }}
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
-                    <SubNavButton 
-                      key="subnav_ventas_links"
-                      active={ventasSubTab === 'links'} 
-                      label="Enlaces de Interés" 
-                      icon={<LinkIcon size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('ventas');
-                        handleTabClick('ventas');
-                        setVentasSubTab('links');
-                      }} 
-                    />
-                    <SubNavButton 
-                      key="subnav_ventas_notes"
-                      active={ventasSubTab === 'notes'} 
-                      label="Notas" 
-                      icon={<FileText size={14} />} 
-                      onClick={() => {
-                        setExpandedNavModule('ventas');
-                        handleTabClick('ventas');
-                        setVentasSubTab('notes');
-                      }} 
-                    />
+                    {isSubnavVisible(currentMember, 'links', 'ventas') && (
+                      <SubNavButton 
+                        key="subnav_ventas_links"
+                        active={ventasSubTab === 'links'} 
+                        label="Enlaces de Interés" 
+                        icon={<LinkIcon size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('ventas');
+                          handleTabClick('ventas');
+                          setVentasSubTab('links');
+                        }} 
+                      />
+                    )}
+                    {isSubnavVisible(currentMember, 'notes', 'ventas') && (
+                      <SubNavButton 
+                        key="subnav_ventas_notes"
+                        active={ventasSubTab === 'notes'} 
+                        label="Notas" 
+                        icon={<FileText size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('ventas');
+                          handleTabClick('ventas');
+                          setVentasSubTab('notes');
+                        }} 
+                      />
+                    )}
                     <SubNavButton 
                       key="subnav_ventas_crm"
                       active={ventasSubTab === 'crm'} 
@@ -892,6 +1109,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         setVentasSubTab('goals');
                       }} 
                     />
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeVentasPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'ventas') === 'lider';
+                      if (!canSeeVentasPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_ventas_permissions"
+                          active={ventasSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('ventas');
+                            handleTabClick('ventas');
+                            setVentasSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -983,6 +1218,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         setProductosSubTab('equipos');
                       }} 
                     />
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeProdPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'productos') === 'lider';
+                      if (!canSeeProdPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_prod_permissions"
+                          active={productosSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('productos');
+                            handleTabClick('productos');
+                            setProductosSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1061,6 +1314,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         if (setInventarioSubTab) setInventarioSubTab('facturas');
                       }} 
                     />
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeInvPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'inventario') === 'lider';
+                      if (!canSeeInvPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_inv_permissions"
+                          active={inventarioSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('inventario');
+                            handleTabClick('inventario');
+                            if (setInventarioSubTab) setInventarioSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1116,6 +1387,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         setDirectorySubTab('industries');
                       }} 
                     />
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeDirPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'directory') === 'lider';
+                      if (!canSeeDirPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_dir_permissions"
+                          active={directorySubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('directory');
+                            setDirectorySubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1185,6 +1473,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         setImportacionesSubTab('upload_proforma');
                       }} 
                     />
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeImpPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'importaciones') === 'lider';
+                      if (!canSeeImpPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_imp_permissions"
+                          active={importacionesSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('importaciones');
+                            handleTabClick('importaciones');
+                            setImportacionesSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
