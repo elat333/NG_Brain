@@ -334,6 +334,7 @@ export const isTaskVisibleForMember = (
   currentMember: TeamMember | null | undefined,
   roles: Role[] | undefined
 ): boolean => {
+  if (!task) return false;
   if (!currentMember) return true;
 
   if (currentMember.isSystemAdmin || currentMember.systemRoleId === 'role-admin') {

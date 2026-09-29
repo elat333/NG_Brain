@@ -39,7 +39,8 @@ import {
   Info,
   Edit3,
   CheckCheck,
-  MessageSquare
+  MessageSquare,
+  GripVertical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -71,6 +72,17 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
+
+  // Drag & Drop State for Categories
+  const [draggedCategoryName, setDraggedCategoryName] = useState<string | null>(null);
+  const [dragOverCategoryName, setDragOverCategoryName] = useState<string | null>(null);
+  const [dropCategoryPosition, setDropCategoryPosition] = useState<'before' | 'after' | null>(null);
+
+  // Drag & Drop State for Note Cards (Intra-category only)
+  const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
+  const [draggedNoteCategory, setDraggedNoteCategory] = useState<string | null>(null);
+  const [dragOverNoteId, setDragOverNoteId] = useState<string | null>(null);
+  const [dropNotePosition, setDropNotePosition] = useState<'before' | 'after' | null>(null);
 
   // Category Edit / Rename State inside modal
   const [renameCategoryInput, setRenameCategoryInput] = useState<string>('');
@@ -589,25 +601,59 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     }
   };
 
-  // Handler: Move Category Up or Down
-  const handleMoveCategory = async (catName: string, direction: 'up' | 'down', e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Handlers: Drag & Drop Reorder Categories
+  const handleCategoryDragStart = (e: React.DragEvent, catName: string) => {
+    e.dataTransfer.setData('text/plain', catName);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedCategoryName(catName);
+  };
+
+  const handleCategoryDragOver = (e: React.DragEvent, targetCatName: string) => {
+    if (!draggedCategoryName || draggedCategoryName === targetCatName) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const pos = e.clientY < midY ? 'before' : 'after';
+    setDragOverCategoryName(targetCatName);
+    setDropCategoryPosition(pos);
+  };
+
+  const handleCategoryDragLeave = (e: React.DragEvent, targetCatName: string) => {
+    if (dragOverCategoryName === targetCatName) {
+      setDragOverCategoryName(null);
+      setDropCategoryPosition(null);
+    }
+  };
+
+  const handleCategoryDrop = async (e: React.DragEvent, targetCatName: string) => {
+    e.preventDefault();
+    if (!draggedCategoryName || draggedCategoryName === targetCatName) {
+      setDraggedCategoryName(null);
+      setDragOverCategoryName(null);
+      setDropCategoryPosition(null);
+      return;
+    }
 
     const visibleCategories = categoriesList.filter(
       (cat) => (groupedNotes[cat] || []).length > 0 && (selectedCategoryFilter === 'all' || selectedCategoryFilter === cat)
     );
-    const currentIndex = visibleCategories.indexOf(catName);
-    if (currentIndex === -1) return;
 
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (targetIndex < 0 || targetIndex >= visibleCategories.length) return;
+    const fromIdx = visibleCategories.indexOf(draggedCategoryName);
+    const toIdx = visibleCategories.indexOf(targetCatName);
+    if (fromIdx === -1 || toIdx === -1) {
+      setDraggedCategoryName(null);
+      setDragOverCategoryName(null);
+      setDropCategoryPosition(null);
+      return;
+    }
 
-    const newVisible = [...visibleCategories];
-    const temp = newVisible[currentIndex];
-    newVisible[currentIndex] = newVisible[targetIndex];
-    newVisible[targetIndex] = temp;
+    const updated = visibleCategories.filter(c => c !== draggedCategoryName);
+    const targetIdx = updated.indexOf(targetCatName);
+    const insertIndex = dropCategoryPosition === 'before' ? Math.max(0, targetIdx) : targetIdx + 1;
+    updated.splice(insertIndex, 0, draggedCategoryName);
 
-    const finalOrder = [...newVisible];
+    const finalOrder = [...updated];
     categoriesList.forEach((c) => {
       if (!finalOrder.includes(c)) finalOrder.push(c);
     });
@@ -622,34 +668,92 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     } catch (err) {
       console.error('Error saving note category order:', err);
     }
+
+    setDraggedCategoryName(null);
+    setDragOverCategoryName(null);
+    setDropCategoryPosition(null);
   };
 
-  // Handler: Move Note Card Left or Right inside its Category
-  const handleMoveNoteCard = async (catNotes: PersonalNote[], note: PersonalNote, direction: 'left' | 'right', e: React.MouseEvent) => {
+  const handleCategoryDragEnd = () => {
+    setDraggedCategoryName(null);
+    setDragOverCategoryName(null);
+    setDropCategoryPosition(null);
+  };
+
+  // Handlers: Drag & Drop Reorder Note Cards (Strictly intra-category)
+  const handleNoteDragStart = (e: React.DragEvent, note: PersonalNote) => {
     e.stopPropagation();
-    const currentIndex = catNotes.findIndex((n) => n.id === note.id);
-    if (currentIndex === -1) return;
+    e.dataTransfer.setData('text/plain', note.id);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedNoteId(note.id);
+    setDraggedNoteCategory((note.category || 'General').trim());
+  };
 
-    const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
-    if (targetIndex < 0 || targetIndex >= catNotes.length) return;
+  const handleNoteDragOver = (e: React.DragEvent, targetNote: PersonalNote) => {
+    const targetCategory = (targetNote.category || 'General').trim();
+    if (!draggedNoteId || draggedNoteId === targetNote.id || draggedNoteCategory !== targetCategory) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
 
-    const reordered = [...catNotes];
-    const temp = reordered[currentIndex];
-    reordered[currentIndex] = reordered[targetIndex];
-    reordered[targetIndex] = temp;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    const pos = e.clientX < midX ? 'before' : 'after';
+    setDragOverNoteId(targetNote.id);
+    setDropNotePosition(pos);
+  };
+
+  const handleNoteDragLeave = (e: React.DragEvent, targetNote: PersonalNote) => {
+    if (dragOverNoteId === targetNote.id) {
+      setDragOverNoteId(null);
+      setDropNotePosition(null);
+    }
+  };
+
+  const handleNoteDrop = async (e: React.DragEvent, targetNote: PersonalNote, catNotes: PersonalNote[]) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const targetCategory = (targetNote.category || 'General').trim();
+    if (!draggedNoteId || draggedNoteId === targetNote.id || draggedNoteCategory !== targetCategory) {
+      setDraggedNoteId(null);
+      setDraggedNoteCategory(null);
+      setDragOverNoteId(null);
+      setDropNotePosition(null);
+      return;
+    }
+
+    const currentIds = catNotes.map(n => n.id);
+    const filtered = currentIds.filter(id => id !== draggedNoteId);
+    const targetIdx = filtered.indexOf(targetNote.id);
+    const insertIdx = dropNotePosition === 'before' ? Math.max(0, targetIdx) : targetIdx + 1;
+    filtered.splice(insertIdx, 0, draggedNoteId);
 
     try {
-      const updatePromises = reordered.map((item, idx) => {
-        return setDoc(doc(db, 'user_personal_notes', item.id), {
+      const updatePromises = filtered.map((noteId, idx) => {
+        return setDoc(doc(db, 'user_personal_notes', noteId), {
           order: idx,
           updatedAt: new Date().toISOString(),
         }, { merge: true });
       });
-
       await Promise.all(updatePromises);
     } catch (err) {
-      console.error('Error saving note card order:', err);
+      console.error('Error reordering notes:', err);
     }
+
+    setDraggedNoteId(null);
+    setDraggedNoteCategory(null);
+    setDragOverNoteId(null);
+    setDropNotePosition(null);
+  };
+
+  const handleNoteDragEnd = () => {
+    setDraggedNoteId(null);
+    setDraggedNoteCategory(null);
+    setDragOverNoteId(null);
+    setDropNotePosition(null);
   };
 
   const handleShareNoteMember = async () => {
@@ -1079,10 +1183,33 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
               const isLastCat = catIndex === visibleCategories.length - 1;
 
               return (
-                <div key={`note_cat_sec_${cat}_${catIndex}`} className="space-y-2.5">
+                <div 
+                  key={`note_cat_sec_${cat}_${catIndex}`} 
+                  onDragOver={(e) => handleCategoryDragOver(e, cat)}
+                  onDragLeave={(e) => handleCategoryDragLeave(e, cat)}
+                  onDrop={(e) => handleCategoryDrop(e, cat)}
+                  className={`space-y-2.5 transition-all rounded-2xl p-1 ${
+                    draggedCategoryName === cat ? 'opacity-30 bg-indigo-50/50' : ''
+                  } ${
+                    dragOverCategoryName === cat && dropCategoryPosition === 'before' ? 'border-t-2 border-indigo-500 pt-2' : ''
+                  } ${
+                    dragOverCategoryName === cat && dropCategoryPosition === 'after' ? 'border-b-2 border-indigo-500 pb-2' : ''
+                  }`}
+                >
                   {/* Category Header with Folder Sharing, Edit, Reorder and Add button */}
                   <div className="flex items-center justify-between px-1">
                     <div className="flex items-center gap-2">
+                      {/* Category 6-dots Drag Handle */}
+                      <div
+                        draggable={true}
+                        onDragStart={(e) => handleCategoryDragStart(e, cat)}
+                        onDragEnd={handleCategoryDragEnd}
+                        className="p-1 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 rounded-md transition-colors inline-flex items-center justify-center select-none"
+                        title="Arrastrar para reordenar carpeta (6 puntos)"
+                      >
+                        <GripVertical size={15} />
+                      </div>
+
                       <div
                         onClick={() => setCollapsedCategories(prev => {
                           const currentVal = prev[cat] === undefined ? true : prev[cat];
@@ -1135,28 +1262,6 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         <Edit3 size={11} />
                         <span>Editar</span>
                       </button>
-
-                      <div className="h-3.5 w-px bg-slate-200 mx-0.5" />
-
-                      {/* Category Up / Down Order Buttons */}
-                      <button
-                        type="button"
-                        title="Subir posición de carpeta"
-                        disabled={isFirstCat}
-                        onClick={(e) => handleMoveCategory(cat, 'up', e)}
-                        className="p-0.5 text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed"
-                      >
-                        <ChevronUp size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        title="Bajar posición de carpeta"
-                        disabled={isLastCat}
-                        onClick={(e) => handleMoveCategory(cat, 'down', e)}
-                        className="p-0.5 text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed"
-                      >
-                        <ChevronDown size={13} />
-                      </button>
                     </div>
 
                     <button
@@ -1175,8 +1280,7 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                         const isMine = !note.createdByMemberId || note.createdByMemberId === memberId;
                         const role = getUserNoteRole(note);
                         const canEdit = role === 'owner' || role === 'editor';
-                        const isFirstCard = noteIndex === 0;
-                        const isLastCard = noteIndex === catNotes.length - 1;
+                        const isOverThisNote = dragOverNoteId === note.id;
                         
                         // Preview first lines of markdown
                         const previewContent = note.content
@@ -1190,44 +1294,45 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
                           <div
                             key={`note_card_${note.id || noteIndex}_${noteIndex}`}
                             onClick={() => handleOpenNote(note)}
+                            onDragOver={(e) => handleNoteDragOver(e, note)}
+                            onDragLeave={(e) => handleNoteDragLeave(e, note)}
+                            onDrop={(e) => handleNoteDrop(e, note, catNotes)}
                             className={`group relative bg-white border ${
                               note.pinned ? 'border-indigo-300 ring-1 ring-indigo-200 shadow-2xs' : 'border-slate-200/90 hover:border-indigo-300 shadow-2xs hover:shadow-sm'
-                            } rounded-2xl p-3 cursor-pointer transition-all flex flex-col justify-between hover:-translate-y-0.5 space-y-2`}
+                            } rounded-2xl p-3 cursor-pointer transition-all flex flex-col justify-between hover:-translate-y-0.5 space-y-2 ${
+                              draggedNoteId === note.id ? 'opacity-30 scale-95' : ''
+                            } ${
+                              isOverThisNote && dropNotePosition === 'before' ? 'border-l-4 border-l-indigo-600' : ''
+                            } ${
+                              isOverThisNote && dropNotePosition === 'after' ? 'border-r-4 border-r-indigo-600' : ''
+                            }`}
                           >
                             <div className="space-y-1.5 min-w-0">
                               {/* Row 1: Title and Actions at the EXACT SAME HEIGHT */}
                               <div className="flex items-center justify-between gap-1.5 min-w-0">
-                                <h4 
-                                  className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate flex-1 min-w-0" 
-                                  title={note.title || 'Sin Título'}
-                                >
-                                  {note.title || 'Sin Título'}
-                                </h4>
+                                <div className="flex items-center gap-1 min-w-0 flex-1">
+                                  {/* Note Card 6-dots Drag Handle (Top Left Corner) */}
+                                  <div
+                                    draggable={true}
+                                    onDragStart={(e) => handleNoteDragStart(e, note)}
+                                    onDragEnd={handleNoteDragEnd}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="p-0.5 cursor-grab active:cursor-grabbing text-slate-300 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors inline-flex items-center justify-center select-none shrink-0"
+                                    title="Arrastrar para ordenar dentro de la carpeta"
+                                  >
+                                    <GripVertical size={13} />
+                                  </div>
+
+                                  <h4 
+                                    className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate flex-1 min-w-0" 
+                                    title={note.title || 'Sin Título'}
+                                  >
+                                    {note.title || 'Sin Título'}
+                                  </h4>
+                                </div>
 
                                 {/* Quick action buttons inline with title */}
                                 <div className="flex items-center gap-0.5 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                                  {/* Move Left / Right Buttons */}
-                                  <button
-                                    type="button"
-                                    title="Mover a la izquierda"
-                                    disabled={isFirstCard}
-                                    onClick={(e) => handleMoveNoteCard(catNotes, note, 'left', e)}
-                                    className="p-0.5 text-slate-400 hover:text-slate-800 rounded transition-colors disabled:opacity-20 disabled:hover:bg-transparent"
-                                  >
-                                    <ArrowLeft size={11} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    title="Mover a la derecha"
-                                    disabled={isLastCard}
-                                    onClick={(e) => handleMoveNoteCard(catNotes, note, 'right', e)}
-                                    className="p-0.5 text-slate-400 hover:text-slate-800 rounded transition-colors disabled:opacity-20 disabled:hover:bg-transparent"
-                                  >
-                                    <ArrowRight size={11} />
-                                  </button>
-
-                                  <div className="h-3 w-px bg-slate-200 mx-0.5" />
-
                                   <button
                                     type="button"
                                     title={note.pinned ? "Desfijar nota" : "Fijar nota"}

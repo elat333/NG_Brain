@@ -74,11 +74,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       )}
 
       <div
-        draggable={true}
-        onDragStart={(e) => onDragStartCard?.(e, task)}
-        onDragEnd={(e) => onDragEndCard?.(e)}
         onClick={() => onEdit(task)}
-        className={`bg-white p-4 rounded-2xl border transition-all cursor-grab active:cursor-grabbing group flex flex-col gap-3 relative ${
+        className={`bg-white p-4 rounded-2xl border transition-all cursor-default group flex flex-col gap-3 relative ${
           isBeingDragged
             ? 'opacity-40 scale-98 border-blue-400 bg-blue-50/30'
             : 'border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200'
@@ -87,9 +84,22 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
             {/* Grip Icon */}
-            <span className="text-gray-300 group-hover:text-gray-600 transition-colors cursor-grab" title="Arrastrar para ordenar">
+            <div
+              draggable={true}
+              onDragStart={(e) => {
+                e.stopPropagation();
+                onDragStartCard?.(e, task);
+              }}
+              onDragEnd={(e) => {
+                e.stopPropagation();
+                onDragEndCard?.(e);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-700 p-0.5 rounded hover:bg-gray-100 transition-colors inline-flex items-center justify-center"
+              title="Arrastrar para ordenar"
+            >
               <GripVertical size={13} />
-            </span>
+            </div>
 
             {task.priority && (
               <span

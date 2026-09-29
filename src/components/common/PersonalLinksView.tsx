@@ -22,7 +22,8 @@ import {
   Eye,
   Save,
   CheckCheck,
-  MessageSquare
+  MessageSquare,
+  GripVertical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -52,6 +53,17 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
+
+  // Drag & Drop State for Categories
+  const [draggedCategoryName, setDraggedCategoryName] = useState<string | null>(null);
+  const [dragOverCategoryName, setDragOverCategoryName] = useState<string | null>(null);
+  const [dropCategoryPosition, setDropCategoryPosition] = useState<'before' | 'after' | null>(null);
+
+  // Drag & Drop State for Links (Intra-category only)
+  const [draggedLinkId, setDraggedLinkId] = useState<string | null>(null);
+  const [draggedLinkCategory, setDraggedLinkCategory] = useState<string | null>(null);
+  const [dragOverLinkId, setDragOverLinkId] = useState<string | null>(null);
+  const [dropLinkPosition, setDropLinkPosition] = useState<'before' | 'after' | null>(null);
 
   // Modal State for Add/Edit Link
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -324,23 +336,56 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
     return orderedEntries;
   }, [links, searchTerm, selectedCategoryFilter, ownershipFilter, categoriesList, memberId]);
 
-  // Handler: Move Category Up or Down
-  const handleMoveCategory = async (catName: string, direction: 'up' | 'down', e: React.MouseEvent) => {
-    e.stopPropagation();
-    
+  // Handlers: Drag & Drop Reorder Categories
+  const handleCategoryDragStart = (e: React.DragEvent, catName: string) => {
+    e.dataTransfer.setData('text/plain', catName);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedCategoryName(catName);
+  };
+
+  const handleCategoryDragOver = (e: React.DragEvent, targetCatName: string) => {
+    if (!draggedCategoryName || draggedCategoryName === targetCatName) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const pos = e.clientY < midY ? 'before' : 'after';
+    setDragOverCategoryName(targetCatName);
+    setDropCategoryPosition(pos);
+  };
+
+  const handleCategoryDragLeave = (e: React.DragEvent, targetCatName: string) => {
+    if (dragOverCategoryName === targetCatName) {
+      setDragOverCategoryName(null);
+      setDropCategoryPosition(null);
+    }
+  };
+
+  const handleCategoryDrop = async (e: React.DragEvent, targetCatName: string) => {
+    e.preventDefault();
+    if (!draggedCategoryName || draggedCategoryName === targetCatName) {
+      setDraggedCategoryName(null);
+      setDragOverCategoryName(null);
+      setDropCategoryPosition(null);
+      return;
+    }
+
     const visibleCategories = filteredAndGroupedLinks.map(([c]) => c);
-    const currentIndex = visibleCategories.indexOf(catName);
-    if (currentIndex === -1) return;
+    const fromIdx = visibleCategories.indexOf(draggedCategoryName);
+    const toIdx = visibleCategories.indexOf(targetCatName);
+    if (fromIdx === -1 || toIdx === -1) {
+      setDraggedCategoryName(null);
+      setDragOverCategoryName(null);
+      setDropCategoryPosition(null);
+      return;
+    }
 
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (targetIndex < 0 || targetIndex >= visibleCategories.length) return;
+    const updated = visibleCategories.filter(c => c !== draggedCategoryName);
+    const targetIdx = updated.indexOf(targetCatName);
+    const insertIndex = dropCategoryPosition === 'before' ? Math.max(0, targetIdx) : targetIdx + 1;
+    updated.splice(insertIndex, 0, draggedCategoryName);
 
-    const newVisible = [...visibleCategories];
-    const temp = newVisible[currentIndex];
-    newVisible[currentIndex] = newVisible[targetIndex];
-    newVisible[targetIndex] = temp;
-
-    const finalOrder = [...newVisible];
+    const finalOrder = [...updated];
     categoriesList.forEach((c) => {
       if (!finalOrder.includes(c)) finalOrder.push(c);
     });
@@ -355,34 +400,92 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
     } catch (err) {
       console.error('Error saving category order:', err);
     }
+
+    setDraggedCategoryName(null);
+    setDragOverCategoryName(null);
+    setDropCategoryPosition(null);
   };
 
-  // Handler: Move Card Left / Right
-  const handleMoveCard = async (catLinks: ProcessLink[], link: ProcessLink, direction: 'left' | 'right', e: React.MouseEvent) => {
+  const handleCategoryDragEnd = () => {
+    setDraggedCategoryName(null);
+    setDragOverCategoryName(null);
+    setDropCategoryPosition(null);
+  };
+
+  // Handlers: Drag & Drop Reorder Links (Strictly intra-category)
+  const handleLinkDragStart = (e: React.DragEvent, link: ProcessLink) => {
     e.stopPropagation();
-    const currentIndex = catLinks.findIndex((l) => l.id === link.id);
-    if (currentIndex === -1) return;
+    e.dataTransfer.setData('text/plain', link.id);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedLinkId(link.id);
+    setDraggedLinkCategory((link.category || 'General').trim());
+  };
 
-    const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
-    if (targetIndex < 0 || targetIndex >= catLinks.length) return;
+  const handleLinkDragOver = (e: React.DragEvent, targetLink: ProcessLink) => {
+    const targetCategory = (targetLink.category || 'General').trim();
+    if (!draggedLinkId || draggedLinkId === targetLink.id || draggedLinkCategory !== targetCategory) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
 
-    const reordered = [...catLinks];
-    const temp = reordered[currentIndex];
-    reordered[currentIndex] = reordered[targetIndex];
-    reordered[targetIndex] = temp;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    const pos = e.clientX < midX ? 'before' : 'after';
+    setDragOverLinkId(targetLink.id);
+    setDropLinkPosition(pos);
+  };
+
+  const handleLinkDragLeave = (e: React.DragEvent, targetLink: ProcessLink) => {
+    if (dragOverLinkId === targetLink.id) {
+      setDragOverLinkId(null);
+      setDropLinkPosition(null);
+    }
+  };
+
+  const handleLinkDrop = async (e: React.DragEvent, targetLink: ProcessLink, catLinks: ProcessLink[]) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const targetCategory = (targetLink.category || 'General').trim();
+    if (!draggedLinkId || draggedLinkId === targetLink.id || draggedLinkCategory !== targetCategory) {
+      setDraggedLinkId(null);
+      setDraggedLinkCategory(null);
+      setDragOverLinkId(null);
+      setDropLinkPosition(null);
+      return;
+    }
+
+    const currentIds = catLinks.map(l => l.id);
+    const filtered = currentIds.filter(id => id !== draggedLinkId);
+    const targetIdx = filtered.indexOf(targetLink.id);
+    const insertIdx = dropLinkPosition === 'before' ? Math.max(0, targetIdx) : targetIdx + 1;
+    filtered.splice(insertIdx, 0, draggedLinkId);
 
     try {
-      const updatePromises = reordered.map((item, idx) => {
-        return setDoc(doc(db, 'user_personal_links', item.id), {
+      const updatePromises = filtered.map((linkId, idx) => {
+        return setDoc(doc(db, 'user_personal_links', linkId), {
           order: idx,
           updatedAt: new Date().toISOString(),
         }, { merge: true });
       });
-
       await Promise.all(updatePromises);
     } catch (err) {
-      console.error('Error saving link card order:', err);
+      console.error('Error reordering links:', err);
     }
+
+    setDraggedLinkId(null);
+    setDraggedLinkCategory(null);
+    setDragOverLinkId(null);
+    setDropLinkPosition(null);
+  };
+
+  const handleLinkDragEnd = () => {
+    setDraggedLinkId(null);
+    setDraggedLinkCategory(null);
+    setDragOverLinkId(null);
+    setDropLinkPosition(null);
   };
 
   const toggleCategoryCollapse = (cat: string) => {
@@ -888,7 +991,16 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
             return (
               <div
                 key={`cat_group_${catName}_${catIndex}`}
-                className="bg-white border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs"
+                onDragOver={(e) => handleCategoryDragOver(e, catName)}
+                onDragLeave={(e) => handleCategoryDragLeave(e, catName)}
+                onDrop={(e) => handleCategoryDrop(e, catName)}
+                className={`bg-white border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs transition-all ${
+                  draggedCategoryName === catName ? 'opacity-30 bg-emerald-50/50' : ''
+                } ${
+                  dragOverCategoryName === catName && dropCategoryPosition === 'before' ? 'border-t-2 border-emerald-500' : ''
+                } ${
+                  dragOverCategoryName === catName && dropCategoryPosition === 'after' ? 'border-b-2 border-emerald-500' : ''
+                }`}
               >
                 {/* Category Header */}
                 <div
@@ -896,6 +1008,21 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                   className="px-3.5 py-2 bg-slate-50/85 hover:bg-slate-100/80 border-b border-slate-200/80 flex items-center justify-between cursor-pointer transition-colors select-none"
                 >
                   <div className="flex items-center gap-2">
+                    {/* Category 6-dots Drag Handle */}
+                    <div
+                      draggable={true}
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        handleCategoryDragStart(e, catName);
+                      }}
+                      onDragEnd={handleCategoryDragEnd}
+                      className="p-1 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 rounded-md transition-colors inline-flex items-center justify-center select-none"
+                      title="Arrastrar para reordenar carpeta (6 puntos)"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <GripVertical size={14} />
+                    </div>
+
                     {isCollapsed ? (
                       <ChevronRight size={14} className="text-slate-400" />
                     ) : (
@@ -910,7 +1037,7 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                     </span>
                   </div>
 
-                  {/* Actions on Category: Share Category + Edit Category + Up / Down Order Buttons */}
+                  {/* Actions on Category: Share Category + Edit Category */}
                   <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                     {/* Share category button */}
                     <button
@@ -933,28 +1060,6 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                       <Edit3 size={11} className="text-slate-600" />
                       <span className="hidden sm:inline">Editar</span>
                     </button>
-
-                    <div className="h-3.5 w-px bg-slate-200 mx-0.5" />
-
-                    {/* Up / Down category order */}
-                    <button
-                      type="button"
-                      title="Subir posición de categoría"
-                      disabled={isFirstCat}
-                      onClick={(e) => handleMoveCategory(catName, 'up', e)}
-                      className="p-0.5 text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed"
-                    >
-                      <ChevronUp size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      title="Bajar posición de categoría"
-                      disabled={isLastCat}
-                      onClick={(e) => handleMoveCategory(catName, 'down', e)}
-                      className="p-0.5 text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed"
-                    >
-                      <ChevronDown size={13} />
-                    </button>
                   </div>
                 </div>
 
@@ -969,15 +1074,37 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                       const canEdit = isOwner || userRole === 'editor';
                       const isSharedWithMe = !isOwner;
                       const hasSharedOthers = (link.sharedWith?.length ?? 0) > 0;
+                      const isOverThisLink = dragOverLinkId === link.id;
 
                       return (
                         <div
                           key={`link_card_${link.id || linkIndex}_${linkIndex}`}
-                          className="bg-slate-50/60 hover:bg-white border border-slate-200/90 hover:border-slate-300 rounded-xl p-2.5 transition-all duration-150 flex flex-col justify-between group shadow-none hover:shadow-xs text-left"
+                          onDragOver={(e) => handleLinkDragOver(e, link)}
+                          onDragLeave={(e) => handleLinkDragLeave(e, link)}
+                          onDrop={(e) => handleLinkDrop(e, link, catLinks)}
+                          className={`bg-slate-50/60 hover:bg-white border border-slate-200/90 hover:border-slate-300 rounded-xl p-2.5 transition-all duration-150 flex flex-col justify-between group shadow-none hover:shadow-xs text-left ${
+                            draggedLinkId === link.id ? 'opacity-30 scale-95' : ''
+                          } ${
+                            isOverThisLink && dropLinkPosition === 'before' ? 'border-l-4 border-l-emerald-600' : ''
+                          } ${
+                            isOverThisLink && dropLinkPosition === 'after' ? 'border-r-4 border-r-emerald-600' : ''
+                          }`}
                         >
                           <div>
-                            {/* ROW 1: Dedicated solely to Link Title (Click opens details/description modal in view-only mode) */}
-                            <div className="mb-1">
+                            {/* ROW 1: Dedicated solely to Link Title with 6-dots handle at Top Left */}
+                            <div className="flex items-start gap-1 mb-1">
+                              {/* Link Card 6-dots Drag Handle (Top Left Corner) */}
+                              <div
+                                draggable={true}
+                                onDragStart={(e) => handleLinkDragStart(e, link)}
+                                onDragEnd={handleLinkDragEnd}
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-0.5 mt-0.5 cursor-grab active:cursor-grabbing text-slate-300 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors inline-flex items-center justify-center select-none shrink-0"
+                                title="Arrastrar para ordenar dentro de la categoría"
+                              >
+                                <GripVertical size={13} />
+                              </div>
+
                               <button
                                 type="button"
                                 onClick={() => setViewingLink(link)}
@@ -1030,24 +1157,6 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                           <div className="pt-1.5 border-t border-slate-200/60 mt-1 flex items-center justify-between gap-1">
                             {/* Action Buttons */}
                             <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                              <button
-                                type="button"
-                                title="Mover a la izquierda"
-                                disabled={isFirstCard}
-                                onClick={(e) => handleMoveCard(catLinks, link, 'left', e)}
-                                className="p-0.5 text-slate-400 hover:text-slate-800 rounded transition-colors disabled:opacity-20 disabled:hover:bg-transparent"
-                              >
-                                <ArrowLeft size={11} />
-                              </button>
-                              <button
-                                type="button"
-                                title="Mover a la derecha"
-                                disabled={isLastCard}
-                                onClick={(e) => handleMoveCard(catLinks, link, 'right', e)}
-                                className="p-0.5 text-slate-400 hover:text-slate-800 rounded transition-colors disabled:opacity-20 disabled:hover:bg-transparent"
-                              >
-                                <ArrowRight size={11} />
-                              </button>
                               <button
                                 title="Ver comentarios y observaciones"
                                 onClick={(e) => {

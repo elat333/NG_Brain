@@ -23,6 +23,7 @@ export interface SmartFiltersState {
   memberId: string | null;
   processId: string | null;
   auxiliaryId: string | null;
+  revisorId: string | null;
   status: string | null;
 }
 
@@ -62,10 +63,11 @@ export function useTaskFilters({
     memberId: null,
     processId: null,
     auxiliaryId: null,
+    revisorId: null,
     status: null,
   });
   const [showSmartDropdown, setShowSmartDropdown] = useState(false);
-  const [activeSuggestionCategory, setActiveSuggestionCategory] = useState<'all' | 'project' | 'member' | 'process' | 'auxiliary' | 'status'>('all');
+  const [activeSuggestionCategory, setActiveSuggestionCategory] = useState<'all' | 'project' | 'member' | 'process' | 'auxiliary' | 'revisor' | 'status'>('all');
   const [myActivitiesOnly, setMyActivitiesOnly] = useState(false);
 
   const [tableFilters, setTableFilters] = useState<TableFiltersState>({
@@ -128,9 +130,10 @@ export function useTaskFilters({
       const matchesSmartAuxiliary = !smartFilters.auxiliaryId || 
                                     t.auxiliaryId === smartFilters.auxiliaryId || 
                                     (Array.isArray(t.auxiliaryIds) && t.auxiliaryIds.includes(smartFilters.auxiliaryId));
+      const matchesSmartRevisor = !smartFilters.revisorId || t.revisorId === smartFilters.revisorId;
       const matchesSmartStatus = !smartFilters.status || t.status === smartFilters.status;
       
-      const matchesBasic = matchesSearch && matchesProject && matchesMember && matchesSmartProcess && matchesSmartAuxiliary && matchesSmartStatus;
+      const matchesBasic = matchesSearch && matchesProject && matchesMember && matchesSmartProcess && matchesSmartAuxiliary && matchesSmartRevisor && matchesSmartStatus;
       if (!matchesBasic) return false;
 
       // Apply "Mis Actividades" filter if active

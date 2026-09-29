@@ -98,9 +98,9 @@ export const TaskModalsContainer: React.FC<TaskModalsContainerProps> = ({
         />
       )}
 
-      {/* Task Modal (Standard & Design Templates) */}
+      {/* Task Modal (Standard & Design Templates) - Creación Rápida */}
       <TaskModal
-        isOpen={isAddingTask || !!editingTask}
+        isOpen={isAddingTask}
         editingTask={editingTask}
         newTaskData={newTaskData}
         setNewTaskData={setNewTaskData}

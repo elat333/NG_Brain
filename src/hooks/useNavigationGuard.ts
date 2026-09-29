@@ -79,6 +79,13 @@ interface UseNavigationGuardProps {
   setEditingProject: (project: Project | null) => void;
   handleAddProject: (e: React.FormEvent) => Promise<void>;
   handleUpdateProject: (e: React.FormEvent) => Promise<void>;
+
+  // Task form
+  editingTask?: any;
+  newTaskData?: any;
+  hasUnsavedTaskChanges?: () => boolean;
+  handleForceCloseTaskModal?: () => void;
+  handleUpdateTask?: (e?: any) => Promise<void>;
 }
 
 export const useNavigationGuard = ({
@@ -146,7 +153,14 @@ export const useNavigationGuard = ({
   setIsAddingProject,
   setEditingProject,
   handleAddProject,
-  handleUpdateProject
+  handleUpdateProject,
+
+  // Task form
+  editingTask,
+  newTaskData,
+  hasUnsavedTaskChanges,
+  handleForceCloseTaskModal,
+  handleUpdateTask
 }: UseNavigationGuardProps) => {
   const [pendingExitAction, setPendingExitAction] = useState<PendingExitAction | null>(null);
 
@@ -261,13 +275,15 @@ export const useNavigationGuard = ({
     if ((isAddingCompany || editingCompany) && hasUnsavedCompanyChanges) return 'company';
     if ((isAddingProcess || editingProcess) && hasUnsavedProcessChanges) return 'process';
     if ((isAddingProject || editingProject) && hasUnsavedProjectChanges) return 'project';
+    if (editingTask && hasUnsavedTaskChanges && hasUnsavedTaskChanges()) return 'task';
     return null;
   }, [
     hasUnsavedPermissionsChanges, activeTab, settingsSubTab,
     isAddingMember, editingMember, hasUnsavedMemberChanges,
     isAddingCompany, editingCompany, hasUnsavedCompanyChanges,
     isAddingProcess, editingProcess, hasUnsavedProcessChanges,
-    isAddingProject, editingProject, hasUnsavedProjectChanges
+    isAddingProject, editingProject, hasUnsavedProjectChanges,
+    editingTask, hasUnsavedTaskChanges
   ]);
 
   const executePendingAction = useCallback((action: PendingExitAction) => {
@@ -324,6 +340,7 @@ export const useNavigationGuard = ({
         ...action,
         formType: activeDirtyForm,
         formName: 
+          activeDirtyForm === 'task' ? (newTaskData?.title || editingTask?.title) :
           activeDirtyForm === 'member' ? (newMemberData.name || editingMember?.name) :
           activeDirtyForm === 'company' ? (newCompanyData.name || editingCompany?.name) :
           activeDirtyForm === 'process' ? (newProcessData.name || editingProcess?.name) :
@@ -331,11 +348,15 @@ export const useNavigationGuard = ({
           activeDirtyForm === 'permissions' ? resolvedPermissionsMember?.name : undefined
       });
     } else {
+      if (editingTask && handleForceCloseTaskModal) {
+        handleForceCloseTaskModal();
+      }
       executePendingAction(action);
     }
   }, [
     activeDirtyForm, newMemberData, editingMember, newCompanyData, editingCompany,
-    newProcessData, editingProcess, newProjectData, editingProject, resolvedPermissionsMember, executePendingAction
+    newProcessData, editingProcess, newProjectData, editingProject, resolvedPermissionsMember,
+    newTaskData, editingTask, handleForceCloseTaskModal, executePendingAction
   ]);
 
   const handleTabClick = useCallback((tab: any, directorySub?: any) => {
@@ -493,6 +514,10 @@ export const useNavigationGuard = ({
       setIsAddingProject(false);
       setEditingProject(null);
       setNewProjectData({ name: '', description: '', processId: '', status: 'activo' });
+    } else if (action?.formType === 'task') {
+      if (handleForceCloseTaskModal) {
+        handleForceCloseTaskModal();
+      }
     }
 
     setPendingExitAction(null);
@@ -502,7 +527,7 @@ export const useNavigationGuard = ({
   }, [
     pendingExitAction, setLastInitializedMemberId, setIsAddingMember, setEditingMember, setNewMemberData,
     setIsAddingCompany, setEditingCompany, setNewCompanyData, setIsAddingProcess, setEditingProcess, setNewProcessData,
-    setIsAddingProject, setEditingProject, setNewProjectData, executePendingAction
+    setIsAddingProject, setEditingProject, setNewProjectData, handleForceCloseTaskModal, executePendingAction
   ]);
 
   const handleSavePendingExit = useCallback(async () => {
@@ -525,6 +550,13 @@ export const useNavigationGuard = ({
         } else {
           await handleAddProject(fakeEvent);
         }
+      } else if (formType === 'task') {
+        if (handleUpdateTask) {
+          await handleUpdateTask(fakeEvent);
+        }
+        if (handleForceCloseTaskModal) {
+          handleForceCloseTaskModal();
+        }
       }
     } catch (err) {
       console.error('Error saving before exit:', err);
@@ -536,7 +568,7 @@ export const useNavigationGuard = ({
     }
   }, [
     pendingExitAction, resolvedPermissionsMember, savePermissions, handleAddMember, handleAddCompany,
-    handleAddProcess, editingProject, handleUpdateProject, handleAddProject, executePendingAction
+    handleAddProcess, editingProject, handleUpdateProject, handleAddProject, handleUpdateTask, handleForceCloseTaskModal, executePendingAction
   ]);
 
   return {

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Task, TeamMember, Role, Project, Process, Deliverable, SuggestedActivity } from '../types';
 import { db, doc, setDoc, updateDoc, deleteDoc, OperationType, handleFirestoreError, sanitizeForFirestore } from '../lib/firebase';
 import { getModuleAccess as defaultGetModuleAccess, isTaskBlocked as defaultIsTaskBlocked } from '../lib/permissions';
@@ -39,12 +39,25 @@ export function useTaskManager({
 }: UseTaskManagerProps) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [originTab, setOriginTab] = useState<string>('tasks');
   const [showTaskHistory, setShowTaskHistory] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
   const [showUnsavedTaskChangesModal, setShowUnsavedTaskChangesModal] = useState(false);
 
   const initialTaskSnapshotRef = useRef<any>(null);
+  const initialStoryIdFromUrlRef = useRef<string | null>(
+    typeof window !== 'undefined'
+      ? (() => {
+          try {
+            const url = new URL(window.location.href);
+            return url.searchParams.get('story') || url.searchParams.get('historia');
+          } catch {
+            return null;
+          }
+        })()
+      : null
+  );
 
   const [newTaskData, setNewTaskData] = useState({
     id: '',
@@ -154,6 +167,22 @@ export function useTaskManager({
     setEditingTask(null);
     setShowUnsavedTaskChangesModal(false);
     initialTaskSnapshotRef.current = null;
+    initialStoryIdFromUrlRef.current = null;
+    try {
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('story') || url.searchParams.has('historia')) {
+          url.searchParams.delete('story');
+          url.searchParams.delete('historia');
+          const newUrl = url.searchParams.toString()
+            ? `${url.pathname}?${url.searchParams.toString()}`
+            : url.pathname;
+          window.history.replaceState({}, '', newUrl);
+        }
+      }
+    } catch (e) {
+      console.warn('Error clearing story parameter on close:', e);
+    }
     if (lastTab) {
       setActiveTab(lastTab as any);
       setLastTab(null);
@@ -216,7 +245,10 @@ export function useTaskManager({
     setIsAddingTask(true);
   };
 
-  const openEditTask = (task: Task) => {
+  const openEditTask = useCallback((task: Task) => {
+    if (activeTab) {
+      setOriginTab(activeTab);
+    }
     setEditingTask(task);
     setShowTaskHistory(false);
     const data = {
@@ -252,7 +284,86 @@ export function useTaskManager({
     };
     setNewTaskData(data);
     initialTaskSnapshotRef.current = JSON.parse(JSON.stringify(data));
-  };
+  }, [activeTab]);
+
+  // Sincronización de la URL con la historia abierta
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const url = new URL(window.location.href);
+      const currentStoryParam = url.searchParams.get('story') || url.searchParams.get('historia');
+
+      if (editingTask) {
+        if (currentStoryParam !== editingTask.id) {
+          url.searchParams.set('story', editingTask.id);
+          url.searchParams.delete('historia');
+          window.history.replaceState({ storyId: editingTask.id }, '', url.toString());
+        }
+      } else if (!isAddingTask) {
+        // Solo limpiamos la URL si no estamos a la espera de abrir una historia solicitada al cargar
+        if (!initialStoryIdFromUrlRef.current && currentStoryParam) {
+          url.searchParams.delete('story');
+          url.searchParams.delete('historia');
+          const newUrl = url.searchParams.toString()
+            ? `${url.pathname}?${url.searchParams.toString()}`
+            : url.pathname;
+          window.history.replaceState({}, '', newUrl);
+        }
+      }
+    } catch (e) {
+      console.warn('Error sincronizando URL de historia:', e);
+    }
+  }, [editingTask?.id, isAddingTask]);
+
+  // Detección y apertura reactiva de historia desde la URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!initialStoryIdFromUrlRef.current) return;
+    if (!tasks || tasks.length === 0) return;
+
+    try {
+      const storyId = initialStoryIdFromUrlRef.current;
+      const targetTask = tasks.find(t => t.id === storyId);
+      if (targetTask) {
+        openEditTask(targetTask);
+        initialStoryIdFromUrlRef.current = null;
+      }
+    } catch (e) {
+      console.warn('Error verificando historia inicial en URL:', e);
+    }
+  }, [tasks, openEditTask]);
+
+  // Manejo de navegación del navegador (Back / Forward)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      try {
+        const url = new URL(window.location.href);
+        const storyId = url.searchParams.get('story') || url.searchParams.get('historia');
+        if (storyId) {
+          const targetTask = tasks.find(t => t.id === storyId);
+          if (targetTask) {
+            openEditTask(targetTask);
+          }
+        } else {
+          setEditingTask(null);
+          setIsAddingTask(false);
+          setShowUnsavedTaskChangesModal(false);
+          initialStoryIdFromUrlRef.current = null;
+        }
+      } catch (e) {
+        console.warn('Error procesando popstate:', e);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [tasks, openEditTask]);
+
 
   const createActivityAsTask = (activity: SuggestedActivity) => {
     setEditingTask(null);
@@ -476,30 +587,16 @@ export function useTaskManager({
 
     // Si no hubo cambios en campos estructurales de la tarea:
     // Los comentarios se gestionan y guardan de forma independiente y desacoplada en 'task_comments'.
-    // Cerramos el modal limpiamente sin bloquear al usuario ni forzar escrituras innecesarias en 'tasks'.
     if (!otherFieldsChanged) {
-      setEditingTask(null);
-      setIsAddingTask(false);
       setShowUnsavedTaskChangesModal(false);
-      initialTaskSnapshotRef.current = null;
-      if (lastTab) {
-        setActiveTab(lastTab as any);
-        setLastTab(null);
-      }
+      initialTaskSnapshotRef.current = JSON.parse(JSON.stringify(newTaskData));
       return;
     }
 
     if (taskAccess !== 'colaborador' && taskAccess !== 'lider' && taskAccess !== 'administrador' && !isDirectAssignee) {
       // Si el colaborador no dispone de privilegios de edición en la tarea padre pero interactuó con comentarios:
-      // Los comentarios ya están guardados de forma desacoplada en 'task_comments'.
-      setEditingTask(null);
-      setIsAddingTask(false);
       setShowUnsavedTaskChangesModal(false);
-      initialTaskSnapshotRef.current = null;
-      if (lastTab) {
-        setActiveTab(lastTab as any);
-        setLastTab(null);
-      }
+      initialTaskSnapshotRef.current = JSON.parse(JSON.stringify(newTaskData));
       return;
     }
 
@@ -523,6 +620,8 @@ export function useTaskManager({
         }
       }
     }
+
+    let updatedHistory: any[] = editingTask.history ? [...editingTask.history] : [];
 
     try {
       const statusLabels: Record<string, string> = {
@@ -569,8 +668,6 @@ export function useTaskManager({
         changes.push(`Modificó fecha de entrega a ${newTaskData.dueDate || 'Sin fecha'}`);
       }
 
-      const existingHistory = editingTask.history || [];
-      let updatedHistory = [...existingHistory];
       if (changes.length > 0) {
         updatedHistory.push({
           id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -638,49 +735,9 @@ export function useTaskManager({
       return;
     }
 
-    setEditingTask(null);
-    setIsAddingTask(false);
     setShowUnsavedTaskChangesModal(false);
-    initialTaskSnapshotRef.current = null;
-    if (lastTab) {
-      setActiveTab(lastTab as any);
-      setLastTab(null);
-    }
-    setNewTaskData({
-      id: '',
-      title: '',
-      description: '',
-      storyDescription: '',
-      acceptanceCriteria: '',
-      priority: 'media',
-      plannedDate: '',
-      plannedStartTime: '',
-      plannedEndTime: '',
-      actualEndDate: '',
-      actualStartDate: '',
-      actualStartTime: '',
-      actualEndTime: '',
-      plannedEndDate: '',
-      memberId: '',
-      auxiliaryId: '',
-      auxiliaryIds: [],
-      revisorId: '',
-      processId: '',
-      projectId: '',
-      taskTemplate: 'standard',
-      designData: {
-        campaign: '',
-        formats: '',
-        elements: []
-      },
-      status: 'backlog',
-      deliverables: [],
-      comments: [],
-      plannedHours: 0,
-      actualHours: 0,
-      dueDate: '',
-      blockedByTaskIds: []
-    });
+    initialTaskSnapshotRef.current = JSON.parse(JSON.stringify(newTaskData));
+    setEditingTask(prev => prev ? { ...prev, ...newTaskData, history: updatedHistory } : null);
   };
 
   const updateTaskStatus = async (id: string, newStatus: Task['status']) => {
@@ -917,6 +974,9 @@ export function useTaskManager({
     canEditPlanning,
     canEditExecution,
     canEditDeliveryDateTime,
-    canEditActualHours
+    canEditActualHours,
+    originTab,
+    setOriginTab,
+    hasUnsavedTaskChanges
   };
 }

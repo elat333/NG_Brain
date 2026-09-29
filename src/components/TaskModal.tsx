@@ -1,5 +1,5 @@
 import { 
-  X, Check, Edit, History, CheckCircle2, CheckSquare, Loader2 
+  X, Check, Edit, History, CheckCircle2, CheckSquare, Loader2, Link2 
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion } from 'motion/react';
@@ -74,9 +74,36 @@ export default function TaskModal({
   const [commentDraft, setCommentDraft] = useState<{ text: string; requiresReview: boolean }>({ text: '', requiresReview: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [realtimeComments, setRealtimeComments] = useState<any[]>(newTaskData.comments || []);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyStoryLink = () => {
+    const taskId = editingTask?.id || newTaskData?.id;
+    if (!taskId) return;
+    try {
+      const origin = window.location.origin;
+      const pathname = window.location.pathname;
+      const link = `${origin}${pathname}?story=${taskId}`;
+      
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = link;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch (err) {
+      console.warn('Error al copiar enlace:', err);
+    }
+  };
 
   useEffect(() => {
     setIsSubmitting(false);
+    setCopiedLink(false);
   }, [isOpen, editingTask?.id]);
 
   // Sincronización desacoplada en tiempo real de comentarios de la tarea
@@ -222,19 +249,35 @@ export default function TaskModal({
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {editingTask && (
-                <button
-                  type="button"
-                  onClick={() => setShowTaskHistory(!showTaskHistory)}
-                  className={`p-3 rounded-2xl transition-all border shadow-sm hover:shadow-md flex items-center gap-1.5 text-xs font-bold ${
-                    showTaskHistory
-                      ? 'bg-blue-50 text-blue-600 border-blue-200'
-                      : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-200'
-                  }`}
-                  title="Historial de actividad"
-                >
-                  <History size={18} />
-                  <span className="hidden sm:inline">Historial</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCopyStoryLink}
+                    className={`p-3 rounded-2xl transition-all border shadow-sm hover:shadow-md flex items-center gap-1.5 text-xs font-bold ${
+                      copiedLink
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                        : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-200'
+                    }`}
+                    title="Copiar enlace directo de esta historia"
+                  >
+                    {copiedLink ? <Check size={18} className="text-emerald-600" /> : <Link2 size={18} />}
+                    <span className="hidden sm:inline">{copiedLink ? '¡Copiado!' : 'Copiar Enlace'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowTaskHistory(!showTaskHistory)}
+                    className={`p-3 rounded-2xl transition-all border shadow-sm hover:shadow-md flex items-center gap-1.5 text-xs font-bold ${
+                      showTaskHistory
+                        ? 'bg-blue-50 text-blue-600 border-blue-200'
+                        : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-200'
+                    }`}
+                    title="Historial de actividad"
+                  >
+                    <History size={18} />
+                    <span className="hidden sm:inline">Historial</span>
+                  </button>
+                </>
               )}
               <button 
                 type="button"

@@ -99,10 +99,10 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     },
     operationType,
     path
-  }
+  };
   const stringified = JSON.stringify(errInfo);
-  console.error('Firestore Error: ', stringified);
-  throw new Error(stringified);
+  console.warn(`[Firestore Safe Error] [${operationType}] at ${path || 'unknown'}:`, stringified);
+  return errInfo;
 }
 
 export function sanitizeForFirestore<T>(data: T): T {

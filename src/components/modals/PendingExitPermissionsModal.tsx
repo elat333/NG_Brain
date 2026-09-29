@@ -12,7 +12,7 @@ export interface PendingExitAction {
   targetInventarioSubTab?: any;
   targetMemberId?: string;
   onExecute?: () => void;
-  formType?: 'permissions' | 'member' | 'company' | 'process' | 'project';
+  formType?: 'permissions' | 'member' | 'company' | 'process' | 'project' | 'task';
   formName?: string;
 }
 
@@ -73,6 +73,15 @@ export const PendingExitPermissionsModal: React.FC<PendingExitPermissionsModalPr
             : 'Has ingresado datos en el formulario de proyecto que no han sido guardados.',
           icon: <FolderKanban size={26} />,
           iconBg: 'bg-amber-50 text-amber-600'
+        };
+      case 'task':
+        return {
+          title: '¿Salir sin guardar cambios de la historia / tarea?',
+          description: name 
+            ? `Has realizado modificaciones en "${name}" que no han sido guardadas. Si sales ahora, se perderán.`
+            : 'Has realizado modificaciones en la historia que no han sido guardadas. Si sales ahora, se perderán.',
+          icon: <FolderKanban size={26} />,
+          iconBg: 'bg-indigo-50 text-indigo-600'
         };
       case 'permissions':
       default:

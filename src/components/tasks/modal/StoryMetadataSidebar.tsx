@@ -11,7 +11,9 @@ import {
   FolderKanban, 
   Activity, 
   Zap, 
-  Trash 
+  Trash,
+  Search,
+  ChevronDown
 } from 'lucide-react';
 import { TaskDependenciesSection } from './TaskDependenciesSection';
 import { TeamMember, Process, Project, Task } from '../../../types';
@@ -53,6 +55,13 @@ export const StoryMetadataSidebar: React.FC<StoryMetadataSidebarProps> = ({
 }) => {
   const [showAddAuxDropdown, setShowAddAuxDropdown] = useState(false);
   const [auxSearchQuery, setAuxSearchQuery] = useState('');
+  const [showRespDropdown, setShowRespDropdown] = useState(false);
+  const [respSearchQuery, setRespSearchQuery] = useState('');
+  const [showRevDropdown, setShowRevDropdown] = useState(false);
+  const [revSearchQuery, setRevSearchQuery] = useState('');
+
+  const currentResponsible = sortedMembers.find(m => m.id === newTaskData.memberId);
+  const currentRevisor = sortedMembers.find(m => m.id === newTaskData.revisorId);
 
   return (
     <div className="lg:col-span-3 space-y-6">
@@ -130,59 +139,206 @@ export const StoryMetadataSidebar: React.FC<StoryMetadataSidebarProps> = ({
           )}
         </div>
 
-        {/* Responsable */}
-        <div className="space-y-2">
+        {/* Responsable (Con Buscador Inteligente) */}
+        <div className="space-y-2 relative">
           <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
             <User size={12} className="text-purple-500" /> Responsable
           </label>
-          <select 
+          
+          <button
+            type="button"
             disabled={!canEditMetadataField}
-            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-xs font-bold shadow-sm disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-            value={newTaskData.memberId}
-            onChange={e => setNewTaskData({...newTaskData, memberId: e.target.value})}
+            onClick={() => {
+              setShowRespDropdown(!showRespDropdown);
+              setShowRevDropdown(false);
+              setShowAddAuxDropdown(false);
+              setRespSearchQuery('');
+            }}
+            className={`w-full px-3 py-2 bg-white border rounded-xl flex items-center justify-between text-left transition-all shadow-sm ${
+              !canEditMetadataField 
+                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
+                : showRespDropdown 
+                ? 'border-purple-500 ring-4 ring-purple-500/10' 
+                : 'border-gray-200 hover:border-gray-300 cursor-pointer'
+            }`}
           >
-            <option value="">Sin Asignar (Task Pool)</option>
-            {newTaskData.processId ? (
-              <>
-                {sortedMembers.filter(m => m.processId === newTaskData.processId).length > 0 && (
-                  <optgroup label="Miembros del Proceso">
-                    {sortedMembers.filter(m => m.processId === newTaskData.processId).map((m, mIdx) => (
-                      <option key={`modal_m_proc_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
-                    ))}
-                  </optgroup>
-                )}
-                {sortedMembers.filter(m => m.processId !== newTaskData.processId).length > 0 && (
-                  <optgroup label="Otros Miembros del Equipo">
-                    {sortedMembers.filter(m => m.processId !== newTaskData.processId).map((m, mIdx) => (
-                      <option key={`modal_m_other_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
-                    ))}
-                  </optgroup>
-                )}
-              </>
-            ) : (
-              sortedMembers.map((m, mIdx) => (
-                <option key={`modal_m_all_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
-              ))
-            )}
-          </select>
+            <div className="flex items-center gap-2 min-w-0">
+              {currentResponsible ? (
+                <>
+                  <img
+                    src={currentResponsible.avatar}
+                    className="w-5 h-5 rounded-md object-cover flex-shrink-0"
+                    referrerPolicy="no-referrer"
+                    alt=""
+                  />
+                  <span className="text-xs font-bold text-gray-800 truncate">{currentResponsible.name}</span>
+                </>
+              ) : (
+                <span className="text-xs font-bold text-gray-400 italic">Sin Asignar (Task Pool)</span>
+              )}
+            </div>
+            <ChevronDown size={14} className="text-gray-400 shrink-0 ml-1" />
+          </button>
+
+          {showRespDropdown && (
+            <div className="absolute left-0 top-full mt-1.5 w-full bg-white border border-gray-200 rounded-2xl shadow-xl z-50 p-2.5 space-y-2">
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar responsable..."
+                  className="w-full text-xs pl-7 pr-2.5 py-1.5 border border-gray-200 bg-gray-50 rounded-lg focus:outline-none focus:bg-white focus:border-purple-500 font-medium"
+                  value={respSearchQuery}
+                  onChange={e => setRespSearchQuery(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewTaskData({ ...newTaskData, memberId: '' });
+                    setShowRespDropdown(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold text-left transition-colors cursor-pointer ${
+                    !newTaskData.memberId ? 'bg-purple-50 text-purple-700' : 'text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="italic">Sin Asignar (Task Pool)</span>
+                </button>
+
+                {sortedMembers
+                  .filter(m => !respSearchQuery || m.name.toLowerCase().includes(respSearchQuery.toLowerCase()) || (m.email && m.email.toLowerCase().includes(respSearchQuery.toLowerCase())))
+                  .map((m, mIdx) => {
+                    const isSelected = newTaskData.memberId === m.id;
+                    return (
+                      <button
+                        key={`resp_opt_${m.id || mIdx}`}
+                        type="button"
+                        onClick={() => {
+                          setNewTaskData({ ...newTaskData, memberId: m.id });
+                          setShowRespDropdown(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold text-left transition-colors cursor-pointer ${
+                          isSelected ? 'bg-purple-50 text-purple-700 font-black' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <img
+                          src={m.avatar}
+                          className="w-5 h-5 rounded-md object-cover flex-shrink-0"
+                          referrerPolicy="no-referrer"
+                          alt=""
+                        />
+                        <span className="truncate flex-1">{m.name}</span>
+                        {isSelected && <Check size={14} className="text-purple-600 shrink-0" />}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Revisor */}
-        <div className="space-y-2">
+        {/* Revisor (Con Buscador Inteligente) */}
+        <div className="space-y-2 relative">
           <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
             <CheckCircle2 size={12} className="text-emerald-500" /> Revisor
           </label>
-          <select 
+          
+          <button
+            type="button"
             disabled={!canEditMetadataField}
-            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-xs font-bold shadow-sm cursor-pointer disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-            value={newTaskData.revisorId || ''}
-            onChange={e => setNewTaskData({...newTaskData, revisorId: e.target.value})}
+            onClick={() => {
+              setShowRevDropdown(!showRevDropdown);
+              setShowRespDropdown(false);
+              setShowAddAuxDropdown(false);
+              setRevSearchQuery('');
+            }}
+            className={`w-full px-3 py-2 bg-white border rounded-xl flex items-center justify-between text-left transition-all shadow-sm ${
+              !canEditMetadataField 
+                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
+                : showRevDropdown 
+                ? 'border-emerald-500 ring-4 ring-emerald-500/10' 
+                : 'border-gray-200 hover:border-gray-300 cursor-pointer'
+            }`}
           >
-            <option value="">Sin Asignar (Revisión de Líder/Admin)</option>
-            {sortedMembers.map((m, mIdx) => (
-              <option key={`modal_rev_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
-            ))}
-          </select>
+            <div className="flex items-center gap-2 min-w-0">
+              {currentRevisor ? (
+                <>
+                  <img
+                    src={currentRevisor.avatar}
+                    className="w-5 h-5 rounded-md object-cover flex-shrink-0"
+                    referrerPolicy="no-referrer"
+                    alt=""
+                  />
+                  <span className="text-xs font-bold text-gray-800 truncate">{currentRevisor.name}</span>
+                </>
+              ) : (
+                <span className="text-xs font-bold text-gray-400 italic">Sin Asignar (Revisión Líder/Admin)</span>
+              )}
+            </div>
+            <ChevronDown size={14} className="text-gray-400 shrink-0 ml-1" />
+          </button>
+
+          {showRevDropdown && (
+            <div className="absolute left-0 top-full mt-1.5 w-full bg-white border border-gray-200 rounded-2xl shadow-xl z-50 p-2.5 space-y-2">
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar revisor..."
+                  className="w-full text-xs pl-7 pr-2.5 py-1.5 border border-gray-200 bg-gray-50 rounded-lg focus:outline-none focus:bg-white focus:border-emerald-500 font-medium"
+                  value={revSearchQuery}
+                  onChange={e => setRevSearchQuery(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewTaskData({ ...newTaskData, revisorId: '' });
+                    setShowRevDropdown(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold text-left transition-colors cursor-pointer ${
+                    !newTaskData.revisorId ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="italic">Sin Asignar (Revisión Líder/Admin)</span>
+                </button>
+
+                {sortedMembers
+                  .filter(m => !revSearchQuery || m.name.toLowerCase().includes(revSearchQuery.toLowerCase()) || (m.email && m.email.toLowerCase().includes(revSearchQuery.toLowerCase())))
+                  .map((m, mIdx) => {
+                    const isSelected = newTaskData.revisorId === m.id;
+                    return (
+                      <button
+                        key={`rev_opt_${m.id || mIdx}`}
+                        type="button"
+                        onClick={() => {
+                          setNewTaskData({ ...newTaskData, revisorId: m.id });
+                          setShowRevDropdown(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold text-left transition-colors cursor-pointer ${
+                          isSelected ? 'bg-emerald-50 text-emerald-700 font-black' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <img
+                          src={m.avatar}
+                          className="w-5 h-5 rounded-md object-cover flex-shrink-0"
+                          referrerPolicy="no-referrer"
+                          alt=""
+                        />
+                        <span className="truncate flex-1">{m.name}</span>
+                        {isSelected && <Check size={14} className="text-emerald-600 shrink-0" />}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Auxiliares */}

@@ -61,7 +61,12 @@ export const StoryPlanningSection: React.FC<StoryPlanningSectionProps> = ({
               onChange={e => setNewTaskData({...newTaskData, plannedHours: parseFloat(e.target.value) || 0})}
             >
               <option value="0">Sin horas</option>
-              {[0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 40].map((num, nIdx) => (
+              {newTaskData.plannedHours && ![0, 0.5, 1, 2, 3, 5, 8, 13, 21, 34].includes(newTaskData.plannedHours) && (
+                <option value={newTaskData.plannedHours}>
+                  {newTaskData.plannedHours} horas (actual)
+                </option>
+              )}
+              {[0.5, 1, 2, 3, 5, 8, 13, 21, 34].map((num, nIdx) => (
                 <option key={`task_hours_opt_${num}_${nIdx}`} value={num}>
                   {num === 0.5 ? '0.5 horas' : num === 1 ? '1 hora' : `${num} horas`}
                 </option>

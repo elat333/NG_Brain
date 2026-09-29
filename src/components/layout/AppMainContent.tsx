@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { ShieldAlert, Lock } from 'lucide-react';
+import { ShieldAlert, Lock, User } from 'lucide-react';
 import { 
   TeamMember, Process, Task, Project, Company, 
   Industry, Role, ProcessLink, ProcessNote, ManagementNote, 
@@ -25,6 +25,7 @@ import DirectoryView from '../directory/DirectoryView';
 import { PlannerView } from '../planner/PlannerView';
 import { TranscriptView } from '../transcript/TranscriptView';
 import { CommentsModule } from '../comments/CommentsModule';
+import { StoryDetailView } from '../tasks/StoryDetailView';
 import { MainTabType, SettingsSubTabType, DirectorySubTabType, ProcessSubTabType, ManagementSubTabType, ImportacionesSubTabType, AcreditacionSubTabType, VentasSubTabType, InventarioSubTabType, CommentsSubTabType } from '../../hooks/useAppNavigation';
 import { MarketingSubTab } from '../MarketingModule';
 import { CapacitacionSubTab } from '../CapacitacionModule';
@@ -166,6 +167,23 @@ export interface AppMainContentProps {
   handleDeleteProcess: (processId: string) => void;
   onAddTaskMarketing: (taskData: Partial<Task>) => Promise<string>;
   onAddProjectMarketing: (projData: Partial<Project>) => Promise<string>;
+  // Story Full Page View Props
+  editingTask?: Task | null;
+  newTaskData?: any;
+  setNewTaskData?: React.Dispatch<React.SetStateAction<any>>;
+  handleUpdateTask?: (e: React.FormEvent) => Promise<void> | void;
+  handleRequestCloseTaskModal?: () => void;
+  originTab?: string;
+  isProcessLeader?: boolean;
+  canEditMetadataField?: boolean;
+  canEditStatusField?: boolean;
+  canEditPlanning?: boolean;
+  canEditExecution?: boolean;
+  canEditDeliveryDateTime?: boolean;
+  canEditActualHours?: boolean;
+  showTaskHistory?: boolean;
+  setShowTaskHistory?: React.Dispatch<React.SetStateAction<boolean>> | ((show: boolean) => void);
+  setTasks?: React.Dispatch<React.SetStateAction<Task[]>> | any;
 }
 
 export const AppMainContent: React.FC<AppMainContentProps> = ({
@@ -293,8 +311,124 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
   openEditProcess,
   handleDeleteProcess,
   onAddTaskMarketing,
-  onAddProjectMarketing
+  onAddProjectMarketing,
+  editingTask,
+  newTaskData,
+  setNewTaskData,
+  handleUpdateTask,
+  handleRequestCloseTaskModal,
+  originTab,
+  isProcessLeader,
+  canEditMetadataField,
+  canEditStatusField,
+  canEditPlanning,
+  canEditExecution,
+  canEditDeliveryDateTime,
+  canEditActualHours,
+  showTaskHistory,
+  setShowTaskHistory,
+  setTasks
 }) => {
+  if (!currentMember) {
+    return (
+      <motion.div
+        key="unassigned-access"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="flex items-center justify-center min-h-[60vh] p-4"
+      >
+        <div id="unassigned-card" className="max-w-md w-full bg-white p-8 rounded-[2rem] border border-gray-100 shadow-2xl shadow-gray-100 text-center space-y-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-indigo-500" />
+          
+          <div className="mx-auto w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shadow-inner">
+            <User size={32} />
+          </div>
+          
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Cuenta en Espera de Asignación</h2>
+            <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+              Has iniciado sesión correctamente con Google, pero tu correo aún no ha sido dado de alta como integrante en el Directorio de Novagreen IA.
+            </p>
+          </div>
+          
+          <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-left space-y-2 text-xs">
+            <div className="flex items-center justify-between text-slate-600">
+              <span className="text-slate-400 font-bold">Estado:</span>
+              <span className="font-extrabold text-blue-600">Autenticado / Pendiente</span>
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium pt-1">
+              Comunícate con el Administrador Global para que registre tu perfil en el Directorio y te asigne al proceso correspondiente (ej. Marketing).
+            </p>
+          </div>
+          
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            >
+              Comprobar de Nuevo
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Vista de Historia a Pantalla Completa (Full Page View dentro del ERP)
+  if (editingTask && newTaskData) {
+    const tabLabels: Record<string, string> = {
+      dashboard: 'Dashboard',
+      gerencia: 'Gerencia',
+      process_dashboard: 'Procesos',
+      tasks: 'Historias Scrum',
+      planner: 'Planificador IA',
+      projects: 'Proyectos',
+      directory: 'Directorio',
+      transcript: 'Analizar Reunión',
+      marketing: 'Marketing',
+      ventas: 'Ventas',
+      capacitacion: 'Capacitación',
+      acreditacion: 'Acreditación',
+      productos: 'Productos',
+      inventario: 'Inventario',
+      qhse: 'QHSE',
+      importaciones: 'Importaciones',
+      comments: 'Comentarios',
+      settings: 'Configuración'
+    };
+    const originTabLabel = tabLabels[originTab || 'tasks'] || 'Módulo Anterior';
+
+    return (
+      <StoryDetailView
+        task={editingTask}
+        newTaskData={newTaskData}
+        setNewTaskData={setNewTaskData || (() => {})}
+        onSave={handleUpdateTask || (() => {})}
+        onBack={handleRequestCloseTaskModal || (() => {})}
+        originTabLabel={originTabLabel}
+        currentMember={currentMember}
+        roles={roles}
+        processes={processes}
+        projects={projects}
+        members={members}
+        tasks={tasks}
+        isProcessLeader={!!isProcessLeader}
+        canEditMetadataField={canEditMetadataField}
+        canEditStatusField={canEditStatusField}
+        canEditPlanning={!!canEditPlanning}
+        canEditExecution={!!canEditExecution}
+        canEditDeliveryDateTime={canEditDeliveryDateTime}
+        canEditActualHours={canEditActualHours}
+        showTaskHistory={showTaskHistory || false}
+        setShowTaskHistory={setShowTaskHistory || (() => {})}
+        setTasks={setTasks}
+        handleDeleteTask={handleDeleteTask}
+      />
+    );
+  }
+
   if (activeTabAccess === 'ninguno') {
     return (
       <motion.div

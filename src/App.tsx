@@ -39,7 +39,7 @@ import { normalizeText } from './lib/textUtils';
 import { parseLocalDate } from './lib/dateUtils';
 import { getModuleAccess, isTaskVisibleForMember, isTaskBlocked } from './lib/permissions';
 import { exportTasksBackup, exportTasksToCsv, handleImportTasksFromFile, copyImageToClipboard } from './lib/taskExportUtils';
-import { useAppNavigation } from './hooks/useAppNavigation';
+import { useAppNavigation, MainTabType } from './hooks/useAppNavigation';
 import { useTaskFilters } from './hooks/useTaskFilters';
 
 export default function App() {
@@ -246,8 +246,10 @@ export default function App() {
     if (!currentMember) return;
     const access = getModuleAccess(currentMember, roles, activeTab, members.length === 0);
     if (access === 'ninguno') {
-      const tabs: ('dashboard' | 'transcript' | 'tasks' | 'planner' | 'projects' | 'settings' | 'directory' | 'process_dashboard' | 'gerencia' | 'importaciones' | 'marketing')[] = [
-        'dashboard', 'gerencia', 'process_dashboard', 'marketing', 'importaciones', 'tasks', 'planner', 'projects', 'directory', 'transcript', 'settings'
+      const tabs: MainTabType[] = [
+        'dashboard', 'gerencia', 'process_dashboard', 'marketing', 'ventas', 'capacitacion',
+        'acreditacion', 'qhse', 'importaciones', 'productos', 'inventario', 'comments',
+        'tasks', 'planner', 'projects', 'directory', 'transcript', 'settings'
       ];
       const fallbackTab = tabs.find(t => getModuleAccess(currentMember, roles, t, members.length === 0) !== 'ninguno');
       if (fallbackTab) {
@@ -439,7 +441,9 @@ export default function App() {
     canEditPlanning,
     canEditExecution,
     canEditDeliveryDateTime,
-    canEditActualHours
+    canEditActualHours,
+    originTab,
+    hasUnsavedTaskChanges
   } = useTaskManager({
     tasks,
     projects,
@@ -565,7 +569,12 @@ export default function App() {
     setIsAddingProject,
     setEditingProject,
     handleAddProject,
-    handleUpdateProject
+    handleUpdateProject,
+    editingTask,
+    newTaskData,
+    hasUnsavedTaskChanges,
+    handleForceCloseTaskModal,
+    handleUpdateTask
   });
 
   if (loadingAuth) {
@@ -758,7 +767,7 @@ export default function App() {
           handleTabClick={handleTabClick}
         />
 
-        <div className={`flex-1 ${activeTab === 'gerencia' && managementSubTab === 'consultant' ? 'overflow-hidden flex flex-col p-4 md:p-6' : activeTab === 'dashboard' ? 'overflow-hidden flex flex-col px-6 pt-3 pb-3.5' : 'overflow-y-auto custom-scrollbar ' + (activeTab === 'tasks' || activeTab === 'comments' || (activeTab === 'gerencia' && (managementSubTab === 'notes' || managementSubTab === 'links')) || (activeTab === 'marketing' && (marketingSubTab === 'notes' || marketingSubTab === 'links')) || (activeTab === 'ventas' && (ventasSubTab === 'notes' || ventasSubTab === 'links')) || (activeTab === 'capacitacion' && (capacitacionSubTab === 'notes' || capacitacionSubTab === 'links')) || (activeTab === 'acreditacion' && (acreditacionSubTab === 'notes' || acreditacionSubTab === 'links')) || (activeTab === 'qhse' && (qhseSubTab === 'notes' || qhseSubTab === 'links')) || (activeTab === 'importaciones' && ((importacionesSubTab as any) === 'notes' || (importacionesSubTab as any) === 'links')) || (activeTab === 'productos' && ((productosSubTab as any) === 'notes' || (productosSubTab as any) === 'links')) ? 'pt-2.5 px-6 pb-6' : 'p-6')}`}>
+        <div className={`flex-1 ${editingTask ? 'overflow-y-auto custom-scrollbar pt-2.5 px-6 pb-6' : activeTab === 'gerencia' && managementSubTab === 'consultant' ? 'overflow-hidden flex flex-col p-4 md:p-6' : activeTab === 'dashboard' ? 'overflow-hidden flex flex-col px-6 pt-3 pb-3.5' : 'overflow-y-auto custom-scrollbar ' + (activeTab === 'tasks' || activeTab === 'comments' || (activeTab === 'gerencia' && (managementSubTab === 'notes' || managementSubTab === 'links')) || (activeTab === 'marketing' && (marketingSubTab === 'notes' || marketingSubTab === 'links')) || (activeTab === 'ventas' && (ventasSubTab === 'notes' || ventasSubTab === 'links')) || (activeTab === 'capacitacion' && (capacitacionSubTab === 'notes' || capacitacionSubTab === 'links')) || (activeTab === 'acreditacion' && (acreditacionSubTab === 'notes' || acreditacionSubTab === 'links')) || (activeTab === 'qhse' && (qhseSubTab === 'notes' || qhseSubTab === 'links')) || (activeTab === 'importaciones' && ((importacionesSubTab as any) === 'notes' || (importacionesSubTab as any) === 'links')) || (activeTab === 'productos' && ((productosSubTab as any) === 'notes' || (productosSubTab as any) === 'links')) ? 'pt-2.5 px-6 pb-6' : 'p-6')}`}>
           <AnimatePresence mode="wait">
             <AppMainContent
               activeTab={activeTab}
@@ -894,6 +903,22 @@ export default function App() {
                 await setDoc(doc(db, 'projects', pId), { ...projData, id: pId });
                 return pId;
               }}
+              editingTask={editingTask}
+              newTaskData={newTaskData}
+              setNewTaskData={setNewTaskData}
+              handleUpdateTask={handleUpdateTask}
+              handleRequestCloseTaskModal={handleRequestCloseTaskModal}
+              originTab={originTab}
+              isProcessLeader={isProcessLeader}
+              canEditMetadataField={canEditMetadataField}
+              canEditStatusField={canEditStatusField}
+              canEditPlanning={canEditPlanning}
+              canEditExecution={canEditExecution}
+              canEditDeliveryDateTime={canEditDeliveryDateTime}
+              canEditActualHours={canEditActualHours}
+              showTaskHistory={showTaskHistory}
+              setShowTaskHistory={setShowTaskHistory}
+              setTasks={setTasks}
             />
           </AnimatePresence>
         </div>
