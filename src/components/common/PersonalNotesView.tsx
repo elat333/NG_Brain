@@ -1612,9 +1612,9 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     <div className="w-full space-y-2.5 animate-fade-in text-slate-800">
       {/* FULL OBSIDIAN WORKSPACE (DEDICATED FULL-PAGE VIEW) */}
       {isEditorOpen ? (
-        <div className="w-full bg-white rounded-3xl border border-slate-200/90 shadow-xl flex flex-col overflow-hidden text-slate-800 animate-fade-in min-h-[calc(100vh-140px)]">
-          {/* UNIFIED STICKY TOP HEADER & FORMATTING TOOLBAR */}
-          <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md border-b border-slate-200 shadow-2xs">
+        <div className="w-full bg-white rounded-3xl border border-slate-200/90 shadow-xl flex flex-col overflow-hidden text-slate-800 animate-fade-in h-[calc(100vh-115px)] max-h-[calc(100vh-115px)]">
+          {/* UNIFIED PERSISTENT TOP HEADER & FORMATTING TOOLBAR */}
+          <div className="shrink-0 z-20 bg-slate-50/95 backdrop-blur-md border-b border-slate-200 shadow-2xs">
             {/* TOP WORKSPACE NAVIGATION & CONTROLS */}
             <div className="p-3.5 sm:p-5 border-b border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex items-center gap-3 flex-1 min-w-0">

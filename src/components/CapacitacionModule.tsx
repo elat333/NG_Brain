@@ -107,30 +107,54 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
     };
   }, []);
 
+  const cleanFirestoreData = (data: any): any => {
+    if (data === null || data === undefined) return null;
+    if (Array.isArray(data)) {
+      return data.map(cleanFirestoreData);
+    }
+    if (typeof data === 'object') {
+      const cleaned: any = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (value !== undefined) {
+          cleaned[key] = cleanFirestoreData(value);
+        }
+      }
+      return cleaned;
+    }
+    return data;
+  };
+
   // Handlers
   const handleSaveTrainer = async (t: Partial<Trainer>) => {
     const id = t.id || `tr-${Date.now()}`;
-    await setDoc(doc(db, 'trainers', id), { ...t, id });
+    await setDoc(doc(db, 'trainers', id), cleanFirestoreData({ ...t, id }));
   };
   const handleDeleteTrainer = async (id: string) => await deleteDoc(doc(db, 'trainers', id));
 
   const handleSaveSpace = async (s: Partial<TrainingSpace>) => {
     const id = s.id || `sp-${Date.now()}`;
-    await setDoc(doc(db, 'training_spaces', id), { ...s, id });
+    await setDoc(doc(db, 'training_spaces', id), cleanFirestoreData({ ...s, id }));
   };
   const handleDeleteSpace = async (id: string) => await deleteDoc(doc(db, 'training_spaces', id));
 
   const handleSavePlan = async (p: Partial<TrainingPlan>) => {
     const id = p.id || `pl-${Date.now()}`;
-    await setDoc(doc(db, 'training_plans', id), { ...p, id });
+    await setDoc(doc(db, 'training_plans', id), cleanFirestoreData({ ...p, id }), { merge: true });
   };
   const handleDeletePlan = async (id: string) => await deleteDoc(doc(db, 'training_plans', id));
 
-  const handleSaveMgmt = async (m: Partial<TrainingManagement>) => {
-    const id = m.id || `mg-${Date.now()}`;
-    await setDoc(doc(db, 'training_managements', id), { ...m, id });
+  const handleSaveMgmtAndPlan = async (mgmt: Partial<TrainingManagement>, planData?: Partial<TrainingPlan>) => {
+    let planId = mgmt.planId;
+    if (planData) {
+      planId = planData.id || `pl-${Date.now()}`;
+      await setDoc(doc(db, 'training_plans', planId), cleanFirestoreData({ ...planData, id: planId }), { merge: true });
+    }
+    const mgmtId = mgmt.id || `mg-${Date.now()}`;
+    await setDoc(doc(db, 'training_managements', mgmtId), cleanFirestoreData({ ...mgmt, id: mgmtId, planId: planId || '' }), { merge: true });
   };
-  const handleDeleteMgmt = async (id: string) => await deleteDoc(doc(db, 'training_managements', id));
+  const handleDeleteMgmt = async (id: string, planId?: string) => {
+    if (id) await deleteDoc(doc(db, 'training_managements', id));
+  };
 
   const isTrainersReadOnly = getModuleAccess(currentMember, roles, 'capacitacion_trainers') === 'lector';
   const isPhysicalSpacesReadOnly = getModuleAccess(currentMember, roles, 'capacitacion_physical_spaces') === 'lector';
@@ -186,8 +210,13 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
                 trainers={trainers} 
                 spaces={spaces} 
                 members={members}
+                companies={companies}
+                managements={managements}
+                clients={clients}
+                campaigns={localCampaigns}
                 onSavePlan={handleSavePlan} 
                 onDeletePlan={handleDeletePlan} 
+                onSaveManagementAndPlan={handleSaveMgmtAndPlan}
                 isReadOnly={isCalendarReadOnly}
               />
             </motion.div>
@@ -200,7 +229,10 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
                 clients={clients}
                 campaigns={localCampaigns}
                 trainers={trainers}
-                onSaveManagement={handleSaveMgmt} 
+                spaces={spaces}
+                members={members}
+                companies={companies}
+                onSaveManagement={handleSaveMgmtAndPlan} 
                 onDeleteManagement={handleDeleteMgmt} 
                 isReadOnly={isManagementReadOnly}
               />

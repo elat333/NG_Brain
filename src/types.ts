@@ -801,6 +801,14 @@ export interface TrainingSpace {
   createdAt?: string;
 }
 
+export interface TrainingExpenseItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number; // sin IVA
+  subtotal: number;  // quantity * unitPrice (sin IVA)
+}
+
 export interface TrainingSession {
   id: string;
   date: string;               // YYYY-MM-DD
@@ -810,6 +818,9 @@ export interface TrainingSession {
   spaceId: string;            // ID del espacio físico o virtual
   topic?: string;             // Tema o módulo específico de la sesión
   notes?: string;             // Notas específicas de la sesión
+  hourlyRate?: number;        // Tarifa por hora acordada para esta sesión (editable)
+  plannedHours?: number;      // Horas planificadas calculadas de startTime a endTime
+  executedHours?: number;     // Horas reales ejecutadas/dictadas
 }
 
 export interface TrainingPlan {
@@ -824,6 +835,7 @@ export interface TrainingPlan {
   startTime: string;
   endTime: string;
   totalHours?: number;
+  totalExecutedHours?: number;
   status: 'programada' | 'completada' | 'cancelada';
   createdAt?: string;
 }
@@ -834,9 +846,17 @@ export interface TrainingManagement {
   planId: string; // link to TrainingPlan for date, trainer, space
   clientId?: string; // Optional: if given to a specific client
   marketingCampaignId?: string; // Optional: if linked to a campaign
-  totalHours: number;
-  totalCost: number; // Derived from trainer hourly rate * hours or fixed cost
+  totalHours: number; // Horas planificadas totales
+  totalExecutedHours?: number; // Horas ejecutadas totales
+  totalTrainerCost?: number; // Total honorarios docentes sin IVA
+  totalLogisticsCost?: number; // Total logística sin IVA
+  totalSpaceCost?: number; // Total uso de aulas / Zoom sin IVA
+  totalMarketingCost?: number; // Total gastos marketing sin IVA
+  totalCost: number; // Gran total de costos sin IVA
   status: 'ejecutada' | 'pendiente';
+  logisticsExpenses?: TrainingExpenseItem[];
+  spaceExpenses?: TrainingExpenseItem[];
+  marketingExpenses?: TrainingExpenseItem[];
   createdAt?: string;
 }
 

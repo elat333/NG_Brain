@@ -12,20 +12,34 @@ import {
   Eye, 
   Layers,
   Search,
-  Filter,
-  Sparkles
+  BookOpen,
+  DollarSign
 } from 'lucide-react';
-import { TrainingPlan, Trainer, TrainingSpace, TeamMember, TrainingSession } from '../../types';
-import { TrainingPlanDetailModal } from './TrainingPlanDetailModal';
-import { TrainingPlanEditorModal } from './TrainingPlanEditorModal';
+import { 
+  TrainingPlan, 
+  Trainer, 
+  TrainingSpace, 
+  TeamMember, 
+  TrainingSession, 
+  TrainingManagement, 
+  SalesClient, 
+  MarketingCampaign,
+  Company
+} from '../../types';
+import { TrainingFullDetailView } from './TrainingFullDetailView';
 
 interface TrainingCalendarViewProps {
   plans: TrainingPlan[];
   trainers: Trainer[];
   spaces: TrainingSpace[];
   members: TeamMember[];
+  companies?: Company[];
+  managements?: TrainingManagement[];
+  clients?: SalesClient[];
+  campaigns?: MarketingCampaign[];
   onSavePlan: (plan: Partial<TrainingPlan>) => Promise<void>;
   onDeletePlan: (id: string) => Promise<void>;
+  onSaveManagementAndPlan?: (mgmt: Partial<TrainingManagement>, planData?: Partial<TrainingPlan>) => Promise<void>;
   isReadOnly?: boolean;
 }
 
@@ -34,13 +48,17 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
   trainers, 
   spaces, 
   members, 
+  companies = [],
+  managements = [],
+  clients = [],
+  campaigns = [],
   onSavePlan, 
   onDeletePlan,
+  onSaveManagementAndPlan,
   isReadOnly = false
 }) => {
-  const [showEditorModal, setShowEditorModal] = useState(false);
-  const [editingPlan, setEditingPlan] = useState<Partial<TrainingPlan> | null>(null);
-  const [viewingPlan, setViewingPlan] = useState<TrainingPlan | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
@@ -57,13 +75,47 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
     return matchesSearch && matchesStatus;
   });
 
-  const handleOpenEditor = (plan?: TrainingPlan) => {
+  const handleOpenFullDetail = (plan?: TrainingPlan) => {
     if (plan) {
-      setEditingPlan(plan);
+      setSelectedPlan(plan);
+      setIsCreatingNew(false);
     } else {
-      setEditingPlan(null);
+      const newPlan: TrainingPlan = {
+        id: `pl-${Date.now()}`,
+        title: '',
+        description: '',
+        status: 'programada',
+        date: new Date().toISOString().split('T')[0],
+        startTime: '09:00',
+        endTime: '12:00',
+        trainerId: trainers[0]?.id || '',
+        spaceId: spaces[0]?.id || ''
+      };
+      setSelectedPlan(newPlan);
+      setIsCreatingNew(true);
     }
-    setShowEditorModal(true);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedPlan(null);
+    setIsCreatingNew(false);
+  };
+
+  const handleSaveDetail = async (mgmtData: Partial<TrainingManagement>, planData?: Partial<TrainingPlan>) => {
+    if (onSaveManagementAndPlan) {
+      await onSaveManagementAndPlan(mgmtData, planData);
+    } else if (planData) {
+      await onSavePlan(planData);
+    }
+    handleCloseDetail();
+  };
+
+  const handleDeleteDetail = async (mgmtId: string, planId?: string) => {
+    const targetPlanId = planId || selectedPlan?.id;
+    if (targetPlanId) {
+      await onDeletePlan(targetPlanId);
+    }
+    handleCloseDetail();
   };
 
   const getTrainerName = (trainerId: string) => {
@@ -76,8 +128,41 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
     return spaces.find(s => s.id === spaceId);
   };
 
+  // If viewing or editing a plan in full screen mode
+  if (selectedPlan) {
+    const linkedMgmt = managements.find(m => m.planId === selectedPlan.id) || {
+      id: `mg-${Date.now()}`,
+      code: `CAP-${new Date().getFullYear()}-${(managements.length + 1).toString().padStart(3, '0')}`,
+      planId: selectedPlan.id,
+      clientId: '',
+      marketingCampaignId: '',
+      totalHours: selectedPlan.totalHours || 0,
+      totalCost: 0,
+      status: selectedPlan.status === 'completada' ? 'ejecutada' : 'pendiente'
+    };
+
+    return (
+      <TrainingFullDetailView
+        management={linkedMgmt}
+        plan={selectedPlan}
+        plans={plans}
+        trainers={trainers}
+        spaces={spaces}
+        members={members}
+        companies={companies}
+        clients={clients}
+        campaigns={campaigns}
+        onSave={handleSaveDetail}
+        onDelete={handleDeleteDetail}
+        onBack={handleCloseDetail}
+        isReadOnly={isReadOnly}
+        originTabLabel="Calendario de Capacitaciones"
+      />
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-left">
       {/* Cabecera Principal */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <div className="space-y-1">
@@ -87,10 +172,10 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
             </div>
             <div>
               <h2 className="text-xl font-black text-slate-800 tracking-tight">
-                Planificación de Capacitaciones
+                Planificación y Calendario de Capacitaciones
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                Agenda de cursos, jornadas multidía, capacitadores asignados y asignación de salas.
+                Agenda multidía, capacitadores asignados y asignación de salas físicas/virtuales.
               </p>
             </div>
           </div>
@@ -99,8 +184,8 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
         {!isReadOnly && (
           <div className="flex items-center gap-3">
             <button 
-              onClick={() => handleOpenEditor()}
-              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/20 active:scale-95"
+              onClick={() => handleOpenFullDetail()}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/20 active:scale-95 cursor-pointer hover:scale-102"
             >
               <Plus size={16} />
               <span>Agendar Capacitación</span>
@@ -128,7 +213,7 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
             <button
               key={`st_filter_${st}`}
               onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1.5 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all capitalize whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all capitalize whitespace-nowrap cursor-pointer ${
                 statusFilter === st
                   ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -184,11 +269,11 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
             return (
               <div 
                 key={`tr_cal_plan_${plan.id || pIdx}_${pIdx}`} 
-                className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all flex flex-col md:flex-row md:items-center justify-between gap-5 group"
+                className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all flex flex-col md:flex-row md:items-center justify-between gap-5 group"
               >
-                {/* Zona de Información Principal (Clic abre la Ficha) */}
+                {/* Zona de Información Principal (Clic abre la Ficha a Pantalla Completa) */}
                 <div 
-                  onClick={() => setViewingPlan(plan)}
+                  onClick={() => handleOpenFullDetail(plan)}
                   className="space-y-3 cursor-pointer flex-1"
                 >
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -253,32 +338,32 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
                 {/* Botonera de Acciones */}
                 <div className="flex items-center gap-2 self-end md:self-center shrink-0">
                   <button 
-                    onClick={() => setViewingPlan(plan)}
-                    title="Ver Ficha Integral de la Capacitación"
-                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all"
+                    onClick={() => handleOpenFullDetail(plan)}
+                    title="Ver Ficha y Cronograma Completo en Pantalla Completa"
+                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all cursor-pointer"
                   >
                     <Eye size={15} />
-                    <span>Ver Ficha</span>
+                    <span className="hidden sm:inline">Ver Ficha</span>
                   </button>
 
                   {!isReadOnly && (
                     <>
                       <button 
-                        onClick={() => handleOpenEditor(plan)}
-                        title="Editar Planificación"
-                        className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors"
+                        onClick={() => handleOpenFullDetail(plan)}
+                        title="Editar Capacitación en Pantalla Completa"
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
                       >
                         <Edit2 size={16} />
                       </button>
 
                       <button 
                         onClick={() => {
-                          if (confirm(`¿Estás seguro de eliminar la capacitación "${plan.title}"?`)) {
+                          if (confirm(`¿Estás seguro de eliminar "${plan.title}"?`)) {
                             onDeletePlan(plan.id);
                           }
                         }}
                         title="Eliminar Planificación"
-                        className="p-2 text-rose-600 hover:bg-rose-50 border border-rose-100 rounded-xl transition-colors"
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -290,44 +375,6 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
           })
         )}
       </div>
-
-      {/* Modal Ficha Integral de la Capacitación */}
-      <AnimatePresence>
-        {viewingPlan && (
-          <TrainingPlanDetailModal
-            plan={viewingPlan}
-            trainers={trainers}
-            spaces={spaces}
-            members={members}
-            onClose={() => setViewingPlan(null)}
-            onEdit={(p) => {
-              setViewingPlan(null);
-              handleOpenEditor(p);
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Modal Editor Multidía */}
-      <AnimatePresence>
-        {showEditorModal && (
-          <TrainingPlanEditorModal
-            initialPlan={editingPlan}
-            trainers={trainers}
-            spaces={spaces}
-            members={members}
-            onClose={() => {
-              setShowEditorModal(false);
-              setEditingPlan(null);
-            }}
-            onSave={async (planData) => {
-              await onSavePlan(planData);
-              setShowEditorModal(false);
-              setEditingPlan(null);
-            }}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 };

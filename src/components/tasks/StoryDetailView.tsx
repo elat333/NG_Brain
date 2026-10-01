@@ -245,11 +245,26 @@ export const StoryDetailView: React.FC<StoryDetailViewProps> = ({
             )}
 
             {currentProject && (
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center gap-1.5">
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center gap-1.5 shrink-0">
                 <FolderKanban size={13} className="text-blue-500" />
                 {currentProject.name}
               </span>
             )}
+
+            {/* SEPARADOR VERTICAL */}
+            <div className="hidden md:block h-5 w-px bg-slate-200 mx-0.5" />
+
+            {/* CAMBIO RÁPIDO DE ESTADO EN BARRA SUPERIOR PERSISTENTE */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <TaskQuickActionsFooter
+                currentStatus={newTaskData.status || 'todo'}
+                isProcessLeader={isProcessLeader}
+                canEditExecution={canEditExecution}
+                onTransitionStatus={(newStatus) => {
+                  setNewTaskData({ ...newTaskData, status: newStatus });
+                }}
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">

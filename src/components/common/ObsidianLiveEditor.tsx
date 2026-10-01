@@ -196,7 +196,198 @@ class WebLinkWidget extends WidgetType {
 }
 
 // -------------------------------------------------------------
-// 4. In-Place Permanent Visual Markdown Table Widget
+// 4. Custom NovaGreen Modal Helper for In-Place Editor
+// -------------------------------------------------------------
+function showNovaGreenConfirmModal({
+  title,
+  itemName,
+  description,
+  confirmText,
+  onConfirm,
+}: {
+  title: string;
+  itemName: string;
+  description: string;
+  confirmText: string;
+  onConfirm: () => void;
+}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'cm-ng-modal-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  `;
+
+  const modal = document.createElement('div');
+  modal.className = 'cm-ng-modal-card';
+  modal.style.cssText = `
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 24px;
+    max-width: 380px;
+    width: 100%;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    border: 1px solid #f1f5f9;
+    text-align: center;
+    font-family: inherit;
+  `;
+
+  const iconDiv = document.createElement('div');
+  iconDiv.style.cssText = `
+    width: 48px;
+    height: 48px;
+    background-color: #fee2e2;
+    color: #ef4444;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 14px;
+    border: 1px solid #fecaca;
+  `;
+  iconDiv.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 6h18"></path>
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+      <line x1="10" y1="11" x2="10" y2="17"></line>
+      <line x1="14" y1="11" x2="14" y2="17"></line>
+    </svg>
+  `;
+
+  const titleEl = document.createElement('h3');
+  titleEl.textContent = title;
+  titleEl.style.cssText = `
+    font-size: 16px;
+    font-weight: 900;
+    color: #0f172a;
+    margin: 0 0 6px 0;
+  `;
+
+  const descEl = document.createElement('p');
+  descEl.textContent = description;
+  descEl.style.cssText = `
+    font-size: 12px;
+    color: #64748b;
+    margin: 0 0 8px 0;
+    line-height: 1.4;
+  `;
+
+  const itemChip = document.createElement('div');
+  itemChip.textContent = itemName;
+  itemChip.style.cssText = `
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e293b;
+    background: #f8fafc;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  `;
+
+  const btnContainer = document.createElement('div');
+  btnContainer.style.cssText = `
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  `;
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.type = 'button';
+  confirmBtn.textContent = confirmText;
+  confirmBtn.style.cssText = `
+    width: 100%;
+    padding: 10px 16px;
+    background-color: #ef4444;
+    color: #ffffff;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.25);
+    transition: all 0.15s ease;
+  `;
+  confirmBtn.onmouseenter = () => { confirmBtn.style.backgroundColor = '#dc2626'; };
+  confirmBtn.onmouseleave = () => { confirmBtn.style.backgroundColor = '#ef4444'; };
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancelar';
+  cancelBtn.style.cssText = `
+    width: 100%;
+    padding: 9px 16px;
+    background-color: #f1f5f9;
+    color: #475569;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  `;
+  cancelBtn.onmouseenter = () => { cancelBtn.style.backgroundColor = '#e2e8f0'; cancelBtn.style.color = '#0f172a'; };
+  cancelBtn.onmouseleave = () => { cancelBtn.style.backgroundColor = '#f1f5f9'; cancelBtn.style.color = '#475569'; };
+
+  const cleanup = () => {
+    document.removeEventListener('keydown', handleKeyDown);
+    if (overlay.parentNode) {
+      overlay.parentNode.removeChild(overlay);
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      cleanup();
+    }
+  };
+
+  confirmBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    cleanup();
+    onConfirm();
+  });
+
+  cancelBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    cleanup();
+  });
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      cleanup();
+    }
+  });
+
+  modal.appendChild(iconDiv);
+  modal.appendChild(titleEl);
+  modal.appendChild(descEl);
+  modal.appendChild(itemChip);
+  btnContainer.appendChild(confirmBtn);
+  btnContainer.appendChild(cancelBtn);
+  modal.appendChild(btnContainer);
+  overlay.appendChild(modal);
+
+  document.addEventListener('keydown', handleKeyDown);
+  document.body.appendChild(overlay);
+  confirmBtn.focus();
+}
+
+// -------------------------------------------------------------
+// 5. In-Place Permanent Visual Markdown Table Widget
 // -------------------------------------------------------------
 class TableWidget extends WidgetType {
   constructor(
@@ -212,7 +403,7 @@ class TableWidget extends WidgetType {
     return other.rawTable === this.rawTable && other.from === this.from && other.to === this.to;
   }
 
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const lines = this.rawTable.trim().split('\n').filter(Boolean);
     const container = document.createElement('div');
     container.className = 'cm-obsidian-table-wrapper';
@@ -250,8 +441,9 @@ class TableWidget extends WidgetType {
 
     const saveChanges = () => {
       const headers: string[] = [];
-      table.querySelectorAll('thead th.cm-table-cell').forEach((th) => {
-        headers.push(th.textContent?.trim().replace(/\|/g, ' ') || ' ');
+      table.querySelectorAll('thead th.cm-table-header-cell').forEach((th) => {
+        const textSpan = th.querySelector('.cm-table-header-text') || th;
+        headers.push(textSpan.textContent?.trim().replace(/\|/g, ' ') || ' ');
       });
       const rows: string[][] = [];
       table.querySelectorAll('tbody tr.cm-table-data-row').forEach((tr) => {
@@ -278,12 +470,118 @@ class TableWidget extends WidgetType {
     const headerRow = document.createElement('tr');
     headerCells.forEach((cellText, colIdx) => {
       const th = document.createElement('th');
-      th.className = 'cm-table-cell';
-      th.contentEditable = 'true';
-      th.spellcheck = false;
-      th.textContent = cellText || `Columna ${colIdx + 1}`;
-      th.addEventListener('blur', saveChanges);
-      th.addEventListener('keydown', (e) => handleKeyNavigation(e, th));
+      th.className = 'cm-table-cell cm-table-header-cell';
+      
+      const contentWrapper = document.createElement('div');
+      contentWrapper.className = 'cm-table-header-inner';
+      contentWrapper.style.display = 'flex';
+      contentWrapper.style.alignItems = 'flex-start';
+      contentWrapper.style.justifyContent = 'center';
+      contentWrapper.style.width = '100%';
+
+      const textSpan = document.createElement('span');
+      textSpan.className = 'cm-table-header-text';
+      textSpan.contentEditable = 'true';
+      textSpan.spellcheck = false;
+      const colTitle = cellText || `Columna ${colIdx + 1}`;
+      textSpan.textContent = colTitle;
+      textSpan.style.flex = '1';
+      textSpan.style.textAlign = 'center';
+      textSpan.style.outline = 'none';
+      textSpan.addEventListener('blur', saveChanges);
+      textSpan.addEventListener('keydown', (e) => handleKeyNavigation(e, textSpan));
+      contentWrapper.appendChild(textSpan);
+
+      // If more than 1 column, add Delete Column button (✕) in top-center with NovaGreen confirmation modal
+      if (headerCells.length > 1) {
+        const delColBtn = document.createElement('button');
+        delColBtn.type = 'button';
+        delColBtn.className = 'cm-table-del-col-btn';
+        delColBtn.textContent = '✕';
+        delColBtn.title = `Eliminar Columna "${colTitle}"`;
+        delColBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const currentTitle = textSpan.textContent?.trim() || `Columna ${colIdx + 1}`;
+          showNovaGreenConfirmModal({
+            title: '¿Eliminar columna?',
+            description: 'Estás a punto de eliminar la columna y todo su contenido:',
+            itemName: currentTitle,
+            confirmText: 'Sí, eliminar columna',
+            onConfirm: () => {
+              const newHeaders = headerCells.filter((_, idx) => idx !== colIdx);
+              const newRows = dataRows.map((r) => r.filter((_, idx) => idx !== colIdx));
+              const headerStr = '| ' + newHeaders.join(' | ') + ' |';
+              const delimStr = '| ' + newHeaders.map(() => '---').join(' | ') + ' |';
+              const rowsStr = newRows.map((r) => '| ' + r.join(' | ') + ' |').join('\n');
+              this.onUpdateTable(this.from, this.to, `${headerStr}\n${delimStr}\n${rowsStr}\n`);
+            }
+          });
+        });
+        th.appendChild(delColBtn);
+      }
+
+      // Column Resizer Handle (Transfer width with adjacent column without exceeding 100% sheet width)
+      if (headerCells.length > 1) {
+        const resizer = document.createElement('div');
+        resizer.className = 'cm-table-col-resizer';
+        resizer.title = 'Arrastrar para regular el tamaño de la columna';
+        resizer.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const startX = e.pageX;
+
+          const allHeaderThs = Array.from(table.querySelectorAll<HTMLTableCellElement>('thead th.cm-table-header-cell'));
+          // Set initial explicit pixel widths on all columns so layout doesn't jump
+          allHeaderThs.forEach((hTh) => {
+            const rectWidth = hTh.getBoundingClientRect().width;
+            hTh.style.width = `${rectWidth}px`;
+          });
+
+          const isLastCol = colIdx === headerCells.length - 1;
+          const targetTh = isLastCol ? allHeaderThs[colIdx - 1] : th;
+          const neighborTh = isLastCol ? th : allHeaderThs[colIdx + 1];
+
+          if (!targetTh || !neighborTh) return;
+
+          const targetStartWidth = targetTh.getBoundingClientRect().width;
+          const neighborStartWidth = neighborTh.getBoundingClientRect().width;
+          const totalPairWidth = targetStartWidth + neighborStartWidth;
+          const minColWidth = 50;
+
+          const onMouseMove = (moveEvent: MouseEvent) => {
+            const deltaX = isLastCol ? (startX - moveEvent.pageX) : (moveEvent.pageX - startX);
+            let newTargetWidth = targetStartWidth + deltaX;
+            let newNeighborWidth = neighborStartWidth - deltaX;
+
+            if (newTargetWidth < minColWidth) {
+              newTargetWidth = minColWidth;
+              newNeighborWidth = totalPairWidth - minColWidth;
+            } else if (newNeighborWidth < minColWidth) {
+              newNeighborWidth = minColWidth;
+              newTargetWidth = totalPairWidth - minColWidth;
+            }
+
+            targetTh.style.width = `${newTargetWidth}px`;
+            neighborTh.style.width = `${newNeighborWidth}px`;
+          };
+          
+          const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+          };
+          
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+        });
+        th.appendChild(resizer);
+      }
+
+      th.appendChild(contentWrapper);
       headerRow.appendChild(th);
     });
 
@@ -325,6 +623,8 @@ class TableWidget extends WidgetType {
         td.contentEditable = 'true';
         td.spellcheck = false;
         td.textContent = row[colIdx] || '';
+        td.style.textAlign = 'justify';
+        td.style.verticalAlign = 'middle';
         td.addEventListener('blur', saveChanges);
         td.addEventListener('keydown', (e) => handleKeyNavigation(e, td));
         tr.appendChild(td);
@@ -379,14 +679,16 @@ class TableWidget extends WidgetType {
     footerDiv.appendChild(addRowBtn);
     container.appendChild(footerDiv);
 
-    // Keyboard Navigation across cells
+    // Keyboard Navigation across cells and in/out of table
     const handleKeyNavigation = (e: KeyboardEvent, currentCell: HTMLElement) => {
+      const allCells = Array.from(table.querySelectorAll<HTMLElement>('.cm-table-header-text, td.cm-table-cell'));
+      const currentIdx = allCells.indexOf(currentCell);
+      const colsCount = headerCells.length;
+
       if (e.key === 'Tab') {
         e.preventDefault();
         e.stopPropagation();
         saveChanges();
-        const allCells = Array.from(table.querySelectorAll<HTMLElement>('.cm-table-cell'));
-        const currentIdx = allCells.indexOf(currentCell);
         if (!e.shiftKey) {
           if (currentIdx < allCells.length - 1) {
             allCells[currentIdx + 1].focus();
@@ -402,13 +704,42 @@ class TableWidget extends WidgetType {
         e.preventDefault();
         e.stopPropagation();
         saveChanges();
-        const allCells = Array.from(table.querySelectorAll<HTMLElement>('.cm-table-cell'));
-        const currentIdx = allCells.indexOf(currentCell);
-        const colsCount = headerCells.length;
         if (currentIdx + colsCount < allCells.length) {
           allCells[currentIdx + colsCount].focus();
         } else {
           addRowBtn.click();
+        }
+      } else if (e.key === 'ArrowUp') {
+        if (currentIdx < colsCount) {
+          // Top row: exit table upwards to editor line above
+          e.preventDefault();
+          e.stopPropagation();
+          saveChanges();
+          view.dispatch({
+            selection: { anchor: this.from, head: this.from },
+            scrollIntoView: true
+          });
+          view.focus();
+        } else {
+          e.preventDefault();
+          e.stopPropagation();
+          allCells[currentIdx - colsCount]?.focus();
+        }
+      } else if (e.key === 'ArrowDown') {
+        if (currentIdx + colsCount >= allCells.length) {
+          // Bottom row: exit table downwards to editor line below
+          e.preventDefault();
+          e.stopPropagation();
+          saveChanges();
+          view.dispatch({
+            selection: { anchor: this.to, head: this.to },
+            scrollIntoView: true
+          });
+          view.focus();
+        } else {
+          e.preventDefault();
+          e.stopPropagation();
+          allCells[currentIdx + colsCount]?.focus();
         }
       }
     };
@@ -1082,18 +1413,24 @@ const obsidianLiveTheme = EditorView.theme({
   // Permanent Interactive Markdown Tables
   '.cm-obsidian-table-wrapper': {
     margin: '14px 0',
+    width: '100%',
+    maxWidth: '100%',
     overflowX: 'auto',
     borderRadius: '12px',
     border: '1px solid #cbd5e1',
     boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
     backgroundColor: '#ffffff',
+    boxSizing: 'border-box',
   },
   '.cm-obsidian-table': {
     width: '100%',
+    maxWidth: '100%',
+    tableLayout: 'fixed',
     borderCollapse: 'collapse',
     textAlign: 'left',
     fontSize: '13.5px',
     lineHeight: '1.5',
+    boxSizing: 'border-box',
   },
   '.cm-obsidian-table th.cm-table-cell': {
     backgroundColor: '#f8fafc',
@@ -1103,10 +1440,37 @@ const obsidianLiveTheme = EditorView.theme({
     borderBottom: '2px solid #cbd5e1',
     borderRight: '1px solid #e2e8f0',
     outline: 'none',
+    position: 'relative',
+    userSelect: 'none',
+    verticalAlign: 'top',
+    textAlign: 'center',
+  },
+  '.cm-table-header-inner': {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  '.cm-table-header-text': {
+    textAlign: 'center',
   },
   '.cm-obsidian-table th.cm-table-cell:focus': {
     backgroundColor: '#eff6ff',
     boxShadow: 'inset 0 0 0 2px #4f46e5',
+  },
+  '.cm-table-col-resizer': {
+    position: 'absolute',
+    top: '0',
+    right: '-3px',
+    bottom: '0',
+    width: '6px',
+    cursor: 'col-resize',
+    userSelect: 'none',
+    zIndex: '10',
+    transition: 'background-color 0.15s ease',
+  },
+  '.cm-table-col-resizer:hover, .cm-table-col-resizer:active': {
+    backgroundColor: '#3b82f6',
   },
   '.cm-obsidian-table td.cm-table-cell': {
     padding: '9px 14px',
@@ -1114,6 +1478,10 @@ const obsidianLiveTheme = EditorView.theme({
     borderRight: '1px solid #f1f5f9',
     color: '#334155',
     outline: 'none',
+    verticalAlign: 'middle',
+    textAlign: 'justify',
+    overflowWrap: 'break-word',
+    wordBreak: 'break-word',
   },
   '.cm-obsidian-table td.cm-table-cell:focus': {
     backgroundColor: '#eff6ff',
@@ -1140,6 +1508,37 @@ const obsidianLiveTheme = EditorView.theme({
     backgroundColor: '#e2e8f0',
     color: '#0f172a',
     borderColor: '#94a3b8',
+  },
+  '.cm-table-del-col-btn': {
+    position: 'absolute',
+    top: '1px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: '14px',
+    height: '14px',
+    borderRadius: '3px',
+    border: 'none',
+    backgroundColor: '#ffffff',
+    color: '#94a3b8',
+    fontSize: '9px',
+    lineHeight: '1',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    opacity: '0',
+    transition: 'all 0.15s ease',
+    zIndex: '5',
+    padding: '0',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+  },
+  '.cm-table-header-cell:hover .cm-table-del-col-btn': {
+    opacity: '0.7',
+  },
+  '.cm-table-del-col-btn:hover': {
+    backgroundColor: '#fee2e2 !important',
+    color: '#dc2626 !important',
+    opacity: '1 !important',
   },
   '.cm-table-del-row-btn': {
     width: '20px',
