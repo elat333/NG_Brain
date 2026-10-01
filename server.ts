@@ -30,8 +30,8 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json({ limit: "100mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "100mb" }));
+  app.use(express.json({ limit: "15mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
   // Health check endpoint
   app.get("/api/health", (req, res) => {
@@ -623,7 +623,7 @@ ${activeProfile.prompt}
   });
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (err.type === 'entity.too.large' || err.status === 413) {
-      return res.status(413).json({ error: 'El archivo excede el tamaño máximo permitido (100MB). Por favor comprime el archivo o utiliza una versión más ligera.' });
+      return res.status(413).json({ error: 'El archivo excede el tamaño máximo permitido (15MB). Por favor utiliza una versión optimizada o comprime el archivo.' });
     }
     console.error('Unhandled server error:', err);
     res.status(err.status || 500).json({ error: err?.message || 'Error interno del servidor' });

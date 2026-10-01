@@ -40,13 +40,25 @@ import {
   Edit3,
   CheckCheck,
   MessageSquare,
-  GripVertical
+  MessageCircle,
+  GripVertical,
+  Printer,
+  Link as LinkIcon,
+  ExternalLink,
+  FileDown,
+  History,
+  RotateCcw,
+  PanelRightClose,
+  PanelRightOpen,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { TeamMember, PersonalNote, NoteShareAccess } from '../../types';
-import { UniversalCommentsModal } from './UniversalCommentsThread';
+import { TeamMember, PersonalNote, NoteShareAccess, NoteHistoryEntry } from '../../types';
+import { UniversalCommentsModal, UniversalCommentsThread } from './UniversalCommentsThread';
+import { ObsidianLiveEditor, ObsidianLiveEditorHandle } from './ObsidianLiveEditor';
 
 interface PersonalNotesViewProps {
   currentMember: TeamMember | null;
@@ -106,6 +118,9 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
   const [formIsCompanyPublic, setFormIsCompanyPublic] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccessNotification, setSaveSuccessNotification] = useState<boolean>(false);
+  const [copiedLinkFeedback, setCopiedLinkFeedback] = useState<boolean>(false);
+  const [isWikilinkPickerOpen, setIsWikilinkPickerOpen] = useState<boolean>(false);
+  const [wikilinkSearch, setWikilinkSearch] = useState<string>('');
 
   // Delete Confirm State
   const [noteToDelete, setNoteToDelete] = useState<PersonalNote | null>(null);
@@ -118,8 +133,62 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
   const [selectedShareRole, setSelectedShareRole] = useState<'viewer' | 'editor'>('viewer');
   const [shareActionLoading, setShareActionLoading] = useState<boolean>(false);
 
-  // Reference for textarea to handle toolbar insertions
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Reference for Obsidian Live Preview editor
+  const obsidianEditorRef = useRef<ObsidianLiveEditorHandle>(null);
+
+  // Split Right Sidebar State (Comments & History)
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(true);
+  const [rightSidebarTab, setRightSidebarTab] = useState<'comments' | 'history'>('comments');
+  const [previewingHistoryEntry, setPreviewingHistoryEntry] = useState<NoteHistoryEntry | null>(null);
+  const [restoredNotification, setRestoredNotification] = useState<string | null>(null);
+
+  // Undo / Redo History Stack for the Editor
+  const [undoStack, setUndoStack] = useState<string[]>([]);
+  const [redoStack, setRedoStack] = useState<string[]>([]);
+  const lastSnapshotRef = useRef<string>(formContent);
+
+  // Navigation History across referenced notes
+  const [noteNavHistory, setNoteNavHistory] = useState<string[]>([]);
+
+  const pushUndoSnapshot = (prevText: string) => {
+    setUndoStack((prev) => {
+      if (prev.length > 0 && prev[prev.length - 1] === prevText) return prev;
+      return [...prev.slice(-50), prevText];
+    });
+    setRedoStack([]);
+  };
+
+  const handleUndo = () => {
+    if (obsidianEditorRef.current) {
+      obsidianEditorRef.current.undo();
+      return;
+    }
+    setUndoStack((prevUndo) => {
+      if (prevUndo.length === 0) return prevUndo;
+      const last = prevUndo[prevUndo.length - 1];
+      const newUndo = prevUndo.slice(0, -1);
+      setRedoStack((prevRedo) => [...prevRedo.slice(-50), formContent]);
+      setFormContent(last);
+      lastSnapshotRef.current = last;
+      return newUndo;
+    });
+  };
+
+  const handleRedo = () => {
+    if (obsidianEditorRef.current) {
+      obsidianEditorRef.current.redo();
+      return;
+    }
+    setRedoStack((prevRedo) => {
+      if (prevRedo.length === 0) return prevRedo;
+      const next = prevRedo[prevRedo.length - 1];
+      const newRedo = prevRedo.slice(0, -1);
+      setUndoStack((prevUndo) => [...prevUndo.slice(-50), formContent]);
+      setFormContent(next);
+      lastSnapshotRef.current = next;
+      return newRedo;
+    });
+  };
 
   const memberId = currentMember?.id || 'guest_user';
 
@@ -244,6 +313,37 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
 
     return () => unsub();
   }, [memberId, isGlobalNotesAdmin, supervisedMemberIds]);
+
+  // Deep linking: Open note directly if present in URL (?note=ID or ?nota=ID)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const noteIdFromUrl = params.get('note') || params.get('nota');
+    if (noteIdFromUrl && notes.length > 0) {
+      const found = notes.find((n) => n.id === noteIdFromUrl);
+      if (found && (!activeNote || activeNote.id !== found.id)) {
+        handleOpenNote(found, false);
+      }
+    }
+  }, [notes]);
+
+  // Listen to browser Back/Forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const noteIdFromUrl = params.get('note') || params.get('nota');
+      if (noteIdFromUrl) {
+        const found = notes.find((n) => n.id === noteIdFromUrl);
+        if (found) {
+          handleOpenNote(found, false);
+        }
+      } else {
+        setIsEditorOpen(false);
+        setActiveNote(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [notes]);
 
   // All distinct categories sorted by user preference
   const categoriesList = useMemo(() => {
@@ -401,10 +501,18 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     setFormIsCompanyPublic(catIsCompanyPublic);
     setEditorMode('live');
     setIsEditorOpen(true);
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete('note');
+    url.searchParams.delete('nota');
+    window.history.pushState({}, '', url.toString());
   };
 
-  // Open note for editing/viewing
-  const handleOpenNote = (note: PersonalNote) => {
+  // Open note for editing/viewing with navigation history support
+  const handleOpenNote = (note: PersonalNote, pushUrl = true, pushHistory = true) => {
+    if (pushHistory && activeNote && activeNote.id && activeNote.id !== note.id) {
+      setNoteNavHistory((prev) => [...prev, activeNote.id]);
+    }
     setActiveNote(note);
     setFormTitle(note.title || '');
     setFormContent(note.content || '');
@@ -416,6 +524,199 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     setFormIsCompanyPublic(!!note.isCompanyPublic);
     setEditorMode('live');
     setIsEditorOpen(true);
+
+    if (pushUrl && note.id) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('note', note.id);
+      window.history.pushState({ noteId: note.id }, '', url.toString());
+    }
+  };
+
+  // Close editor and clear URL param
+  const handleCloseEditor = () => {
+    setIsEditorOpen(false);
+    setActiveNote(null);
+    setNoteNavHistory([]);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('note');
+    url.searchParams.delete('nota');
+    window.history.pushState({}, '', url.toString());
+  };
+
+  // Back button handler (goes back in note history or closes editor)
+  const handleBack = () => {
+    if (noteNavHistory.length > 0) {
+      const prevId = noteNavHistory[noteNavHistory.length - 1];
+      setNoteNavHistory((prev) => prev.slice(0, -1));
+      const prevNote = notes.find((n) => n.id === prevId);
+      if (prevNote) {
+        handleOpenNote(prevNote, true, false);
+        return;
+      }
+    }
+    handleCloseEditor();
+  };
+
+  // Copy unique URL of the note
+  const handleCopyNoteLink = (noteId?: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const targetId = noteId || activeNote?.id;
+    if (!targetId) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('note', targetId);
+    navigator.clipboard.writeText(url.toString());
+    setCopiedLinkFeedback(true);
+    setTimeout(() => setCopiedLinkFeedback(false), 2000);
+  };
+
+  // Wikilink Click Handler [[Title]]
+  const handleWikilinkClick = (targetTitleOrId: string) => {
+    const cleanTarget = targetTitleOrId.trim().toLowerCase();
+    const found = notes.find(
+      (n) =>
+        n.id.toLowerCase() === cleanTarget ||
+        (n.title && n.title.trim().toLowerCase() === cleanTarget)
+    );
+    if (found) {
+      handleOpenNote(found, true, true);
+    } else {
+      alert(`No se encontró una nota con el nombre "${targetTitleOrId}". Puedes crear una nueva nota con ese título.`);
+    }
+  };
+
+  // Insert Wikilink from Picker
+  const insertWikilink = (targetNoteTitle: string) => {
+    insertMarkdown(`[[${targetNoteTitle}]]`, '', '');
+    setIsWikilinkPickerOpen(false);
+    setWikilinkSearch('');
+  };
+
+  // Export / Print Note to High-Quality PDF
+  const handleExportPdf = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor habilita las ventanas emergentes (popups) para exportar el documento a PDF.');
+      return;
+    }
+
+    const title = formTitle.trim() || 'Nota sin título';
+    const category = formCategory === 'custom' ? (formCustomCategory || 'General') : formCategory;
+    const author = activeNote?.createdByName || currentMember?.name || 'Usuario';
+    const dateStr = new Date(activeNote?.updatedAt || activeNote?.createdAt || Date.now()).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const parsedLines = formContent.split('\n').map(line => {
+      if (line.startsWith('# ')) {
+        return `<h1 style="font-size:24px; font-weight:900; border-bottom:2px solid #e2e8f0; padding-bottom:6px; margin-top:20px; color:#0f172a;">${line.substring(2)}</h1>`;
+      }
+      if (line.startsWith('## ')) {
+        return `<h2 style="font-size:19px; font-weight:800; margin-top:16px; color:#1e293b;">${line.substring(3)}</h2>`;
+      }
+      if (line.startsWith('### ')) {
+        return `<h3 style="font-size:16px; font-weight:700; margin-top:12px; color:#334155;">${line.substring(4)}</h3>`;
+      }
+      if (line.startsWith('#### ')) {
+        return `<h4 style="font-size:14px; font-weight:700; margin-top:10px; color:#475569;">${line.substring(5)}</h4>`;
+      }
+      if (line.match(/^- \[[ xX]\] /)) {
+        const isChecked = line.startsWith('- [x]') || line.startsWith('- [X]');
+        const text = line.substring(6);
+        return `<div style="display:flex; align-items:center; gap:8px; margin:4px 0; font-size:13px; color:${isChecked ? '#94a3b8; text-decoration:line-through;' : '#334155;'}">
+          <input type="checkbox" ${isChecked ? 'checked' : ''} disabled style="margin:0; width:14px; height:14px;" />
+          <span>${text}</span>
+        </div>`;
+      }
+      if (line.startsWith('- ') || line.startsWith('* ')) {
+        return `<li style="font-size:13px; color:#334155; margin-left:20px; line-height:1.6;">${line.substring(2)}</li>`;
+      }
+      if (line.match(/^\d+\.\s/)) {
+        return `<div style="font-size:13px; color:#334155; margin-left:10px; margin-top:3px; line-height:1.6;"><b>${line.match(/^(\d+\.)/)?.[1]}</b> ${line.replace(/^\d+\.\s/, '')}</div>`;
+      }
+      if (line.startsWith('> [!NOTE]')) {
+        return `<blockquote style="border-left:4px solid #3b82f6; background:#eff6ff; padding:8px 12px; margin:8px 0; color:#1e40af; font-size:13px; border-radius:0 6px 6px 0;"><b>ℹ️ NOTA:</b> ${line.replace('> [!NOTE]', '')}</blockquote>`;
+      }
+      if (line.startsWith('> [!TIP]')) {
+        return `<blockquote style="border-left:4px solid #10b981; background:#ecfdf5; padding:8px 12px; margin:8px 0; color:#065f46; font-size:13px; border-radius:0 6px 6px 0;"><b>💡 CONSEJO:</b> ${line.replace('> [!TIP]', '')}</blockquote>`;
+      }
+      if (line.startsWith('> [!WARNING]')) {
+        return `<blockquote style="border-left:4px solid #f59e0b; background:#fffbeb; padding:8px 12px; margin:8px 0; color:#92400e; font-size:13px; border-radius:0 6px 6px 0;"><b>⚠️ ALERTA:</b> ${line.replace('> [!WARNING]', '')}</blockquote>`;
+      }
+      if (line.startsWith('> ')) {
+        return `<blockquote style="border-left:4px solid #6366f1; background:#f8fafc; padding:8px 12px; margin:8px 0; color:#475569; font-style:italic; font-size:13px; border-radius:0 6px 6px 0;">${line.substring(2)}</blockquote>`;
+      }
+      if (line.startsWith('|') && line.endsWith('|')) {
+        if (line.includes('---')) return '';
+        const cells = line.split('|').filter((_, i, a) => i > 0 && i < a.length - 1);
+        return `<tr style="border-bottom:1px solid #e2e8f0;">${cells.map(c => `<td style="padding:6px 10px; font-size:12px; color:#334155;">${c.trim()}</td>`).join('')}</tr>`;
+      }
+      if (line === '---' || line === '***') return '<hr style="border:0; border-top:1px solid #e2e8f0; margin:16px 0;" />';
+      if (!line.trim()) return '<div style="height:10px;"></div>';
+      
+      let formatted = line
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+        .replace(/\*(.*?)\*/g, '<i>$1</i>')
+        .replace(/==(.*?)==/g, '<mark style="background:#fef08a; padding:1px 4px; border-radius:2px;">$1</mark>')
+        .replace(/`([^`]+)`/g, '<code style="background:#f1f5f9; padding:2px 4px; border-radius:3px; font-family:monospace; font-size:12px;">$1</code>')
+        .replace(/\[\[(.*?)\]\]/g, '<span style="background:#e0e7ff; color:#4338ca; padding:2px 6px; border-radius:4px; font-weight:600; font-size:11px;">📄 $1</span>');
+        
+      return `<p style="font-size:13px; line-height:1.6; color:#334155; margin:4px 0;">${formatted}</p>`;
+    }).join('\n');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${title} - Novagreen IA</title>
+          <meta charset="utf-8" />
+          <style>
+            @page { margin: 15mm 20mm; size: A4; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; margin: 0; padding: 24px; line-height: 1.5; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #6366f1; padding-bottom: 12px; margin-bottom: 20px; }
+            .logo { font-size: 20px; font-weight: 900; color: #1e1b4b; letter-spacing: -0.5px; }
+            .logo span { color: #6366f1; }
+            .meta { font-size: 11px; color: #64748b; font-weight: 600; text-align: right; }
+            .note-title { font-size: 26px; font-weight: 900; color: #0f172a; margin-bottom: 8px; line-height: 1.2; }
+            .note-badge { display: inline-flex; align-items: center; gap: 6px; background: #f8fafc; border: 1px solid #e2e8f0; color: #475569; padding: 4px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; margin-bottom: 18px; }
+            .content { margin-top: 15px; }
+            table { width: 100%; border-collapse: collapse; margin: 14px 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; }
+            tr:first-child { background: #f8fafc; font-weight: bold; border-bottom: 2px solid #cbd5e1; }
+            .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 12px; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; }
+            @media print {
+              body { padding: 0; }
+              .header { margin-top: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo">Novagreen <span>IA</span></div>
+            <div class="meta">
+              <div>Fecha: ${dateStr}</div>
+              <div>Autor: ${author}</div>
+            </div>
+          </div>
+          <div class="note-title">${title}</div>
+          <div class="note-badge">📁 Carpeta: ${category}</div>
+          <div class="content">
+            ${parsedLines}
+          </div>
+          <div class="footer">
+            <span>Novagreen Intelligent Assistant • Sistema Integrado de Notas</span>
+            <span>Documento Oficial</span>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 400);
   };
 
   // Save Note to Firestore
@@ -450,6 +751,37 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
         }
       }
 
+      // Generate version history entry
+      const prevWords = activeNote?.content ? activeNote.content.trim().split(/\s+/).filter(Boolean).length : 0;
+      const curWords = formContent.trim().split(/\s+/).filter(Boolean).length;
+      const wordDiff = curWords - prevWords;
+      const diffText = !activeNote 
+        ? 'Creación inicial de la nota'
+        : wordDiff > 0 
+        ? `+${wordDiff} palabras añadidas` 
+        : wordDiff < 0 
+        ? `${wordDiff} palabras eliminadas` 
+        : 'Ajuste de formato / contenido';
+
+      const historyEntry: NoteHistoryEntry = {
+        id: `ver_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        savedAt: new Date().toISOString(),
+        authorId: memberId,
+        authorName: currentMember?.name || 'Usuario',
+        authorAvatar: currentMember?.avatar,
+        title: formTitle.trim(),
+        content: formContent,
+        summary: diffText,
+        wordsCount: curWords
+      };
+
+      const existingHistory = activeNote?.history || [];
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const updatedHistory = [historyEntry, ...existingHistory]
+        .filter(h => new Date(h.savedAt).getTime() >= thirtyDaysAgo.getTime())
+        .slice(0, 100);
+
       const noteData: PersonalNote = {
         id: noteId,
         title: formTitle.trim(),
@@ -465,7 +797,8 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
         updatedAt: new Date().toISOString(),
         sharedMemberIds: initialSharedIds,
         sharedWith: initialSharedWith,
-        moduleContext: moduleName
+        moduleContext: moduleName,
+        history: updatedHistory
       };
 
       await setDoc(noteDocRef, noteData, { merge: true });
@@ -885,33 +1218,32 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     }
   };
 
-  // Insert markdown syntax helper in textarea
+  // Insert markdown syntax helper in unified Obsidian Live Preview editor
   const insertMarkdown = (prefix: string, suffix: string = '', defaultText: string = '') => {
-    if (!textareaRef.current) return;
-    const el = textareaRef.current;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selectedText = formContent.substring(start, end) || defaultText;
-    const replacement = `${prefix}${selectedText}${suffix}`;
-    const newContent = formContent.substring(0, start) + replacement + formContent.substring(end);
-    setFormContent(newContent);
-    setTimeout(() => {
-      el.focus();
-      el.setSelectionRange(start + prefix.length, start + prefix.length + selectedText.length);
-    }, 50);
+    pushUndoSnapshot(formContent);
+    if (obsidianEditorRef.current) {
+      obsidianEditorRef.current.insertMarkdown(prefix, suffix, defaultText);
+      return;
+    }
+    const updated = formContent ? `${formContent}\n${prefix}${defaultText}${suffix}` : `${prefix}${defaultText}${suffix}`;
+    setFormContent(updated);
+    lastSnapshotRef.current = updated;
   };
 
   // Toggle task checkbox inside live markdown text
   const handleToggleTaskCheckbox = (lineIndex: number, currentChecked: boolean) => {
+    pushUndoSnapshot(formContent);
     const lines = formContent.split('\n');
     if (lineIndex >= 0 && lineIndex < lines.length) {
       const line = lines[lineIndex];
       if (currentChecked) {
-        lines[lineIndex] = line.replace(/- \[[xX]\]/, '- [ ]');
+        lines[lineIndex] = line.replace(/^- \[[xX]\]/, '- [ ]');
       } else {
-        lines[lineIndex] = line.replace(/- \[ \]/, '- [x]');
+        lines[lineIndex] = line.replace(/^- \[ \]/, '- [x]');
       }
-      setFormContent(lines.join('\n'));
+      const updated = lines.join('\n');
+      setFormContent(updated);
+      lastSnapshotRef.current = updated;
     }
   };
 
@@ -930,17 +1262,28 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
     setFormTags(formTags.filter(t => t !== tagToRemove));
   };
 
-  // Keyboard shortcut Ctrl+S to save
+  // Keyboard shortcut Ctrl+S (Save), Ctrl+Z (Undo), Ctrl+Y / Ctrl+Shift+Z (Redo)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's' && isEditorOpen) {
+      if (!isEditorOpen) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleSaveNote();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isEditorOpen, formTitle, formContent, formCategory, formCustomCategory, formTags, formColor, formIsPinned, formIsCompanyPublic]);
+  }, [isEditorOpen, formTitle, formContent, formCategory, formCustomCategory, formTags, formColor, formIsPinned, formIsCompanyPublic, undoStack, redoStack]);
 
   // Reading metrics
   const wordsCount = useMemo(() => {
@@ -950,11 +1293,985 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
 
   const readingTimeMin = Math.max(1, Math.ceil(wordsCount / 200));
 
+  // Render inline markdown with clickable wikilinks and formatting
+  const renderInlineMarkdown = (text: string) => {
+    const parts = [];
+    const wikiRegex = /\[\[(.*?)\]\]/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = wikiRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push({ type: 'text', content: text.substring(lastIndex, match.index) });
+      }
+      parts.push({ type: 'wikilink', target: match[1] });
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < text.length) {
+      parts.push({ type: 'text', content: text.substring(lastIndex) });
+    }
+
+    return (
+      <>
+        {parts.map((p, pIdx) => {
+          if (p.type === 'wikilink') {
+            return (
+              <button
+                key={`wiki_inline_${pIdx}_${p.target}`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleWikilinkClick(p.target);
+                }}
+                className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-950 border border-indigo-200/90 rounded-md text-xs font-bold transition-all shadow-2xs group cursor-pointer select-none align-baseline"
+                title={`Abrir nota referenciada: "${p.target}"`}
+              >
+                <FileText size={11} className="text-indigo-500 group-hover:scale-110 transition-transform" />
+                <span>{p.target}</span>
+                <ExternalLink size={10} className="opacity-60 group-hover:opacity-100 transition-opacity" />
+              </button>
+            );
+          }
+
+          const boldParts = p.content.split(/(\*\*.*?\*\*)/g);
+          return (
+            <span key={`text_part_${pIdx}`}>
+              {boldParts.map((bPart, bIdx) => {
+                if (bPart.startsWith('**') && bPart.endsWith('**') && bPart.length >= 4) {
+                  return <strong key={`b_${bIdx}`} className="font-black text-slate-900">{bPart.slice(2, -2)}</strong>;
+                }
+                const italicParts = bPart.split(/(\*.*?\*)/g);
+                return (
+                  <span key={`sub_${bIdx}`}>
+                    {italicParts.map((iPart, iIdx) => {
+                      if (iPart.startsWith('*') && iPart.endsWith('*') && iPart.length >= 2) {
+                        return <em key={`i_${iIdx}`} className="italic text-slate-700">{iPart.slice(1, -1)}</em>;
+                      }
+                      const highlightParts = iPart.split(/(==.*?==)/g);
+                      return (
+                        <span key={`sub_i_${iIdx}`}>
+                          {highlightParts.map((hPart, hIdx) => {
+                            if (hPart.startsWith('==') && hPart.endsWith('==') && hPart.length >= 4) {
+                              return <mark key={`h_${hIdx}`} className="bg-amber-200/80 px-1 py-0.5 rounded text-slate-900 font-medium">{hPart.slice(2, -2)}</mark>;
+                            }
+                            const codeParts = hPart.split(/(`.*?`)/g);
+                            return (
+                              <span key={`sub_h_${hIdx}`}>
+                                {codeParts.map((cPart, cIdx) => {
+                                  if (cPart.startsWith('`') && cPart.endsWith('`') && cPart.length >= 2) {
+                                    return <code key={`c_${cIdx}`} className="px-1.5 py-0.5 bg-slate-100 text-indigo-700 font-mono text-xs rounded border border-slate-200">{cPart.slice(1, -1)}</code>;
+                                  }
+                                  return <span key={`raw_${cIdx}`}>{cPart}</span>;
+                                })}
+                              </span>
+                            );
+                          })}
+                        </span>
+                      );
+                    })}
+                  </span>
+                );
+              })}
+            </span>
+          );
+        })}
+      </>
+    );
+  };
+
+  // Render full interactive markdown document (Headings, Checklists, Callouts, Tables, Code, Quotes, Lists)
+  const renderInteractiveMarkdown = (rawContent: string) => {
+    if (!rawContent || !rawContent.trim()) {
+      return (
+        <div className="py-12 flex flex-col items-center justify-center text-center text-slate-400 space-y-2">
+          <FileText size={32} className="text-slate-300" />
+          <p className="text-sm italic">Esta nota no tiene contenido aún. Comienza a escribir en el editor.</p>
+        </div>
+      );
+    }
+
+    const lines = rawContent.split('\n');
+    let inCodeBlock = false;
+    let codeBlockLines: string[] = [];
+    let codeBlockLang = '';
+    const elements: React.ReactNode[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Code Block ```
+      if (line.trim().startsWith('```')) {
+        if (inCodeBlock) {
+          elements.push(
+            <div key={`code_block_${i}`} className="my-3 rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 text-slate-100 font-mono text-xs shadow-md">
+              {codeBlockLang && (
+                <div className="bg-slate-900 px-3.5 py-1 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-800 flex items-center justify-between">
+                  <span>{codeBlockLang}</span>
+                  <span className="text-[9px] text-slate-500 font-normal">Bloque de Código</span>
+                </div>
+              )}
+              <pre className="p-4 overflow-x-auto leading-relaxed whitespace-pre font-mono">
+                <code>{codeBlockLines.join('\n')}</code>
+              </pre>
+            </div>
+          );
+          inCodeBlock = false;
+          codeBlockLines = [];
+          codeBlockLang = '';
+        } else {
+          inCodeBlock = true;
+          codeBlockLang = line.trim().substring(3).trim();
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeBlockLines.push(line);
+        continue;
+      }
+
+      // Empty Line
+      if (!line.trim()) {
+        elements.push(<div key={`blank_${i}`} className="h-2.5" />);
+        continue;
+      }
+
+      // Headings
+      if (line.startsWith('# ')) {
+        elements.push(
+          <h1 key={`h1_${i}`} className="text-2xl sm:text-3xl font-black text-slate-900 pt-3 pb-1 border-b border-slate-100 mt-2 tracking-tight">
+            {renderInlineMarkdown(line.substring(2))}
+          </h1>
+        );
+        continue;
+      }
+      if (line.startsWith('## ')) {
+        elements.push(
+          <h2 key={`h2_${i}`} className="text-xl sm:text-2xl font-black text-slate-800 pt-2.5 pb-0.5 mt-2 tracking-tight">
+            {renderInlineMarkdown(line.substring(3))}
+          </h2>
+        );
+        continue;
+      }
+      if (line.startsWith('### ')) {
+        elements.push(
+          <h3 key={`h3_${i}`} className="text-lg sm:text-xl font-bold text-slate-800 pt-2 pb-0.5 mt-1">
+            {renderInlineMarkdown(line.substring(4))}
+          </h3>
+        );
+        continue;
+      }
+      if (line.startsWith('#### ')) {
+        elements.push(
+          <h4 key={`h4_${i}`} className="text-base font-bold text-slate-700 pt-1.5 pb-0.5">
+            {renderInlineMarkdown(line.substring(5))}
+          </h4>
+        );
+        continue;
+      }
+
+      // Horizontal Divider
+      if (line === '---' || line === '***' || line === '___') {
+        elements.push(<hr key={`hr_${i}`} className="my-4 border-t border-slate-200" />);
+        continue;
+      }
+
+      // Interactive Checklist - [ ] or - [x]
+      if (/^- \[[ xX]\] /.test(line)) {
+        const isChecked = line.startsWith('- [x] ') || line.startsWith('- [X] ');
+        const text = line.substring(6);
+        const lineIdx = i;
+        elements.push(
+          <div key={`task_${i}`} className="flex items-center gap-2.5 py-1 px-2 rounded-xl hover:bg-slate-50 transition-colors group">
+            <input
+              type="checkbox"
+              checked={isChecked}
+              onChange={() => handleToggleTaskCheckbox(lineIdx, isChecked)}
+              className="w-4 h-4 rounded text-indigo-600 focus:ring-0 cursor-pointer shrink-0"
+            />
+            <span className={`text-sm sm:text-[15px] select-text transition-all ${isChecked ? 'line-through text-slate-400 font-normal' : 'text-slate-800 font-medium'}`}>
+              {renderInlineMarkdown(text)}
+            </span>
+          </div>
+        );
+        continue;
+      }
+
+      // Bullet List
+      if (/^(- |\* )/.test(line)) {
+        elements.push(
+          <div key={`bullet_${i}`} className="flex items-start gap-2.5 py-0.5 pl-3">
+            <span className="text-indigo-500 font-black text-sm select-none leading-relaxed">•</span>
+            <span className="text-sm sm:text-[15px] text-slate-800 font-normal leading-relaxed">
+              {renderInlineMarkdown(line.substring(2))}
+            </span>
+          </div>
+        );
+        continue;
+      }
+
+      // Numbered List
+      if (/^\d+\.\s/.test(line)) {
+        const num = line.match(/^(\d+)\.\s/)?.[1] || '1';
+        const text = line.replace(/^\d+\.\s/, '');
+        elements.push(
+          <div key={`num_${i}`} className="flex items-start gap-2 py-0.5 pl-3">
+            <span className="text-indigo-600 font-bold text-xs bg-indigo-50 px-1.5 py-0.5 rounded font-mono select-none mt-0.5 shrink-0">{num}.</span>
+            <span className="text-sm sm:text-[15px] text-slate-800 font-normal leading-relaxed">
+              {renderInlineMarkdown(text)}
+            </span>
+          </div>
+        );
+        continue;
+      }
+
+      // Callouts: > [!NOTE], > [!TIP], > [!WARNING]
+      if (line.startsWith('> [!NOTE]')) {
+        elements.push(
+          <div key={`note_${i}`} className="p-3 bg-blue-50/80 border-l-4 border-blue-500 rounded-r-2xl my-2 text-xs sm:text-sm text-blue-900 font-medium flex items-start gap-2.5 shadow-2xs">
+            <Info size={16} className="text-blue-600 shrink-0 mt-0.5" />
+            <div className="flex-1 leading-relaxed">{renderInlineMarkdown(line.replace('> [!NOTE]', '').trim())}</div>
+          </div>
+        );
+        continue;
+      }
+      if (line.startsWith('> [!TIP]')) {
+        elements.push(
+          <div key={`tip_${i}`} className="p-3 bg-emerald-50/80 border-l-4 border-emerald-500 rounded-r-2xl my-2 text-xs sm:text-sm text-emerald-900 font-medium flex items-start gap-2.5 shadow-2xs">
+            <Lightbulb size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+            <div className="flex-1 leading-relaxed">{renderInlineMarkdown(line.replace('> [!TIP]', '').trim())}</div>
+          </div>
+        );
+        continue;
+      }
+      if (line.startsWith('> [!WARNING]')) {
+        elements.push(
+          <div key={`warn_${i}`} className="p-3 bg-amber-50/80 border-l-4 border-amber-500 rounded-r-2xl my-2 text-xs sm:text-sm text-amber-900 font-medium flex items-start gap-2.5 shadow-2xs">
+            <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1 leading-relaxed">{renderInlineMarkdown(line.replace('> [!WARNING]', '').trim())}</div>
+          </div>
+        );
+        continue;
+      }
+      if (line.startsWith('> ')) {
+        elements.push(
+          <blockquote key={`quote_${i}`} className="border-l-4 border-slate-300 pl-3.5 py-1 my-2 text-sm italic text-slate-600 bg-slate-50/60 rounded-r-xl leading-relaxed">
+            {renderInlineMarkdown(line.substring(2))}
+          </blockquote>
+        );
+        continue;
+      }
+
+      // Table parsing
+      if (line.startsWith('|') && line.endsWith('|')) {
+        const tableLines = [line];
+        while (i + 1 < lines.length && lines[i + 1].startsWith('|') && lines[i + 1].endsWith('|')) {
+          i++;
+          tableLines.push(lines[i]);
+        }
+        const headerRow = tableLines[0].split('|').slice(1, -1).map(c => c.trim());
+        const bodyRows = tableLines.slice(2).map(r => r.split('|').slice(1, -1).map(c => c.trim()));
+
+        elements.push(
+          <div key={`table_${i}`} className="my-3 overflow-x-auto rounded-2xl border border-slate-200 shadow-2xs">
+            <table className="w-full text-xs sm:text-sm text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100/90 border-b border-slate-200">
+                  {headerRow.map((h, hIdx) => (
+                    <th key={`th_${hIdx}`} className="p-2.5 font-bold text-slate-800">{renderInlineMarkdown(h)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {bodyRows.map((row, rIdx) => (
+                  <tr key={`tr_${rIdx}`} className="hover:bg-slate-50/80 transition-colors">
+                    {row.map((cell, cIdx) => (
+                      <td key={`td_${rIdx}_${cIdx}`} className="p-2.5 text-slate-700">{renderInlineMarkdown(cell)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+
+      // Standard Paragraph
+      elements.push(
+        <p key={`p_${i}`} className="text-sm sm:text-[15px] leading-relaxed text-slate-800 my-1 select-text">
+          {renderInlineMarkdown(line)}
+        </p>
+      );
+    }
+
+    return elements;
+  };
+
   return (
     <div className="w-full space-y-2.5 animate-fade-in text-slate-800">
-      {/* ULTRA-COMPACT SINGLE-LINE TOOLBAR: Filter Tabs + Search + New Note Button (All in one unified line) */}
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl p-2 px-3 shadow-xs space-y-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      {/* FULL OBSIDIAN WORKSPACE (DEDICATED FULL-PAGE VIEW) */}
+      {isEditorOpen ? (
+        <div className="w-full bg-white rounded-3xl border border-slate-200/90 shadow-xl flex flex-col overflow-hidden text-slate-800 animate-fade-in min-h-[calc(100vh-140px)]">
+          {/* UNIFIED STICKY TOP HEADER & FORMATTING TOOLBAR */}
+          <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md border-b border-slate-200 shadow-2xs">
+            {/* TOP WORKSPACE NAVIGATION & CONTROLS */}
+            <div className="p-3.5 sm:p-5 border-b border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200/90 shadow-2xs transition-all cursor-pointer shrink-0 group"
+                  title={noteNavHistory.length > 0 ? "Volver a la nota anterior" : "Volver a la vista de carpetas y notas"}
+                >
+                  <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform text-slate-500" />
+                  <span>{noteNavHistory.length > 0 ? "Volver" : "Notas"}</span>
+                </button>
+
+              <div className="h-5 w-px bg-slate-300 hidden sm:block shrink-0" />
+
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Folder size={14} className="text-indigo-600" />
+                  <select
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value)}
+                    className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                  >
+                    {categoriesList.map((c, cIdx) => (
+                      <option key={`pnote_f_cat_${c || cIdx}_${cIdx}`} value={c}>{c}</option>
+                    ))}
+                    <option value="custom">+ Nueva Carpeta...</option>
+                  </select>
+                </div>
+
+                {formCategory === 'custom' && (
+                  <input
+                    type="text"
+                    placeholder="Nombre de carpeta..."
+                    value={formCustomCategory}
+                    onChange={(e) => setFormCustomCategory(e.target.value)}
+                    className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs w-36 font-semibold"
+                  />
+                )}
+
+                <div className="hidden lg:flex items-center gap-2 text-xs text-slate-400 font-medium ml-2 shrink-0">
+                  <span>{wordsCount} palabras</span>
+                  <span>•</span>
+                  <span>~{readingTimeMin} min lectura</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ACTION BUTTONS */}
+            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+              {/* Copy URL Link */}
+              <button
+                type="button"
+                onClick={(e) => handleCopyNoteLink(activeNote?.id, e)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
+                  copiedLinkFeedback
+                    ? 'bg-emerald-500 text-white border-emerald-600'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
+                title="Copiar URL única de esta nota"
+              >
+                {copiedLinkFeedback ? <Check size={13} /> : <LinkIcon size={13} />}
+                <span>{copiedLinkFeedback ? '¡Link Copiado!' : 'Copiar Link'}</span>
+              </button>
+
+              {/* Export PDF Button */}
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 rounded-xl text-xs font-bold transition-all border border-slate-200 shadow-2xs cursor-pointer"
+                title="Exportar documento oficial a PDF"
+              >
+                <Printer size={13} className="text-rose-500" />
+                <span>PDF</span>
+              </button>
+
+              {/* Download Markdown */}
+              <button
+                type="button"
+                onClick={(e) => activeNote ? handleDownloadMd(activeNote, e) : handleDownloadMd({ id: 'temp', title: formTitle, content: formContent, category: formCategory, createdByMemberId: memberId, createdAt: '', updatedAt: '' }, e)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-200 shadow-2xs cursor-pointer"
+                title="Descargar archivo .md"
+              >
+                <FileDown size={13} className="text-slate-500" />
+                <span>.md</span>
+              </button>
+
+              {/* Comments (if saved) */}
+              {activeNote?.id && (
+                <button
+                  type="button"
+                  onClick={() => setActiveCommentNote(activeNote)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-bold text-xs transition-all border border-blue-200 shadow-2xs cursor-pointer"
+                  title="Comentarios de la nota"
+                >
+                  <MessageSquare size={13} className="text-blue-600" />
+                  <span>Comentarios</span>
+                </button>
+              )}
+
+              {/* Save Button */}
+              <button
+                type="button"
+                onClick={handleSaveNote}
+                disabled={isSaving}
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl font-black text-xs shadow-sm transition-all cursor-pointer"
+                title="Guardar cambios (Ctrl+S)"
+              >
+                {isSaving ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={13} />
+                    <span>Guardar</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* SAVE SUCCESS NOTIFICATION */}
+          {saveSuccessNotification && (
+            <div className="bg-emerald-500 text-white text-xs font-bold py-1.5 px-4 text-center flex items-center justify-center gap-1.5 animate-fade-in shadow-inner">
+              <CheckCircle2 size={14} />
+              <span>Nota guardada exitosamente en la nube</span>
+            </div>
+          )}
+
+          {/* RESTORED VERSION NOTIFICATION */}
+          {restoredNotification && (
+            <div className="bg-indigo-600 text-white text-xs font-bold py-1.5 px-4 text-center flex items-center justify-center gap-1.5 animate-fade-in shadow-inner">
+              <RotateCcw size={14} />
+              <span>{restoredNotification}</span>
+            </div>
+          )}
+
+          {/* SECONDARY FORMATTING TOOLBAR */}
+          <div className="px-4 py-2 bg-slate-100/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            {/* Markdown Syntax Tools */}
+            <div className="flex items-center gap-1 flex-wrap">
+              <button
+                type="button"
+                title="Título 1 (# )"
+                onClick={() => insertMarkdown('# ', '', 'Título Principal')}
+                className="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-black text-xs shadow-2xs cursor-pointer"
+              >
+                H1
+              </button>
+              <button
+                type="button"
+                title="Título 2 (## )"
+                onClick={() => insertMarkdown('## ', '', 'Subtítulo')}
+                className="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold text-xs shadow-2xs cursor-pointer"
+              >
+                H2
+              </button>
+              <button
+                type="button"
+                title="Título 3 (### )"
+                onClick={() => insertMarkdown('### ', '', 'Sección')}
+                className="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold text-xs shadow-2xs cursor-pointer"
+              >
+                H3
+              </button>
+              <button
+                type="button"
+                title="Título 4 (#### )"
+                onClick={() => insertMarkdown('#### ', '', 'Subsección')}
+                className="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold text-xs shadow-2xs cursor-pointer"
+              >
+                H4
+              </button>
+              <div className="h-4 w-px bg-slate-300 mx-1" />
+              <button
+                type="button"
+                title="Negrita (**texto**)"
+                onClick={() => insertMarkdown('**', '**', 'negrita')}
+                className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold shadow-2xs cursor-pointer"
+              >
+                <Bold size={13} />
+              </button>
+              <button
+                type="button"
+                title="Cursiva (*texto*)"
+                onClick={() => insertMarkdown('*', '*', 'cursiva')}
+                className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-700 shadow-2xs cursor-pointer"
+              >
+                <Italic size={13} />
+              </button>
+              <button
+                type="button"
+                title="Resaltado (==texto==)"
+                onClick={() => insertMarkdown('==', '==', 'resaltado')}
+                className="px-2 py-1 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg text-amber-900 font-bold text-[11px] shadow-2xs cursor-pointer"
+              >
+                ==ab==
+              </button>
+              <button
+                type="button"
+                title="Lista de Tareas Interactivas (- [ ] )"
+                onClick={() => insertMarkdown('- [ ] ', '', 'Nueva tarea')}
+                className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-700 shadow-2xs cursor-pointer"
+              >
+                <CheckSquare size={13} />
+              </button>
+              <button
+                type="button"
+                title="Lista con viñetas (- )"
+                onClick={() => insertMarkdown('- ', '', 'Elemento')}
+                className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-700 shadow-2xs cursor-pointer"
+              >
+                <List size={13} />
+              </button>
+              <button
+                type="button"
+                title="Lista numerada (1. )"
+                onClick={() => insertMarkdown('1. ', '', 'Primer punto')}
+                className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-700 shadow-2xs cursor-pointer"
+              >
+                <ListOrdered size={13} />
+              </button>
+              <button
+                type="button"
+                title="Cita / Callout (> )"
+                onClick={() => insertMarkdown('> [!NOTE]\n> ', '', 'Anotación importante')}
+                className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-700 shadow-2xs cursor-pointer"
+              >
+                <Quote size={13} />
+              </button>
+              <button
+                type="button"
+                title="Tabla Markdown"
+                onClick={() => insertMarkdown('\n| Columna 1 | Columna 2 | Columna 3 |\n| :--- | :--- | :--- |\n| Dato A | Dato B | Dato C |\n', '', '')}
+                className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-700 shadow-2xs cursor-pointer"
+              >
+                <TableIcon size={13} />
+              </button>
+
+              {/* Wikilink [[...]] Insertion */}
+              <button
+                type="button"
+                onClick={() => setIsWikilinkPickerOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                title="Vincular a otra nota existente mediante [[Título]]"
+              >
+                <LinkIcon size={12} className="text-indigo-600" />
+                <span>[[ Vincular Nota ]]</span>
+              </button>
+
+              <div className="h-4 w-px bg-slate-300 mx-1" />
+
+              {/* Undo / Redo Buttons */}
+              <button
+                type="button"
+                disabled={undoStack.length === 0}
+                onClick={handleUndo}
+                className="p-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white border border-slate-200 rounded-lg text-slate-700 shadow-2xs cursor-pointer disabled:cursor-not-allowed transition-all"
+                title="Deshacer (Ctrl+Z)"
+              >
+                <Undo2 size={13} />
+              </button>
+              <button
+                type="button"
+                disabled={redoStack.length === 0}
+                onClick={handleRedo}
+                className="p-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white border border-slate-200 rounded-lg text-slate-700 shadow-2xs cursor-pointer disabled:cursor-not-allowed transition-all"
+                title="Rehacer (Ctrl+Y o Ctrl+Shift+Z)"
+              >
+                <Redo2 size={13} />
+              </button>
+
+              <div className="h-4 w-px bg-slate-300 mx-1" />
+
+              {/* Obsidian Live Preview Badge Indicator */}
+              <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200/80 rounded-lg text-[11px] font-bold shadow-2xs">
+                <Sparkles size={11} className="text-indigo-600 animate-pulse" />
+                <span>Obsidian Live Preview</span>
+              </div>
+            </div>
+
+            {/* Note Options (Pin, Public) & Right Sidebar Split Toggle */}
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs">
+                <input
+                  type="checkbox"
+                  checked={formIsPinned}
+                  onChange={(e) => setFormIsPinned(e.target.checked)}
+                  className="rounded text-indigo-600 focus:ring-0 cursor-pointer"
+                />
+                <Pin size={11} className={formIsPinned ? "text-indigo-600 fill-indigo-600" : "text-slate-400"} />
+                <span className="text-[11px] font-bold text-slate-700">Fijar</span>
+              </label>
+
+              <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs">
+                <input
+                  type="checkbox"
+                  checked={formIsCompanyPublic}
+                  onChange={(e) => setFormIsCompanyPublic(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-0 cursor-pointer"
+                />
+                <Globe size={11} className={formIsCompanyPublic ? "text-blue-600" : "text-slate-400"} />
+                <span className="text-[11px] font-bold text-slate-700">Pública</span>
+              </label>
+
+              <div className="h-4 w-px bg-slate-300 mx-0.5" />
+
+              {/* Sidebar Split Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
+                  isRightSidebarOpen 
+                    ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs' 
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+                title="Mostrar/Ocultar panel lateral dividido de Comentarios e Historial"
+              >
+                {isRightSidebarOpen ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
+                <span className="hidden sm:inline">Panel Lateral</span>
+                {activeNote?.history && activeNote.history.length > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                    isRightSidebarOpen ? 'bg-indigo-800 text-white' : 'bg-indigo-100 text-indigo-700'
+                  }`}>
+                    {activeNote.history.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+          {/* MAIN SPLIT CONTAINER: Canvas on left, Comments/History on right */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* MAIN DOCUMENT CANVAS */}
+            <div className="flex-1 overflow-y-auto bg-slate-50/50 p-3 sm:p-6 lg:p-8">
+              <div className="max-w-4xl mx-auto bg-white rounded-3xl border border-slate-200/90 shadow-xs p-6 sm:p-10 space-y-6 min-h-[580px] flex flex-col">
+                {/* Document Title Header Input */}
+                <div className="space-y-2 border-b border-slate-100 pb-4">
+                  <input
+                    type="text"
+                    placeholder="Título del Documento..."
+                    value={formTitle}
+                    onChange={(e) => setFormTitle(e.target.value)}
+                    className="w-full text-2xl sm:text-4xl font-black text-slate-900 bg-transparent border-0 focus:outline-none placeholder-slate-300 leading-tight"
+                  />
+                  <div className="flex items-center gap-2 text-xs text-slate-400 font-semibold">
+                    <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">📁 {formCategory}</span>
+                    <span>•</span>
+                    <span>{wordsCount} palabras</span>
+                    <span>•</span>
+                    <span>~{readingTimeMin} min lectura</span>
+                  </div>
+                </div>
+
+                {/* Single Unified Obsidian Live Preview Document Canvas */}
+                <div className="flex-1 flex flex-col min-h-[460px]">
+                  <ObsidianLiveEditor
+                    ref={obsidianEditorRef}
+                    value={formContent}
+                    onChange={(newVal) => {
+                      setFormContent(newVal);
+                      lastSnapshotRef.current = newVal;
+                    }}
+                    onWikilinkClick={handleWikilinkClick}
+                    placeholder="Escribe aquí tu documento usando Markdown (# Título, ## Subtítulo, - [ ] Tarea, [[Nota]] Enlace)..."
+                    autoFocus
+                  />
+                </div>
+
+                {/* Tag Management Footer */}
+                <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-500 flex items-center gap-1">
+                      <Hash size={12} />
+                      <span>Etiquetas:</span>
+                    </span>
+                    {formTags.map((t, tIdx) => (
+                      <span
+                        key={`ftag_${t}_${tIdx}`}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold shadow-2xs"
+                      >
+                        <span>{t}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(t)}
+                          className="hover:text-rose-600 p-0.5 cursor-pointer"
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ))}
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        placeholder="Agregar #etiqueta..."
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddTag();
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs w-36 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddTag}
+                        className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg text-xs cursor-pointer"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {activeNote && (
+                      <button
+                        type="button"
+                        onClick={() => setNoteToDelete(activeNote)}
+                        className="px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-xl font-bold transition-colors cursor-pointer"
+                      >
+                        Eliminar Nota
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleCloseEditor}
+                      className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SPLIT RIGHT SIDEBAR (Comments & History) */}
+            {isRightSidebarOpen && (
+              <aside className="w-80 sm:w-96 border-l border-slate-200 bg-white flex flex-col h-full shadow-lg z-10 shrink-0">
+                {/* Sidebar Header with Tabs */}
+                <div className="p-3 border-b border-slate-200 flex items-center justify-between bg-slate-50/90 gap-2 shrink-0">
+                  <div className="flex items-center gap-1 bg-slate-200/80 p-0.5 rounded-lg text-xs font-bold flex-1">
+                    <button
+                      type="button"
+                      onClick={() => setRightSidebarTab('comments')}
+                      className={`flex-1 py-1 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        rightSidebarTab === 'comments'
+                          ? 'bg-white text-indigo-700 shadow-2xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <MessageSquare size={13} />
+                      <span>Comentarios</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRightSidebarTab('history')}
+                      className={`flex-1 py-1 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        rightSidebarTab === 'history'
+                          ? 'bg-white text-indigo-700 shadow-2xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <History size={13} />
+                      <span>Historial</span>
+                      {activeNote?.history && activeNote.history.length > 0 && (
+                        <span className="px-1.5 py-0.2 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-black">
+                          {activeNote.history.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsRightSidebarOpen(false)}
+                    className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
+                    title="Ocultar panel lateral"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+
+                {/* Sidebar Tab Content */}
+                <div className="flex-1 overflow-y-auto">
+                  {rightSidebarTab === 'comments' ? (
+                    <div className="h-full flex flex-col p-3">
+                      {activeNote?.id ? (
+                        <UniversalCommentsThread
+                          entityType="note"
+                          entityId={activeNote.id}
+                          entityTitle={formTitle || activeNote.title}
+                          currentMember={currentMember}
+                          members={teamMembers}
+                          title="Comentarios de la Nota"
+                        />
+                      ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-400 space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                            <MessageSquare size={24} />
+                          </div>
+                          <p className="text-xs font-medium text-slate-600">
+                            Guarda esta nota por primera vez para activar el hilo de comentarios y menciones <span className="font-bold text-indigo-600">@usuario</span> con tu equipo.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-4 space-y-4">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <div className="flex items-center gap-1.5 text-xs font-black text-slate-800">
+                          <History size={14} className="text-indigo-600" />
+                          <span>Auditoría de Versiones</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded border border-emerald-200">
+                            30 días
+                          </span>
+                          <span className="text-[11px] font-bold text-slate-400">
+                            {activeNote?.history?.length || 0} revisiones
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* History Versions List */}
+                      {(!activeNote?.history || activeNote.history.length === 0) ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400 space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500">
+                            <Clock size={24} />
+                          </div>
+                          <p className="text-xs font-medium text-slate-500 max-w-[240px]">
+                            Aún no hay revisiones históricas registradas. Cada vez que guardes cambios (o uses Ctrl+S), se creará un punto de restauración automático protegido por 30 días.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {activeNote.history.map((ver, vIdx) => {
+                            const isCurrent = vIdx === 0;
+                            const isPreviewing = previewingHistoryEntry?.id === ver.id;
+                            const dateObj = new Date(ver.savedAt);
+                            const formattedDate = dateObj.toLocaleDateString('es-ES', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            });
+
+                            return (
+                              <div
+                                key={ver.id || `ver_${vIdx}`}
+                                className={`p-3 rounded-2xl border transition-all space-y-2 ${
+                                  isCurrent
+                                    ? 'bg-indigo-50/50 border-indigo-200'
+                                    : 'bg-white hover:bg-slate-50 border-slate-200'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    {ver.authorAvatar ? (
+                                      <img
+                                        src={ver.authorAvatar}
+                                        alt={ver.authorName}
+                                        className="w-6 h-6 rounded-full object-cover border border-slate-200"
+                                      />
+                                    ) : (
+                                      <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-700">
+                                        {(ver.authorName || 'U').charAt(0).toUpperCase()}
+                                      </div>
+                                    )}
+                                    <div>
+                                      <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                                        <span>{ver.authorName}</span>
+                                        {isCurrent && (
+                                          <span className="px-1.5 py-0.2 bg-indigo-600 text-white rounded text-[9px] font-black uppercase tracking-wider">
+                                            Actual
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-[10px] text-slate-400 font-medium">
+                                        {formattedDate}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                                    v{activeNote.history!.length - vIdx}
+                                  </span>
+                                </div>
+
+                                <div className="text-xs text-slate-600 bg-white/80 p-2 rounded-xl border border-slate-100 space-y-1">
+                                  <div className="font-semibold text-slate-800 line-clamp-1">
+                                    {ver.title || 'Sin Título'}
+                                  </div>
+                                  <div className="text-[11px] text-indigo-600 font-medium">
+                                    {ver.summary || `${ver.wordsCount || 0} palabras`}
+                                  </div>
+                                </div>
+
+                                {/* Preview Collapsible */}
+                                {isPreviewing && (
+                                  <div className="p-2.5 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono max-h-40 overflow-y-auto whitespace-pre-wrap leading-relaxed select-all">
+                                    {ver.content || '(Contenido vacío)'}
+                                  </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewingHistoryEntry(isPreviewing ? null : ver)}
+                                    className="text-[11px] font-bold text-slate-600 hover:text-indigo-600 cursor-pointer"
+                                  >
+                                    {isPreviewing ? 'Ocultar vista previa' : 'Ver contenido'}
+                                  </button>
+
+                                  {!isCurrent && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (window.confirm(`¿Estás seguro de restaurar la versión v${activeNote.history!.length - vIdx} guardada por ${ver.authorName}?`)) {
+                                          pushUndoSnapshot(formContent);
+                                          setFormTitle(ver.title);
+                                          setFormContent(ver.content);
+                                          lastSnapshotRef.current = ver.content;
+                                          setRestoredNotification(`Se restauró con éxito la versión v${activeNote.history!.length - vIdx}`);
+                                          setTimeout(() => setRestoredNotification(null), 3500);
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-black cursor-pointer transition-colors shadow-2xs"
+                                    >
+                                      <RotateCcw size={11} />
+                                      <span>Restaurar</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </aside>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* ULTRA-COMPACT SINGLE-LINE TOOLBAR: Filter Tabs + Search + New Note Button (All in one unified line) */}
+          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl p-2 px-3 shadow-xs space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           {/* Quick Filter Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full shrink-0">
             <button
@@ -1469,487 +2786,80 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
         </div>
       )}
 
-      {/* FULL OBSIDIAN MARKDOWN EDITOR MODAL */}
+        </>
+      )}
+
+      {/* WIKILINK PICKER MODAL */}
       <AnimatePresence>
-        {isEditorOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-fade-in">
+        {isWikilinkPickerOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white border border-slate-200 rounded-3xl w-full max-w-6xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden"
+              className="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-md shadow-2xl space-y-3.5 text-left"
             >
-              {/* TOP EDITOR TOOLBAR */}
-              <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="p-2.5 bg-indigo-600 text-white rounded-2xl shadow-xs shrink-0">
-                    <FileText size={18} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <input
-                      type="text"
-                      placeholder="Título de la nota..."
-                      value={formTitle}
-                      onChange={(e) => setFormTitle(e.target.value)}
-                      className="w-full text-base sm:text-lg font-black text-slate-900 bg-transparent border-0 focus:outline-none placeholder-slate-400"
-                    />
-                    <div className="flex items-center gap-3 text-xs text-slate-400 font-semibold mt-0.5">
-                      <span>{wordsCount} palabras</span>
-                      <span>•</span>
-                      <span>~{readingTimeMin} min lectura</span>
-                      <span>•</span>
-                      <span className="text-indigo-600 font-bold">{formCategory}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* VIEW MODE SWITCHER & ACTIONS */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Mode switcher */}
-                  <div className="flex items-center bg-slate-200/80 p-0.5 rounded-xl text-xs font-bold">
-                    <button
-                      type="button"
-                      onClick={() => setEditorMode('live')}
-                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-                        editorMode === 'live'
-                          ? 'bg-white text-indigo-700 shadow-2xs font-black'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <Sparkles size={13} />
-                      <span>Live Obsidian</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditorMode('split')}
-                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-                        editorMode === 'split'
-                          ? 'bg-white text-indigo-700 shadow-2xs font-black'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <Columns2 size={13} />
-                      <span>Dividido</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditorMode('preview')}
-                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-                        editorMode === 'preview'
-                          ? 'bg-white text-indigo-700 shadow-2xs font-black'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <BookOpen size={13} />
-                      <span>Lectura</span>
-                    </button>
-                  </div>
-
-                  {/* Save button */}
-                  <button
-                    type="button"
-                    onClick={handleSaveNote}
-                    disabled={isSaving}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl font-bold text-xs shadow-sm transition-all"
-                  >
-                    {isSaving ? (
-                      <>
-                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Guardando...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Save size={14} />
-                        <span>Guardar</span>
-                      </>
-                    )}
-                  </button>
-
-                  {activeNote?.id && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveCommentNote(activeNote)}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-bold text-xs transition-all border border-blue-200 cursor-pointer"
-                      title="Ver y añadir comentarios a esta nota"
-                    >
-                      <MessageSquare size={14} className="text-blue-600" />
-                      <span>Comentarios</span>
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setIsEditorOpen(false)}
-                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              </div>
-
-              {/* SAVE NOTIFICATION */}
-              {saveSuccessNotification && (
-                <div className="bg-emerald-500 text-white text-xs font-bold py-1 px-4 text-center flex items-center justify-center gap-1.5 animate-fade-in">
-                  <CheckCircle2 size={13} />
-                  <span>Nota guardada exitosamente en la nube</span>
-                </div>
-              )}
-
-              {/* SECONDARY SETTINGS & FORMATTING TOOLBAR */}
-              <div className="px-4 py-2.5 bg-slate-100/70 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-                {/* Markdown Syntax Tools */}
-                <div className="flex items-center gap-1 flex-wrap">
-                  <button
-                    type="button"
-                    title="Título 1 (# )"
-                    onClick={() => insertMarkdown('# ', '', 'Título Principal')}
-                    className="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded text-slate-700 font-black text-xs"
-                  >
-                    H1
-                  </button>
-                  <button
-                    type="button"
-                    title="Título 2 (## )"
-                    onClick={() => insertMarkdown('## ', '', 'Subtítulo')}
-                    className="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded text-slate-700 font-bold text-xs"
-                  >
-                    H2
-                  </button>
-                  <button
-                    type="button"
-                    title="Título 3 (### )"
-                    onClick={() => insertMarkdown('### ', '', 'Sección')}
-                    className="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded text-slate-700 font-bold text-xs"
-                  >
-                    H3
-                  </button>
-                  <div className="h-4 w-px bg-slate-300 mx-1" />
-                  <button
-                    type="button"
-                    title="Negrita (**texto**)"
-                    onClick={() => insertMarkdown('**', '**', 'negrita')}
-                    className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded text-slate-700 font-bold"
-                  >
-                    <Bold size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    title="Cursiva (*texto*)"
-                    onClick={() => insertMarkdown('*', '*', 'cursiva')}
-                    className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded text-slate-700"
-                  >
-                    <Italic size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    title="Lista de Tareas Interactivas (- [ ] )"
-                    onClick={() => insertMarkdown('- [ ] ', '', 'Nueva tarea')}
-                    className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded text-slate-700"
-                  >
-                    <CheckSquare size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    title="Lista con viñetas (- )"
-                    onClick={() => insertMarkdown('- ', '', 'Elemento')}
-                    className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded text-slate-700"
-                  >
-                    <List size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    title="Lista numerada (1. )"
-                    onClick={() => insertMarkdown('1. ', '', 'Primer punto')}
-                    className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded text-slate-700"
-                  >
-                    <ListOrdered size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    title="Cita / Callout (> )"
-                    onClick={() => insertMarkdown('> [!NOTE]\n> ', '', 'Anotación importante')}
-                    className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded text-slate-700"
-                  >
-                    <Quote size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    title="Tabla Markdown"
-                    onClick={() => insertMarkdown('\n| Encabezado 1 | Encabezado 2 |\n| :--- | :--- |\n| Dato 1 | Dato 2 |\n', '', '')}
-                    className="p-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded text-slate-700"
-                  >
-                    <TableIcon size={13} />
-                  </button>
-                </div>
-
-                {/* Note metadata config */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center gap-1.5">
-                    <Folder size={13} className="text-slate-400" />
-                    <select
-                      value={formCategory}
-                      onChange={(e) => setFormCategory(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700"
-                    >
-                      {categoriesList.map((c, cIdx) => (
-                        <option key={`pnote_form_cat_opt_${c || cIdx}_${cIdx}`} value={c}>{c}</option>
-                      ))}
-                      <option value="custom">+ Nueva Carpeta...</option>
-                    </select>
-                  </div>
-
-                  {formCategory === 'custom' && (
-                    <input
-                      type="text"
-                      placeholder="Nombre de carpeta..."
-                      value={formCustomCategory}
-                      onChange={(e) => setFormCustomCategory(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs w-32 font-semibold"
-                    />
-                  )}
-
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white border border-slate-200 px-2.5 py-1 rounded-lg">
-                    <input
-                      type="checkbox"
-                      checked={formIsPinned}
-                      onChange={(e) => setFormIsPinned(e.target.checked)}
-                      className="rounded text-indigo-600 focus:ring-0"
-                    />
-                    <Pin size={11} className={formIsPinned ? "text-indigo-600 fill-indigo-600" : "text-slate-400"} />
-                    <span className="text-[11px] font-bold text-slate-700">Fijar</span>
-                  </label>
-
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white border border-slate-200 px-2.5 py-1 rounded-lg">
-                    <input
-                      type="checkbox"
-                      checked={formIsCompanyPublic}
-                      onChange={(e) => setFormIsCompanyPublic(e.target.checked)}
-                      className="rounded text-blue-600 focus:ring-0"
-                    />
-                    <Globe size={11} className={formIsCompanyPublic ? "text-blue-600" : "text-slate-400"} />
-                    <span className="text-[11px] font-bold text-slate-700">Pública Empresa</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* EDITOR BODY */}
-              <div className="flex-1 overflow-y-auto flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-200 min-h-[450px]">
-                {/* LEFT / MAIN TEXTAREA (Hidden in pure Preview mode) */}
-                {editorMode !== 'preview' && (
-                  <div className={`flex-1 flex flex-col p-4 sm:p-6 bg-white ${editorMode === 'split' ? 'md:w-1/2' : 'w-full'}`}>
-                    <textarea
-                      ref={textareaRef}
-                      value={formContent}
-                      onChange={(e) => setFormContent(e.target.value)}
-                      placeholder="Escribe tu nota aquí..."
-                      className="w-full flex-1 min-h-[380px] bg-transparent border-0 text-slate-800 text-sm font-mono leading-relaxed resize-none focus:outline-none placeholder-slate-400 selection:bg-indigo-100"
-                    />
-                  </div>
-                )}
-
-                {/* RIGHT / PREVIEW RENDERER (Live Obsidian or Split or Pure Preview) */}
-                {(editorMode === 'live' || editorMode === 'split' || editorMode === 'preview') && (
-                  <div className={`flex-1 p-5 sm:p-7 bg-slate-50/50 overflow-y-auto ${editorMode === 'split' ? 'md:w-1/2' : 'w-full'}`}>
-                    <div className="max-w-3xl mx-auto space-y-4">
-                      {/* REAL-TIME OBSIDIAN LIVE LINE-BY-LINE RENDERER */}
-                      {formContent.split('\n').map((line, idx) => {
-                        // 1. Heading 1
-                        if (line.startsWith('# ')) {
-                          return (
-                            <h1 key={`pnote_render_${idx}_h1`} className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight pt-3 pb-1 border-b border-slate-200">
-                              <span className="text-indigo-400 font-mono text-lg select-none mr-1.5 opacity-60">#</span>
-                              <span>{line.substring(2)}</span>
-                            </h1>
-                          );
-                        }
-                        // 2. Heading 2
-                        if (line.startsWith('## ')) {
-                          return (
-                            <h2 key={`pnote_render_${idx}_h2`} className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight pt-2 pb-0.5">
-                              <span className="text-indigo-400 font-mono text-base select-none mr-1.5 opacity-60">##</span>
-                              <span>{line.substring(3)}</span>
-                            </h2>
-                          );
-                        }
-                        // 3. Heading 3
-                        if (line.startsWith('### ')) {
-                          return (
-                            <h3 key={`pnote_render_${idx}_h3`} className="text-lg sm:text-xl font-bold text-slate-900 pt-1.5">
-                              <span className="text-indigo-400 font-mono text-sm select-none mr-1.5 opacity-60">###</span>
-                              <span>{line.substring(4)}</span>
-                            </h3>
-                          );
-                        }
-                        // 4. Heading 4, 5, 6
-                        if (line.startsWith('#### ')) {
-                          return (
-                            <h4 key={`pnote_render_${idx}_h4`} className="text-base font-bold text-slate-800 pt-1">
-                              <span className="text-indigo-400 font-mono text-xs select-none mr-1 opacity-60">####</span>
-                              <span>{line.substring(5)}</span>
-                            </h4>
-                          );
-                        }
-                        // 5. Interactive Checklist - [ ] or - [x]
-                        if (line.match(/^- \[[ xX]\] /)) {
-                          const isChecked = line.startsWith('- [x]') || line.startsWith('- [X]');
-                          const taskText = line.substring(6);
-                          return (
-                            <div
-                              key={`pnote_render_${idx}_chk`}
-                              onClick={() => handleToggleTaskCheckbox(idx, isChecked)}
-                              className="flex items-start gap-2.5 py-1 px-2 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors group select-none"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => {}}
-                                className="mt-1 rounded text-indigo-600 focus:ring-0 cursor-pointer"
-                              />
-                              <span className={`text-sm leading-relaxed ${isChecked ? 'line-through text-slate-400' : 'text-slate-800 font-medium'}`}>
-                                {taskText}
-                              </span>
-                            </div>
-                          );
-                        }
-                        // 6. Callout > [!NOTE] / > [!TIP] / > [!WARNING]
-                        if (line.startsWith('> [!NOTE]')) {
-                          return (
-                            <div key={`pnote_render_${idx}_note`} className="p-3.5 bg-blue-50 border-l-4 border-blue-500 rounded-r-xl my-2 text-blue-900 text-xs font-semibold flex items-start gap-2">
-                              <Info size={16} className="text-blue-600 shrink-0 mt-0.5" />
-                              <span>{line.replace('> [!NOTE]', '') || 'Nota informativa'}</span>
-                            </div>
-                          );
-                        }
-                        if (line.startsWith('> [!TIP]')) {
-                          return (
-                            <div key={`pnote_render_${idx}_tip`} className="p-3.5 bg-emerald-50 border-l-4 border-emerald-500 rounded-r-xl my-2 text-emerald-900 text-xs font-semibold flex items-start gap-2">
-                              <Lightbulb size={16} className="text-emerald-600 shrink-0 mt-0.5" />
-                              <span>{line.replace('> [!TIP]', '') || 'Consejo clave'}</span>
-                            </div>
-                          );
-                        }
-                        if (line.startsWith('> [!WARNING]')) {
-                          return (
-                            <div key={`pnote_render_${idx}_warn`} className="p-3.5 bg-amber-50 border-l-4 border-amber-500 rounded-r-xl my-2 text-amber-900 text-xs font-semibold flex items-start gap-2">
-                              <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-                              <span>{line.replace('> [!WARNING]', '') || 'Alerta o precaución'}</span>
-                            </div>
-                          );
-                        }
-                        // 7. Generic Quote >
-                        if (line.startsWith('> ')) {
-                          return (
-                            <blockquote key={`pnote_render_${idx}_quote`} className="border-l-3 border-indigo-400 pl-3 py-1 my-1 text-slate-600 italic text-sm bg-indigo-50/40 rounded-r-lg">
-                              {line.substring(2)}
-                            </blockquote>
-                          );
-                        }
-                        // 8. Bullet List - or *
-                        if (line.startsWith('- ') || line.startsWith('* ')) {
-                          return (
-                            <div key={`pnote_render_${idx}_bullet`} className="flex items-start gap-2 text-sm text-slate-800 pl-2 py-0.5">
-                              <span className="text-indigo-500 font-black">•</span>
-                              <span>{line.substring(2)}</span>
-                            </div>
-                          );
-                        }
-                        // 9. Numbered List 1.
-                        if (line.match(/^\d+\.\s/)) {
-                          const num = line.match(/^(\d+)\.\s/)?.[1] || '1';
-                          const text = line.replace(/^\d+\.\s/, '');
-                          return (
-                            <div key={`pnote_render_${idx}_num`} className="flex items-start gap-2 text-sm text-slate-800 pl-2 py-0.5">
-                              <span className="text-indigo-600 font-bold text-xs bg-indigo-50 px-1.5 py-0.2 rounded font-mono">{num}</span>
-                              <span>{text}</span>
-                            </div>
-                          );
-                        }
-                        // 10. Horizontal divider
-                        if (line === '---' || line === '***' || line === '___') {
-                          return <hr key={`pnote_render_${idx}_hr`} className="border-slate-200 my-4" />;
-                        }
-                        // 11. Empty line
-                        if (!line.trim()) {
-                          return <div key={`pnote_render_${idx}_empty`} className="h-2.5" />;
-                        }
-                        // 12. Standard paragraph with inline formatting
-                        return (
-                          <p key={`pnote_render_${idx}_p`} className="text-sm text-slate-800 leading-relaxed font-normal">
-                            {line}
-                          </p>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* EDITOR FOOTER */}
-              <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                {/* Tag management */}
-                <div className="flex items-center gap-2 flex-wrap flex-1">
-                  <span className="font-bold text-slate-500 flex items-center gap-1">
-                    <Hash size={12} />
-                    <span>Etiquetas:</span>
-                  </span>
-                  {formTags.map((t, tIdx) => (
-                    <span
-                      key={`form_tag_${t}_${tIdx}`}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-bold"
-                    >
-                      <span>{t}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTag(t)}
-                        className="hover:text-rose-600 p-0.5"
-                      >
-                        <X size={10} />
-                      </button>
-                    </span>
-                  ))}
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="text"
-                      placeholder="Agregar #etiqueta..."
-                      value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddTag();
-                        }
-                      }}
-                      className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs w-32 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddTag}
-                      className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg text-[11px]"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Bottom Actions */}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  {activeNote && (
-                    <button
-                      type="button"
-                      onClick={() => setNoteToDelete(activeNote)}
-                      className="px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-xl font-bold transition-colors"
-                    >
-                      Eliminar
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsEditorOpen(false)}
-                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-colors"
-                  >
-                    Cerrar
-                  </button>
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                    <LinkIcon size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900">Vincular a otra Nota</h4>
+                    <p className="text-xs text-slate-400 font-medium">Selecciona una nota para insertar su wikilink [[...]]</p>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setIsWikilinkPickerOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Search input */}
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar nota por título o carpeta..."
+                  value={wikilinkSearch}
+                  onChange={(e) => setWikilinkSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  autoFocus
+                />
+              </div>
+
+              {/* Notes List */}
+              <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                {notes
+                  .filter((n) => {
+                    if (!wikilinkSearch.trim()) return true;
+                    const query = wikilinkSearch.toLowerCase();
+                    return (
+                      (n.title && n.title.toLowerCase().includes(query)) ||
+                      (n.category && n.category.toLowerCase().includes(query))
+                    );
+                  })
+                  .map((noteItem) => (
+                    <button
+                      key={`wiki_pick_${noteItem.id}`}
+                      type="button"
+                      onClick={() => insertWikilink(noteItem.title || 'Nota sin título')}
+                      className="w-full text-left p-2.5 hover:bg-indigo-50/80 rounded-xl border border-transparent hover:border-indigo-100 transition-all flex items-center justify-between group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText size={14} className="text-indigo-500 shrink-0 group-hover:scale-110 transition-transform" />
+                        <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-900 truncate">
+                          {noteItem.title || 'Nota sin título'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md shrink-0">
+                        📁 {noteItem.category || 'General'}
+                      </span>
+                    </button>
+                  ))}
               </div>
             </motion.div>
           </div>

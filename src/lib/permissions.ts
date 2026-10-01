@@ -21,9 +21,9 @@ export const getModuleAccess = (
     return 'administrador';
   }
 
-  // Handle dashboard module (Accessible by default for all team members)
+  // Handle dashboard module (Accessible by default for all team members upon platform startup)
   if (moduleId === 'dashboard') {
-    if (member.moduleAccess && member.moduleAccess['dashboard'] !== undefined) {
+    if (member.moduleAccess && member.moduleAccess['dashboard'] && member.moduleAccess['dashboard'] !== 'ninguno') {
       return member.moduleAccess['dashboard'];
     }
     return 'colaborador';

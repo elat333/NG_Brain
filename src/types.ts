@@ -231,6 +231,7 @@ export interface Process {
   name: string;
   description: string;
   goals: string[];
+  color?: string;
 }
 
 export interface MeetingTranscript {
@@ -321,6 +322,18 @@ export interface NoteShareAccess {
 
 export type PersonalLink = ProcessLink;
 
+export interface NoteHistoryEntry {
+  id: string;
+  savedAt: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar?: string;
+  title: string;
+  content: string;
+  summary?: string;
+  wordsCount?: number;
+}
+
 export interface PersonalNote {
   id: string;
   title: string;
@@ -339,6 +352,7 @@ export interface PersonalNote {
   sharedWith?: NoteShareAccess[];
   isCompanyPublic?: boolean;
   moduleContext?: string;
+  history?: NoteHistoryEntry[];
 }
 
 export interface ProcessNote {
