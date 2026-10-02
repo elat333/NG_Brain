@@ -23,6 +23,7 @@ import {
   Tag
 } from 'lucide-react';
 import { MarketingLead, MarketingCampaign, TeamMember } from '../../types';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 interface LeadsCrmViewProps {
   leads: MarketingLead[];
@@ -501,32 +502,45 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
                     <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
                       Campaña Asociada
                     </label>
-                    <select
+                    <SearchableSelect
                       value={editingLead.campaignId || ''}
-                      onChange={(e) => setEditingLead(prev => ({ ...prev, campaignId: e.target.value }))}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                    >
-                      <option value="">Sin campaña específica</option>
-                      {campaigns.map((c, cIdx) => (
-                        <option key={`mkt_lead_modal_camp_${c.id || cIdx}_${cIdx}`} value={c.id}>{c.code}</option>
-                      ))}
-                    </select>
+                      onChange={val => setEditingLead(prev => ({ ...prev, campaignId: val }))}
+                      placeholder="Sin campaña específica"
+                      searchPlaceholder="Buscar campaña..."
+                      isClearable
+                      options={[
+                        { value: '', label: 'Sin campaña específica' },
+                        ...campaigns.map(c => ({
+                          value: c.id,
+                          label: c.code,
+                          sublabel: c.name || undefined
+                        }))
+                      ]}
+                      buttonClassName="p-2.5 bg-slate-50 border-slate-200 text-xs font-bold"
+                    />
                   </div>
 
                   <div>
                     <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
                       Responsable Comercial
                     </label>
-                    <select
+                    <SearchableSelect
                       value={editingLead.assignedMemberId || ''}
-                      onChange={(e) => setEditingLead(prev => ({ ...prev, assignedMemberId: e.target.value }))}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                    >
-                      <option value="">Seleccionar responsable...</option>
-                      {members.map((m, mIdx) => (
-                        <option key={`mkt_lead_modal_resp_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
+                      onChange={val => setEditingLead(prev => ({ ...prev, assignedMemberId: val }))}
+                      placeholder="Seleccionar responsable..."
+                      searchPlaceholder="Buscar comercial..."
+                      isClearable
+                      options={[
+                        { value: '', label: 'Seleccionar responsable...' },
+                        ...members.map(m => ({
+                          value: m.id,
+                          label: m.name,
+                          sublabel: m.role || undefined,
+                          avatarUrl: m.avatar
+                        }))
+                      ]}
+                      buttonClassName="p-2.5 bg-slate-50 border-slate-200 text-xs font-bold"
+                    />
                   </div>
                 </div>
 

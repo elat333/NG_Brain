@@ -58,6 +58,7 @@ import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firesto
 import { db } from '../../lib/firebase';
 import { TeamMember, PersonalNote, NoteShareAccess, NoteHistoryEntry } from '../../types';
 import { UniversalCommentsModal, UniversalCommentsThread } from './UniversalCommentsThread';
+import { SearchableSelect } from './SearchableSelect';
 import { ObsidianLiveEditor, ObsidianLiveEditorHandle } from './ObsidianLiveEditor';
 
 interface PersonalNotesViewProps {
@@ -2968,18 +2969,24 @@ export const PersonalNotesView: React.FC<PersonalNotesViewProps> = ({
               <div className="space-y-2.5 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80">
                 <label className="text-xs font-bold text-slate-700 block">Invitar compañero:</label>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <select
-                    value={selectedShareMemberId}
-                    onChange={(e) => setSelectedShareMemberId(e.target.value)}
-                    className="flex-1 min-w-0 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 truncate"
-                  >
-                    <option value="">Selecciona un integrante...</option>
-                    {teamMembers
-                      .filter(m => m.id !== memberId)
-                      .map((m, mIdx) => (
-                        <option key={`personal_notes_share_m_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name} ({m.email || 'Sin email'})</option>
-                      ))}
-                  </select>
+                  <div className="flex-1 min-w-0">
+                    <SearchableSelect
+                      value={selectedShareMemberId}
+                      onChange={val => setSelectedShareMemberId(val)}
+                      placeholder="Selecciona un integrante..."
+                      searchPlaceholder="Buscar por nombre o correo..."
+                      isClearable
+                      options={teamMembers
+                        .filter(m => m.id !== memberId)
+                        .map(m => ({
+                          value: m.id,
+                          label: m.name,
+                          sublabel: m.email || m.role || undefined,
+                          avatarUrl: m.avatar
+                        }))}
+                      buttonClassName="px-3 py-2 bg-white border-slate-200 text-xs font-semibold"
+                    />
+                  </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <select
                       value={selectedShareRole}

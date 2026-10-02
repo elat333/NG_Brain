@@ -4,7 +4,7 @@ import {
 } from '../types';
 import { 
   db, doc, setDoc, updateDoc, deleteDoc, collection, addDoc, 
-  OperationType, handleFirestoreError 
+  OperationType, handleFirestoreError, sanitizeForFirestore 
 } from '../lib/firebase';
 import { normalizeText } from '../lib/textUtils';
 import { processMemberInput } from '../services/aiService';
@@ -256,6 +256,12 @@ export function useEntityManager({
   };
 
   const handleDeleteMember = (member: TeamMember) => {
+    const isSysAdmin = currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin';
+    const directoryAccess = getModuleAccess(currentMember, roles, 'directory');
+    if (!isSysAdmin && directoryAccess !== 'administrador') {
+      alert('Solo los administradores tienen permiso para eliminar personas del directorio.');
+      return;
+    }
     setMemberToDelete(member);
   };
 
@@ -354,13 +360,15 @@ export function useEntityManager({
   // Company Handlers
   const handleCreateCompanyForCRM = async (company: Partial<Company>): Promise<string> => {
     const id = `comp-${Date.now()}`;
-    await setDoc(doc(db, 'companies', id), { ...company, id });
+    const cleaned = sanitizeForFirestore({ ...company, id });
+    await setDoc(doc(db, 'companies', id), cleaned);
     return id;
   };
 
   const handleCreateMemberForCRM = async (member: Partial<TeamMember>): Promise<string> => {
     const id = `mem-${Date.now()}`;
-    await setDoc(doc(db, 'members', id), { ...member, id });
+    const cleaned = sanitizeForFirestore({ ...member, id });
+    await setDoc(doc(db, 'members', id), cleaned);
     return id;
   };
 
@@ -435,6 +443,12 @@ export function useEntityManager({
   };
 
   const handleDeleteCompany = async (id: string) => {
+    const isSysAdmin = currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin';
+    const directoryAccess = getModuleAccess(currentMember, roles, 'directory');
+    if (!isSysAdmin && directoryAccess !== 'administrador') {
+      alert('Solo los administradores tienen permiso para eliminar compañías del directorio.');
+      return;
+    }
     if (window.confirm('¿Estás seguro de que deseas eliminar esta compañía?')) {
       try {
         await deleteDoc(doc(db, 'companies', id));

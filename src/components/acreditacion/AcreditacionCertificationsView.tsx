@@ -33,6 +33,7 @@ import {
 } from '../../types';
 import { cleanFirestoreData } from '../common/CompanyEditorView';
 import { ProductCombobox } from './ProductCombobox';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 interface AcreditacionCertificationsViewProps {
   certifications: AcreditationCertification[];
@@ -986,19 +987,20 @@ export const AcreditacionCertificationsView: React.FC<AcreditacionCertifications
                     <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1.5">
                       Aliado Proveedor <span className="text-rose-500">*</span>
                     </label>
-                    <select
+                    <SearchableSelect
                       value={selectedAllyId}
-                      onChange={(e) => setSelectedAllyId(e.target.value)}
+                      onChange={val => setSelectedAllyId(val)}
                       required
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    >
-                      <option value="">Selecciona el aliado emisor...</option>
-                      {allies.map((ally, allyIdx) => (
-                        <option key={`cert_opt_ally_${ally.id || allyIdx}_${allyIdx}`} value={ally.id}>
-                          {ally.name} {ally.companyName ? `(${ally.companyName})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Selecciona el aliado emisor..."
+                      searchPlaceholder="Buscar aliado o empresa..."
+                      isClearable
+                      options={allies.map(ally => ({
+                        value: ally.id,
+                        label: ally.name,
+                        sublabel: ally.companyName || undefined
+                      }))}
+                      buttonClassName="p-2.5 bg-slate-50 border-slate-200 text-xs font-bold"
+                    />
                   </div>
                 </div>
 

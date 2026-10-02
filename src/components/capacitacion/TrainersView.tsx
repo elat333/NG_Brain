@@ -19,10 +19,11 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, sanitizeForFirestore } from '../../lib/firebase';
 import { Trainer, TeamMember, Company, Process, Role, PersonCategory, TrainingPlan, TrainingSpace } from '../../types';
 import { MemberEditorView } from '../common/MemberEditorView';
 import { TrainerDetailModal } from './TrainerDetailModal';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 interface TrainersViewProps {
   trainers: Trainer[];
@@ -195,7 +196,7 @@ export const TrainersView: React.FC<TrainersViewProps> = ({
           phone: newMemberData.phone || '',
           epp: typeof newMemberData.epp === 'string' ? newMemberData.epp.split(',').map(e => e.trim()).filter(e => e !== '') : (newMemberData.epp || [])
         };
-        await setDoc(doc(db, 'members', newId), newMem);
+        await setDoc(doc(db, 'members', newId), sanitizeForFirestore(newMem));
       }
 
       // Auto-seleccionar la persona recién creada en el formulario del Capacitador
@@ -430,19 +431,21 @@ export const TrainersView: React.FC<TrainersViewProps> = ({
                         Nueva Persona en Directorio
                       </button>
                     </div>
-                    <select
-                      required
+                    <SearchableSelect
                       value={editingTrainer.directoryId || ''}
-                      onChange={e => setEditingTrainer({ ...editingTrainer, directoryId: e.target.value })}
-                      className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    >
-                      <option value="">Seleccione una persona del directorio...</option>
-                      {members.map((m, mIdx) => (
-                        <option key={`trainers_modal_m_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>
-                          {m.name} {m.role ? `(${m.role})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={val => setEditingTrainer({ ...editingTrainer, directoryId: val })}
+                      placeholder="Seleccione una persona del directorio..."
+                      searchPlaceholder="Buscar por nombre o cargo..."
+                      isClearable
+                      required
+                      options={members.map(m => ({
+                        value: m.id,
+                        label: m.name,
+                        sublabel: m.role || undefined,
+                        avatarUrl: m.avatar
+                      }))}
+                      buttonClassName="p-3 bg-white border-slate-200 text-sm font-semibold"
+                    />
                   </div>
 
                   <div>

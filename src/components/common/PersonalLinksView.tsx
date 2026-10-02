@@ -30,6 +30,7 @@ import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firesto
 import { db } from '../../lib/firebase';
 import { TeamMember, ProcessLink, NoteShareAccess } from '../../types';
 import { UniversalCommentsModal } from './UniversalCommentsThread';
+import { SearchableSelect } from './SearchableSelect';
 
 interface PersonalLinksViewProps {
   currentMember: TeamMember | null;
@@ -1307,20 +1308,24 @@ export const PersonalLinksView: React.FC<PersonalLinksViewProps> = ({
                 </label>
                 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <select
-                    value={selectedShareMemberId}
-                    onChange={(e) => setSelectedShareMemberId(e.target.value)}
-                    className="flex-1 min-w-0 p-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 truncate"
-                  >
-                    <option value="">Seleccionar miembro del equipo...</option>
-                    {teamMembers
-                      .filter((m) => m.id !== memberId)
-                      .map((m, mIdx) => (
-                        <option key={`personal_links_share_m_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>
-                          {m.name || m.email} ({m.role || 'Miembro'})
-                        </option>
-                      ))}
-                  </select>
+                  <div className="flex-1 min-w-0">
+                    <SearchableSelect
+                      value={selectedShareMemberId}
+                      onChange={val => setSelectedShareMemberId(val)}
+                      placeholder="Seleccionar miembro del equipo..."
+                      searchPlaceholder="Buscar por nombre o correo..."
+                      isClearable
+                      options={teamMembers
+                        .filter(m => m.id !== memberId)
+                        .map(m => ({
+                          value: m.id,
+                          label: m.name,
+                          sublabel: m.email || m.role || undefined,
+                          avatarUrl: m.avatar
+                        }))}
+                      buttonClassName="p-2 bg-white border-slate-200 text-xs font-semibold"
+                    />
+                  </div>
 
                   <div className="flex items-center gap-2 shrink-0">
                     <div className="w-36 flex bg-white p-0.5 rounded-xl border border-slate-200">

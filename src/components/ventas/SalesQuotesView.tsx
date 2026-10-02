@@ -13,6 +13,7 @@ import {
   Tag,
 } from "lucide-react";
 import { SalesQuote, SalesClient, Company, TeamMember } from "../../types";
+import { SearchableSelect } from "../common/SearchableSelect";
 
 interface SalesQuotesViewProps {
   companies: Company[];
@@ -305,32 +306,26 @@ export const SalesQuotesView: React.FC<SalesQuotesViewProps> = ({
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                       <Building size={14} /> Cliente
                     </label>
-                    <select
+                    <SearchableSelect
                       required
                       value={editingQuote.clientId}
-                      onChange={(e) =>
-                        setEditingQuote({
-                          ...editingQuote,
-                          clientId: e.target.value,
-                        })
-                      }
-                      className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    >
-                      <option value="">Seleccione...</option>
-
-                      {clients
-                        .filter((c) => c.clientType === "B2B")
-                        .map((c, cIdx) => {
-                          const cName =
-                            companies.find((comp) => comp.id === c.directoryId)
-                              ?.name || "Empresa";
-                          return (
-                            <option key={`sales_quote_client_opt_${c.id || cIdx}_${cIdx}`} value={c.id}>
-                              {cName}
-                            </option>
-                          );
-                        })}
-                    </select>
+                      onChange={val => setEditingQuote({ ...editingQuote, clientId: val })}
+                      placeholder="Seleccione cliente..."
+                      searchPlaceholder="Buscar cliente o empresa..."
+                      isClearable
+                      options={clients.map(c => {
+                        const name = c.clientType === 'B2B'
+                          ? companies.find(comp => comp.id === c.directoryId)?.name || 'Empresa'
+                          : members.find(mem => mem.id === c.directoryId)?.name || 'Persona';
+                        return {
+                          value: c.id,
+                          label: name,
+                          badge: c.clientType,
+                          badgeColor: c.clientType === 'B2B' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                        };
+                      })}
+                      buttonClassName="p-3 bg-white border-slate-200 text-sm font-semibold"
+                    />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">

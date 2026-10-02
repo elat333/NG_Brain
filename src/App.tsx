@@ -765,6 +765,7 @@ export default function App() {
           setNewCompanyData={setNewCompanyData}
           setIsAddingCompany={setIsAddingCompany}
           handleTabClick={handleTabClick}
+          navigateWithUnsavedCheck={navigateWithUnsavedCheck}
         />
 
         <div className={`flex-1 ${editingTask ? 'overflow-y-auto custom-scrollbar pt-2.5 px-6 pb-6' : activeTab === 'gerencia' && managementSubTab === 'consultant' ? 'overflow-hidden flex flex-col p-4 md:p-6' : activeTab === 'dashboard' ? 'overflow-hidden flex flex-col px-6 pt-3 pb-3.5' : 'overflow-y-auto custom-scrollbar ' + (activeTab === 'tasks' || activeTab === 'comments' || (activeTab === 'gerencia' && (managementSubTab === 'notes' || managementSubTab === 'links')) || (activeTab === 'marketing' && (marketingSubTab === 'notes' || marketingSubTab === 'links')) || (activeTab === 'ventas' && (ventasSubTab === 'notes' || ventasSubTab === 'links')) || (activeTab === 'capacitacion' && (capacitacionSubTab === 'notes' || capacitacionSubTab === 'links')) || (activeTab === 'acreditacion' && (acreditacionSubTab === 'notes' || acreditacionSubTab === 'links')) || (activeTab === 'qhse' && (qhseSubTab === 'notes' || qhseSubTab === 'links')) || (activeTab === 'importaciones' && ((importacionesSubTab as any) === 'notes' || (importacionesSubTab as any) === 'links')) || (activeTab === 'productos' && ((productosSubTab as any) === 'notes' || (productosSubTab as any) === 'links')) ? 'pt-2.5 px-6 pb-6' : 'p-6')}`}>
@@ -776,6 +777,7 @@ export default function App() {
               roles={roles}
               members={members}
               sortedMembers={sortedMembers}
+              navigateWithUnsavedCheck={navigateWithUnsavedCheck}
               processes={processes}
               projects={projects}
               companies={companies}

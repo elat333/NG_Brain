@@ -18,6 +18,7 @@ import {
   Building
 } from 'lucide-react';
 import { Process, Company, Role, TeamMember } from '../../types';
+import { SearchableSelect } from './SearchableSelect';
 
 interface MemberEditorViewProps {
   editingMember: TeamMember | null;
@@ -345,18 +346,22 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
                   <Building2 size={14} className="text-blue-500" />
                   Proceso Asignado
                 </label>
-                <select
+                <SearchableSelect
                   value={newMemberData.processId || ''}
-                  onChange={(e) => setNewMemberData({ ...newMemberData, processId: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-                >
-                  <option value="">Sin Proceso Asignado (General / Externo)</option>
-                  {processes.map((p, pIdx) => (
-                    <option key={`opt_proc_${p.id || pIdx}_${pIdx}`} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setNewMemberData({ ...newMemberData, processId: val })}
+                  placeholder="Sin Proceso Asignado (General / Externo)"
+                  searchPlaceholder="Buscar proceso..."
+                  isClearable
+                  options={[
+                    { value: '', label: 'Sin Proceso Asignado (General / Externo)' },
+                    ...processes.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                      sublabel: p.description?.slice(0, 40)
+                    }))
+                  ]}
+                  buttonClassName="py-3 bg-gray-50 border-gray-200 text-xs font-bold"
+                />
               </div>
 
               <div className="space-y-2">
@@ -364,18 +369,22 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
                   <ShieldCheck size={14} className="text-blue-500" />
                   Rol de Sistema (Permisos de Aplicación)
                 </label>
-                <select
+                <SearchableSelect
                   value={newMemberData.systemRoleId || ''}
-                  onChange={(e) => setNewMemberData({ ...newMemberData, systemRoleId: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-                >
-                  <option value="">Por defecto (Colaborador)</option>
-                  {roles.map((r, rIdx) => (
-                    <option key={`opt_role_${r.id || rIdx}_${rIdx}`} value={r.id}>
-                      {r.name} - {r.description?.slice(0, 45)}...
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setNewMemberData({ ...newMemberData, systemRoleId: val })}
+                  placeholder="Por defecto (Colaborador)"
+                  searchPlaceholder="Buscar rol de sistema..."
+                  isClearable
+                  options={[
+                    { value: '', label: 'Por defecto (Colaborador)' },
+                    ...roles.map((r) => ({
+                      value: r.id,
+                      label: r.name,
+                      sublabel: r.description?.slice(0, 45)
+                    }))
+                  ]}
+                  buttonClassName="py-3 bg-gray-50 border-gray-200 text-xs font-bold"
+                />
               </div>
 
               <div className="space-y-2 flex flex-col justify-end">
@@ -408,18 +417,19 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-1">
-                  <select
+                  <SearchableSelect
                     value={selectedCompanyId}
-                    onChange={(e) => setSelectedCompanyId(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="">Selecciona una compañía...</option>
-                    {companies.map((c, cIdx) => (
-                      <option key={`opt_comp_${c.id || cIdx}_${cIdx}`} value={c.id}>
-                        {c.name} {c.ruc ? `(${c.ruc})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSelectedCompanyId(val)}
+                    placeholder="Selecciona una compañía..."
+                    searchPlaceholder="Buscar empresa o RUC..."
+                    isClearable
+                    options={companies.map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                      sublabel: c.ruc ? `RUC: ${c.ruc}` : c.industry,
+                    }))}
+                    buttonClassName="py-2.5 bg-white border-gray-200 text-xs font-bold"
+                  />
                 </div>
 
                 <div className="md:col-span-1">

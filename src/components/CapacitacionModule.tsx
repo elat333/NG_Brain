@@ -19,7 +19,8 @@ import {
   MarketingCampaign,
   Company,
   Process,
-  Role
+  Role,
+  Project
 } from '../types';
 
 import { TrainersView } from './capacitacion/TrainersView';
@@ -55,7 +56,7 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
   roles = [],
   clients = [],
   campaigns = [],
-  activeSubTab = 'calendar',
+  activeSubTab = 'management',
   onSubTabChange,
   onCreateMember,
   currentMember
@@ -68,6 +69,7 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [managements, setManagements] = useState<TrainingManagement[]>([]);
   const [localCampaigns, setLocalCampaigns] = useState<MarketingCampaign[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   useEffect(() => {
     if (activeSubTab && activeSubTab !== currentTab) {
@@ -97,6 +99,9 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
     const unsubCamp = onSnapshot(collection(db, 'marketing_campaigns'), snapshot => {
       setLocalCampaigns(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as MarketingCampaign)));
     });
+    const unsubProj = onSnapshot(collection(db, 'projects'), snapshot => {
+      setProjects(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Project)));
+    });
 
     return () => {
       unsubTrainers();
@@ -104,6 +109,7 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
       unsubPlans();
       unsubMgmt();
       unsubCamp();
+      unsubProj();
     };
   }, []);
 
@@ -214,6 +220,7 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
                 managements={managements}
                 clients={clients}
                 campaigns={localCampaigns}
+                projects={projects}
                 onSavePlan={handleSavePlan} 
                 onDeletePlan={handleDeletePlan} 
                 onSaveManagementAndPlan={handleSaveMgmtAndPlan}
@@ -228,6 +235,7 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
                 plans={plans}
                 clients={clients}
                 campaigns={localCampaigns}
+                projects={projects}
                 trainers={trainers}
                 spaces={spaces}
                 members={members}

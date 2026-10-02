@@ -184,6 +184,7 @@ export interface AppMainContentProps {
   showTaskHistory?: boolean;
   setShowTaskHistory?: React.Dispatch<React.SetStateAction<boolean>> | ((show: boolean) => void);
   setTasks?: React.Dispatch<React.SetStateAction<Task[]>> | any;
+  navigateWithUnsavedCheck?: (action: any) => void;
 }
 
 export const AppMainContent: React.FC<AppMainContentProps> = ({
@@ -193,6 +194,7 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
   roles,
   members,
   sortedMembers,
+  navigateWithUnsavedCheck,
   processes,
   projects,
   companies,
@@ -701,6 +703,7 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
           handleDeleteCompany={handleDeleteCompany}
           setViewingCompany={setViewingCompany}
           normalizeText={normalizeText}
+          navigateWithUnsavedCheck={navigateWithUnsavedCheck}
         />
       )}
 

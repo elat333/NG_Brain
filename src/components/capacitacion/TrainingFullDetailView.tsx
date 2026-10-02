@@ -23,7 +23,18 @@ import {
   Video,
   Megaphone,
   Calculator,
-  Receipt
+  Receipt,
+  Award,
+  TrendingUp,
+  TrendingDown,
+  FolderKanban,
+  Sun,
+  Moon,
+  Shuffle,
+  CreditCard,
+  Building2,
+  Sparkles,
+  LogOut
 } from 'lucide-react';
 import { 
   TrainingManagement, 
@@ -35,8 +46,11 @@ import {
   SalesClient, 
   MarketingCampaign,
   Company,
-  TrainingExpenseItem
+  Project,
+  TrainingExpenseItem,
+  TrainingIncomeItem
 } from '../../types';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 export interface TrainingFullDetailViewProps {
   management?: TrainingManagement | null;
@@ -48,6 +62,7 @@ export interface TrainingFullDetailViewProps {
   companies?: Company[];
   clients: SalesClient[];
   campaigns: MarketingCampaign[];
+  projects?: Project[];
   onSave: (mgmt: Partial<TrainingManagement>, planData?: Partial<TrainingPlan>) => Promise<void>;
   onDelete?: (mgmtId: string, planId?: string) => Promise<void>;
   onBack: () => void;
@@ -65,6 +80,7 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
   companies = [],
   clients,
   campaigns,
+  projects = [],
   onSave,
   onDelete,
   onBack,
@@ -74,9 +90,20 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
   // State for Management
   const [code, setCode] = useState(management?.code || '');
   const [status, setStatus] = useState<'pendiente' | 'ejecutada'>(management?.status || 'pendiente');
+  const [selectedPlanId, setSelectedPlanId] = useState(management?.planId || plan?.id || '');
+
+  // Origin State
+  const [originType, setOriginType] = useState<'marketing_campaign' | 'project' | 'direct_client' | 'internal_initiative' | 'other'>(() => {
+    if (management?.originType) return management.originType;
+    if (management?.marketingCampaignId) return 'marketing_campaign';
+    if (management?.projectId) return 'project';
+    if (management?.clientId) return 'direct_client';
+    return 'internal_initiative';
+  });
   const [clientId, setClientId] = useState(management?.clientId || '');
   const [marketingCampaignId, setMarketingCampaignId] = useState(management?.marketingCampaignId || '');
-  const [selectedPlanId, setSelectedPlanId] = useState(management?.planId || plan?.id || '');
+  const [projectId, setProjectId] = useState(management?.projectId || '');
+  const [originDetails, setOriginDetails] = useState(management?.originDetails || '');
 
   // State for Training Plan & Schedule
   const [planTitle, setPlanTitle] = useState(plan?.title || '');
@@ -126,6 +153,7 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
     return initialRaw.map((s, idx) => {
       const pHours = Number(calcHours(s.startTime, s.endTime).toFixed(1));
       const rate = s.hourlyRate !== undefined ? s.hourlyRate : getDefaultTrainerRate(s.trainerId);
+      const execH = s.executedHours !== undefined ? s.executedHours : (pHours || 0);
       return {
         ...s,
         id: s.id || `sess-${Date.now()}-${idx}`,
@@ -133,9 +161,21 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
         notes: s.notes || '',
         hourlyRate: rate,
         plannedHours: s.plannedHours !== undefined ? s.plannedHours : pHours,
-        executedHours: s.executedHours !== undefined ? s.executedHours : (pHours || 0)
+        executedHours: execH,
+        workScheduleType: s.workScheduleType || 'horario_laboral',
+        workHoursInSchedule: s.workHoursInSchedule !== undefined ? s.workHoursInSchedule : execH,
+        workHoursOutSchedule: s.workHoursOutSchedule !== undefined ? s.workHoursOutSchedule : 0
       };
     });
+  });
+
+  // State for Incomes (sin IVA)
+  const [incomes, setIncomes] = useState<TrainingIncomeItem[]>(() => {
+    return (management?.incomes || []).map(item => ({
+      ...item,
+      id: item.id || `inc-${Date.now()}-${Math.random()}`,
+      subtotal: Number(((Number(item.quantity) || 1) * (Number(item.unitPrice) || 0)).toFixed(2))
+    }));
   });
 
   // State for Expenses (sin IVA)
@@ -163,6 +203,14 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
     }));
   });
 
+  const [certificateExpenses, setCertificateExpenses] = useState<TrainingExpenseItem[]>(() => {
+    return (management?.certificateExpenses || []).map(item => ({
+      ...item,
+      id: item.id || `cert-${Date.now()}-${Math.random()}`,
+      subtotal: Number((item.quantity * item.unitPrice).toFixed(2))
+    }));
+  });
+
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [formError, setFormError] = useState('');
@@ -178,6 +226,7 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
         if (foundPlan.sessions && foundPlan.sessions.length > 0) {
           setSessions(foundPlan.sessions.map((s, idx) => {
             const pHours = Number(calcHours(s.startTime, s.endTime).toFixed(1));
+            const execH = s.executedHours !== undefined ? s.executedHours : pHours;
             return {
               ...s,
               id: s.id || `sess-${Date.now()}-${idx}`,
@@ -185,7 +234,10 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
               notes: s.notes || '',
               hourlyRate: s.hourlyRate !== undefined ? s.hourlyRate : getDefaultTrainerRate(s.trainerId),
               plannedHours: s.plannedHours !== undefined ? s.plannedHours : pHours,
-              executedHours: s.executedHours !== undefined ? s.executedHours : pHours
+              executedHours: execH,
+              workScheduleType: s.workScheduleType || 'horario_laboral',
+              workHoursInSchedule: s.workHoursInSchedule !== undefined ? s.workHoursInSchedule : execH,
+              workHoursOutSchedule: s.workHoursOutSchedule !== undefined ? s.workHoursOutSchedule : 0
             };
           }));
         }
@@ -213,8 +265,27 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
     const totalLogisticsC = logisticsExpenses.reduce((acc, item) => acc + (Number(item.quantity || 0) * Number(item.unitPrice || 0)), 0);
     const totalSpaceC = spaceExpenses.reduce((acc, item) => acc + (Number(item.quantity || 0) * Number(item.unitPrice || 0)), 0);
     const totalMarketingC = marketingExpenses.reduce((acc, item) => acc + (Number(item.quantity || 0) * Number(item.unitPrice || 0)), 0);
+    const totalCertificateC = certificateExpenses.reduce((acc, item) => acc + (Number(item.quantity || 0) * Number(item.unitPrice || 0)), 0);
 
-    const grandTotal = totalTrainerC + totalLogisticsC + totalSpaceC + totalMarketingC;
+    const grandTotalCost = totalTrainerC + totalLogisticsC + totalSpaceC + totalMarketingC + totalCertificateC;
+
+    // Income calculations
+    let totalInc = 0;
+    let totalIncCollected = 0;
+    let totalIncPending = 0;
+
+    incomes.forEach(item => {
+      const sub = Number(item.quantity || 0) * Number(item.unitPrice || 0);
+      totalInc += sub;
+      if (item.paymentStatus === 'cobrado') {
+        totalIncCollected += sub;
+      } else {
+        totalIncPending += sub;
+      }
+    });
+
+    const netProfit = totalInc - grandTotalCost;
+    const profitMargin = totalInc > 0 ? (netProfit / totalInc) * 100 : 0;
 
     return {
       totalPlannedHours: Number(totalPlannedH.toFixed(1)),
@@ -223,15 +294,21 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
       totalLogisticsCost: Number(totalLogisticsC.toFixed(2)),
       totalSpaceCost: Number(totalSpaceC.toFixed(2)),
       totalMarketingCost: Number(totalMarketingC.toFixed(2)),
-      grandTotalCost: Number(grandTotal.toFixed(2))
+      totalCertificateCost: Number(totalCertificateC.toFixed(2)),
+      grandTotalCost: Number(grandTotalCost.toFixed(2)),
+      totalIncome: Number(totalInc.toFixed(2)),
+      totalIncomeCollected: Number(totalIncCollected.toFixed(2)),
+      totalIncomePending: Number(totalIncPending.toFixed(2)),
+      netProfit: Number(netProfit.toFixed(2)),
+      profitMargin: Number(profitMargin.toFixed(1))
     };
-  }, [sessions, logisticsExpenses, spaceExpenses, marketingExpenses, trainers]);
+  }, [sessions, logisticsExpenses, spaceExpenses, marketingExpenses, certificateExpenses, incomes, trainers]);
 
   const getTrainerName = (trainerId: string) => {
     const trainer = trainers.find(t => t.id === trainerId);
     if (!trainer) return 'Capacitador no asignado';
     const member = members.find(m => m.id === trainer.directoryId);
-    return `${member?.name || 'Capacitador'} (${trainer.type})`;
+    return `${member?.name || 'Capacitador'} (${trainer.type === 'interno' ? 'Interno' : 'Externo'})`;
   };
 
   const getSpaceDetails = (spaceId: string) => {
@@ -280,7 +357,10 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
       notes: '',
       hourlyRate: getDefaultTrainerRate(defaultTrainerId),
       plannedHours: pHours,
-      executedHours: pHours
+      executedHours: pHours,
+      workScheduleType: 'horario_laboral',
+      workHoursInSchedule: pHours,
+      workHoursOutSchedule: 0
     };
 
     setSessions([...sessions, newSession]);
@@ -319,6 +399,42 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
       target.plannedHours = pHours;
       if (target.executedHours === undefined || target.executedHours === updated[idx].plannedHours) {
         target.executedHours = pHours;
+        if (target.workScheduleType === 'horario_laboral') {
+          target.workHoursInSchedule = pHours;
+          target.workHoursOutSchedule = 0;
+        } else if (target.workScheduleType === 'fuera_horario_laboral') {
+          target.workHoursInSchedule = 0;
+          target.workHoursOutSchedule = pHours;
+        }
+      }
+    }
+
+    // If changing executed hours, adjust schedule hours default if not mixto
+    if (field === 'executedHours') {
+      const execVal = Number(value) || 0;
+      if (target.workScheduleType === 'horario_laboral') {
+        target.workHoursInSchedule = execVal;
+        target.workHoursOutSchedule = 0;
+      } else if (target.workScheduleType === 'fuera_horario_laboral') {
+        target.workHoursInSchedule = 0;
+        target.workHoursOutSchedule = execVal;
+      }
+    }
+
+    // If changing schedule type
+    if (field === 'workScheduleType') {
+      const currentExec = Number(target.executedHours) || 0;
+      if (value === 'horario_laboral') {
+        target.workHoursInSchedule = currentExec;
+        target.workHoursOutSchedule = 0;
+      } else if (value === 'fuera_horario_laboral') {
+        target.workHoursInSchedule = 0;
+        target.workHoursOutSchedule = currentExec;
+      } else if (value === 'mixto') {
+        if (!target.workHoursInSchedule && !target.workHoursOutSchedule) {
+          target.workHoursInSchedule = Number((currentExec / 2).toFixed(1));
+          target.workHoursOutSchedule = Number((currentExec - (currentExec / 2)).toFixed(1));
+        }
       }
     }
 
@@ -331,8 +447,37 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
     setSessions(updated);
   };
 
+  // Incomes Handlers
+  const handleAddIncomeItem = () => {
+    const newItem: TrainingIncomeItem = {
+      id: `inc-${Date.now()}-${Math.random()}`,
+      concept: '',
+      quantity: 1,
+      unitPrice: 0,
+      subtotal: 0,
+      paymentStatus: 'cobrado',
+      invoiceOrReceiptNumber: '',
+      notes: ''
+    };
+    setIncomes([...incomes, newItem]);
+  };
+
+  const handleUpdateIncomeItem = (idx: number, field: keyof TrainingIncomeItem, value: any) => {
+    const updated = [...incomes];
+    const target = { ...updated[idx], [field]: value };
+    const qty = field === 'quantity' ? Number(value) : Number(target.quantity || 0);
+    const price = field === 'unitPrice' ? Number(value) : Number(target.unitPrice || 0);
+    target.subtotal = Number((qty * price).toFixed(2));
+    updated[idx] = target;
+    setIncomes(updated);
+  };
+
+  const handleRemoveIncomeItem = (idx: number) => {
+    setIncomes(incomes.filter((_, i) => i !== idx));
+  };
+
   // Generic Expense Handlers
-  const handleAddExpenseItem = (category: 'logistics' | 'space' | 'marketing') => {
+  const handleAddExpenseItem = (category: 'logistics' | 'space' | 'marketing' | 'certificates') => {
     const newItem: TrainingExpenseItem = {
       id: `exp-${category}-${Date.now()}-${Math.random()}`,
       description: '',
@@ -344,10 +489,11 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
     if (category === 'logistics') setLogisticsExpenses([...logisticsExpenses, newItem]);
     if (category === 'space') setSpaceExpenses([...spaceExpenses, newItem]);
     if (category === 'marketing') setMarketingExpenses([...marketingExpenses, newItem]);
+    if (category === 'certificates') setCertificateExpenses([...certificateExpenses, newItem]);
   };
 
   const handleUpdateExpenseItem = (
-    category: 'logistics' | 'space' | 'marketing',
+    category: 'logistics' | 'space' | 'marketing' | 'certificates',
     idx: number,
     field: keyof TrainingExpenseItem,
     value: any
@@ -365,12 +511,14 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
     if (category === 'logistics') setLogisticsExpenses(updateList(logisticsExpenses));
     if (category === 'space') setSpaceExpenses(updateList(spaceExpenses));
     if (category === 'marketing') setMarketingExpenses(updateList(marketingExpenses));
+    if (category === 'certificates') setCertificateExpenses(updateList(certificateExpenses));
   };
 
-  const handleRemoveExpenseItem = (category: 'logistics' | 'space' | 'marketing', idx: number) => {
+  const handleRemoveExpenseItem = (category: 'logistics' | 'space' | 'marketing' | 'certificates', idx: number) => {
     if (category === 'logistics') setLogisticsExpenses(logisticsExpenses.filter((_, i) => i !== idx));
     if (category === 'space') setSpaceExpenses(spaceExpenses.filter((_, i) => i !== idx));
     if (category === 'marketing') setMarketingExpenses(marketingExpenses.filter((_, i) => i !== idx));
+    if (category === 'certificates') setCertificateExpenses(certificateExpenses.filter((_, i) => i !== idx));
   };
 
   const handleSaveAll = async (e: React.FormEvent) => {
@@ -425,7 +573,7 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
       const targetPlanId = selectedPlanId || plan?.id || `pl-${Date.now()}`;
 
       // Clean sessions to guarantee no undefined values
-      const sanitizedSessions = sortedSessions.map((s, idx) => ({
+      const sanitizedSessions: TrainingSession[] = sortedSessions.map((s, idx) => ({
         id: s.id || `sess-${Date.now()}-${idx}`,
         date: s.date || '',
         startTime: s.startTime || '',
@@ -436,7 +584,10 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
         notes: s.notes || '',
         hourlyRate: Number(s.hourlyRate) || 0,
         plannedHours: Number(s.plannedHours) || Number(calcHours(s.startTime, s.endTime).toFixed(1)),
-        executedHours: Number(s.executedHours) || 0
+        executedHours: Number(s.executedHours) || 0,
+        workScheduleType: s.workScheduleType || 'horario_laboral',
+        workHoursInSchedule: Number(s.workHoursInSchedule) || 0,
+        workHoursOutSchedule: Number(s.workHoursOutSchedule) || 0
       }));
 
       const planData: Partial<TrainingPlan> = {
@@ -460,15 +611,32 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
         code: code.trim(),
         status,
         planId: targetPlanId,
-        clientId: clientId.trim() || '',
-        marketingCampaignId: marketingCampaignId.trim() || '',
+        originType,
+        clientId: originType === 'direct_client' ? clientId.trim() : (clientId.trim() || ''),
+        marketingCampaignId: originType === 'marketing_campaign' ? marketingCampaignId.trim() : '',
+        projectId: originType === 'project' ? projectId.trim() : '',
+        originDetails: originDetails.trim(),
         totalHours: financialMetrics.totalPlannedHours,
         totalExecutedHours: financialMetrics.totalExecutedHours,
         totalTrainerCost: financialMetrics.totalTrainerCost,
         totalLogisticsCost: financialMetrics.totalLogisticsCost,
         totalSpaceCost: financialMetrics.totalSpaceCost,
         totalMarketingCost: financialMetrics.totalMarketingCost,
+        totalCertificateCost: financialMetrics.totalCertificateCost,
         totalCost: financialMetrics.grandTotalCost,
+        incomes: incomes.map(item => ({
+          id: item.id || `inc-${Date.now()}`,
+          concept: item.concept || '',
+          quantity: Number(item.quantity) || 1,
+          unitPrice: Number(item.unitPrice) || 0,
+          subtotal: Number((Number(item.quantity || 1) * Number(item.unitPrice || 0)).toFixed(2)),
+          paymentStatus: item.paymentStatus || 'cobrado',
+          invoiceOrReceiptNumber: item.invoiceOrReceiptNumber || '',
+          notes: item.notes || ''
+        })),
+        totalIncome: financialMetrics.totalIncome,
+        netProfit: financialMetrics.netProfit,
+        profitMargin: financialMetrics.profitMargin,
         logisticsExpenses: logisticsExpenses.map(item => ({
           id: item.id || `log-${Date.now()}`,
           description: item.description || '',
@@ -485,6 +653,13 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
         })),
         marketingExpenses: marketingExpenses.map(item => ({
           id: item.id || `mkt-${Date.now()}`,
+          description: item.description || '',
+          quantity: Number(item.quantity) || 0,
+          unitPrice: Number(item.unitPrice) || 0,
+          subtotal: Number((Number(item.quantity || 0) * Number(item.unitPrice || 0)).toFixed(2))
+        })),
+        certificateExpenses: certificateExpenses.map(item => ({
+          id: item.id || `cert-${Date.now()}`,
           description: item.description || '',
           quantity: Number(item.quantity) || 0,
           unitPrice: Number(item.unitPrice) || 0,
@@ -506,10 +681,11 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
   const renderExpenseTable = (
     title: string,
     icon: React.ReactNode,
-    category: 'logistics' | 'space' | 'marketing',
+    category: 'logistics' | 'space' | 'marketing' | 'certificates',
     items: TrainingExpenseItem[],
     categoryTotal: number,
-    badgeColor: string
+    badgeColor: string,
+    placeholderText: string = "Material didáctico, Alquiler sala..."
   ) => {
     return (
       <div className="bg-slate-50/70 p-5 rounded-2xl border border-slate-200/80 space-y-4">
@@ -570,7 +746,7 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
                         disabled={isReadOnly}
                         value={item.description}
                         onChange={e => handleUpdateExpenseItem(category, idx, 'description', e.target.value)}
-                        placeholder="Ej. Material didáctico, Alquiler sala..."
+                        placeholder={placeholderText}
                         className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-50"
                       />
                     </td>
@@ -658,21 +834,6 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-            {onDelete && management?.id && !isReadOnly && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm(`¿Estás seguro de eliminar permanentemente la capacitación ${code}?`)) {
-                    onDelete(management.id, selectedPlanId);
-                  }
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-rose-600 hover:bg-rose-50 text-xs font-bold rounded-xl border border-rose-200 transition-all cursor-pointer active:scale-95"
-              >
-                <Trash2 size={15} />
-                <span>Eliminar</span>
-              </button>
-            )}
-
             {!isReadOnly && (
               <button
                 type="button"
@@ -688,9 +849,33 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
                 ) : (
                   <>
                     <Save size={16} />
-                    <span>Guardar Cambios</span>
+                    <span>Guardar</span>
                   </>
                 )}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all cursor-pointer active:scale-95 hover:shadow-xs"
+            >
+              <LogOut size={15} />
+              <span>Salir</span>
+            </button>
+
+            {onDelete && management?.id && !isReadOnly && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm(`¿Estás seguro de eliminar permanentemente la capacitación ${code}?`)) {
+                    onDelete(management.id, selectedPlanId);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 text-rose-600 hover:bg-rose-50 text-xs font-bold rounded-xl border border-rose-200 transition-all cursor-pointer active:scale-95"
+              >
+                <Trash2 size={15} />
+                <span>Eliminar</span>
               </button>
             )}
           </div>
@@ -708,7 +893,7 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
               className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-emerald-800 text-sm font-semibold shadow-xs"
             >
               <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
-              <span>¡Capacitación, cronograma y costos actualizados correctamente en el sistema!</span>
+              <span>¡Capacitación, ingresos, costos y cronograma guardados exitosamente!</span>
             </motion.div>
           )}
 
@@ -726,68 +911,93 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
         </AnimatePresence>
 
         {/* 2. Tarjetas de Métricas en Vivo y Resumen Financiero Total */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Clock size={13} className="text-amber-500" /> Horas Planificadas
-            </span>
-            <div className="text-xl font-black text-slate-800">
-              {financialMetrics.totalPlannedHours} <span className="text-xs text-slate-500 font-bold">hrs</span>
-            </div>
-            <p className="text-[10px] text-slate-400 font-medium">De inicio a fin de sesiones</p>
-          </div>
-
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+          {/* Horas */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Clock size={13} className="text-indigo-500" /> Horas Ejecutadas
             </span>
-            <div className="text-xl font-black text-indigo-600">
-              {financialMetrics.totalExecutedHours} <span className="text-xs text-slate-500 font-bold">hrs</span>
+            <div className="text-xl font-black text-slate-800">
+              {financialMetrics.totalExecutedHours} <span className="text-xs text-slate-400 font-bold">/ {financialMetrics.totalPlannedHours}h</span>
             </div>
-            <p className="text-[10px] text-slate-400 font-medium">Horas reales dictadas</p>
+            <p className="text-[10px] text-slate-400 font-medium">Reales vs Planificadas</p>
           </div>
 
+          {/* Honorarios Docentes */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <User size={13} className="text-emerald-500" /> Honorarios Docentes
+              <User size={13} className="text-blue-500" /> Honorarios Docentes
             </span>
-            <div className="text-xl font-black text-emerald-600">
+            <div className="text-xl font-black text-blue-600">
               ${financialMetrics.totalTrainerCost.toFixed(2)}
             </div>
-            <p className="text-[10px] text-slate-400 font-medium">Sin IVA (Horas × Tarifa/h)</p>
+            <p className="text-[10px] text-slate-400 font-medium">Horas × Tarifa sin IVA</p>
           </div>
 
+          {/* Gastos Operativos & Certificados */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Receipt size={13} className="text-purple-500" /> Gastos Operativos
+              <Receipt size={13} className="text-amber-500" /> Gastos Operativos
             </span>
-            <div className="text-xl font-black text-purple-600">
-              ${(financialMetrics.totalLogisticsCost + financialMetrics.totalSpaceCost + financialMetrics.totalMarketingCost).toFixed(2)}
+            <div className="text-xl font-black text-amber-600">
+              ${(financialMetrics.totalLogisticsCost + financialMetrics.totalSpaceCost + financialMetrics.totalMarketingCost + financialMetrics.totalCertificateCost).toFixed(2)}
             </div>
-            <p className="text-[10px] text-slate-400 font-medium">Logística, Aulas & Mkt</p>
+            <p className="text-[10px] text-slate-400 font-medium">Logística, Aulas & Certif.</p>
           </div>
 
-          <div className="col-span-2 lg:col-span-1 bg-gradient-to-br from-indigo-900 to-indigo-800 text-white p-4 rounded-2xl shadow-md shadow-indigo-950/20 space-y-1">
-            <span className="text-[10px] font-black text-indigo-200 uppercase tracking-wider flex items-center gap-1.5">
-              <Calculator size={13} className="text-emerald-300" /> Costo Total Capacitación
+          {/* Costo Total */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Calculator size={13} className="text-rose-500" /> Costo Total
             </span>
-            <div className="text-2xl font-black text-white">
+            <div className="text-xl font-black text-rose-600">
               ${financialMetrics.grandTotalCost.toFixed(2)}
             </div>
-            <p className="text-[10px] text-indigo-200/80 font-medium">Gran Total sin IVA</p>
+            <p className="text-[10px] text-slate-400 font-medium">Docentes + Operativos</p>
+          </div>
+
+          {/* Ingresos Totales */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <DollarSign size={13} className="text-emerald-500" /> Ingresos Totales
+            </span>
+            <div className="text-xl font-black text-emerald-600">
+              ${financialMetrics.totalIncome.toFixed(2)}
+            </div>
+            <p className="text-[10px] text-slate-400 font-medium">
+              Cobrado: ${financialMetrics.totalIncomeCollected.toFixed(2)}
+            </p>
+          </div>
+
+          {/* Utilidad Neta & Margen */}
+          <div className={`p-4 rounded-2xl border shadow-xs space-y-1 ${
+            financialMetrics.netProfit >= 0 
+              ? 'bg-gradient-to-br from-emerald-900 to-emerald-800 text-white border-emerald-700/60' 
+              : 'bg-gradient-to-br from-rose-900 to-rose-800 text-white border-rose-700/60'
+          }`}>
+            <span className="text-[10px] font-black text-emerald-200 uppercase tracking-wider flex items-center gap-1.5">
+              {financialMetrics.netProfit >= 0 ? <TrendingUp size={13} className="text-emerald-300" /> : <TrendingDown size={13} className="text-rose-300" />}
+              Utilidad Neta
+            </span>
+            <div className="text-xl font-black text-white">
+              ${financialMetrics.netProfit.toFixed(2)}
+            </div>
+            <p className="text-[10px] text-emerald-200/90 font-bold">
+              Margen: {financialMetrics.profitMargin}%
+            </p>
           </div>
         </div>
 
-        {/* 3. Sección: Información de Gestión y Vínculos Comerciales */}
+        {/* 3. Sección: Información de Gestión y Origen de la Capacitación */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5 text-left">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div className="space-y-0.5">
               <h3 className="text-base font-black text-slate-800 tracking-tight flex items-center gap-2">
                 <Briefcase size={18} className="text-indigo-600" />
-                1. Registro de Gestión y Vínculos Comerciales
+                1. Registro de Gestión y Origen de la Capacitación
               </h3>
               <p className="text-xs text-slate-400 font-medium">
-                Identificador único, estados de control y relaciones con clientes B2B o campañas.
+                Identificador único, estados de control y vinculación con Campañas de Marketing, Proyectos o Clientes.
               </p>
             </div>
           </div>
@@ -839,43 +1049,167 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-1">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Target size={14} className="text-indigo-600" /> Cliente Receptor (B2B / Particular)
-              </label>
-              <select
+          {/* Selector de Origen de la Capacitación */}
+          <div className="pt-2 border-t border-slate-100 space-y-4">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+              ¿Cuál es el origen o fruto de esta capacitación?
+            </label>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+              <button
+                type="button"
                 disabled={isReadOnly}
-                value={clientId}
-                onChange={e => setClientId(e.target.value)}
-                className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-60"
+                onClick={() => setOriginType('marketing_campaign')}
+                className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                  originType === 'marketing_campaign'
+                    ? 'bg-purple-50 border-purple-300 text-purple-700 ring-2 ring-purple-500/20 shadow-xs'
+                    : 'bg-slate-50/60 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
               >
-                <option value="">Capacitación Interna / Sin Cliente Asociado</option>
-                {clients.map(c => (
-                  <option key={`full_mgmt_client_${c.id}`} value={c.id}>
-                    {getClientName(c)}
-                  </option>
-                ))}
-              </select>
+                <Megaphone size={16} className={originType === 'marketing_campaign' ? 'text-purple-600' : 'text-slate-400'} />
+                <span>Campaña Marketing</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isReadOnly}
+                onClick={() => setOriginType('project')}
+                className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                  originType === 'project'
+                    ? 'bg-blue-50 border-blue-300 text-blue-700 ring-2 ring-blue-500/20 shadow-xs'
+                    : 'bg-slate-50/60 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <FolderKanban size={16} className={originType === 'project' ? 'text-blue-600' : 'text-slate-400'} />
+                <span>Proyecto</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isReadOnly}
+                onClick={() => setOriginType('direct_client')}
+                className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                  originType === 'direct_client'
+                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700 ring-2 ring-indigo-500/20 shadow-xs'
+                    : 'bg-slate-50/60 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Building2 size={16} className={originType === 'direct_client' ? 'text-indigo-600' : 'text-slate-400'} />
+                <span>Cliente Directo</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isReadOnly}
+                onClick={() => setOriginType('internal_initiative')}
+                className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                  originType === 'internal_initiative'
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700 ring-2 ring-emerald-500/20 shadow-xs'
+                    : 'bg-slate-50/60 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Sparkles size={16} className={originType === 'internal_initiative' ? 'text-emerald-600' : 'text-slate-400'} />
+                <span>Iniciativa Interna</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isReadOnly}
+                onClick={() => setOriginType('other')}
+                className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                  originType === 'other'
+                    ? 'bg-amber-50 border-amber-300 text-amber-700 ring-2 ring-amber-500/20 shadow-xs'
+                    : 'bg-slate-50/60 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Target size={16} className={originType === 'other' ? 'text-amber-600' : 'text-slate-400'} />
+                <span>Otro Origen</span>
+              </button>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Megaphone size={14} className="text-purple-600" /> Campaña de Marketing Vinculada
-              </label>
-              <select
-                disabled={isReadOnly}
-                value={marketingCampaignId}
-                onChange={e => setMarketingCampaignId(e.target.value)}
-                className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-60"
-              >
-                <option value="">Ninguna / No vinculada a campaña</option>
-                {campaigns.map(camp => (
-                  <option key={`full_mgmt_camp_${camp.id}`} value={camp.id}>
-                    [{camp.code || 'CAMP'}] {camp.name || `Campaña ${camp.id}`}
-                  </option>
-                ))}
-              </select>
+            {/* Campos condicionales según el origen */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/70">
+              {originType === 'marketing_campaign' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <Megaphone size={13} className="text-purple-600" /> Seleccionar Campaña de Marketing *
+                  </label>
+                  <SearchableSelect
+                    disabled={isReadOnly}
+                    value={marketingCampaignId}
+                    onChange={val => setMarketingCampaignId(val)}
+                    placeholder="Selecciona la campaña de origen..."
+                    searchPlaceholder="Buscar campaña..."
+                    isClearable
+                    options={campaigns.map(camp => ({
+                      value: camp.id,
+                      label: camp.name || `Campaña ${camp.id}`,
+                      sublabel: camp.code ? `[${camp.code}]` : undefined,
+                      badge: camp.status || 'activa',
+                      badgeColor: camp.status === 'activa' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'
+                    }))}
+                    buttonClassName="py-2.5 bg-white border-slate-200 text-xs font-bold"
+                  />
+                </div>
+              )}
+
+              {originType === 'project' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <FolderKanban size={13} className="text-blue-600" /> Seleccionar Proyecto Empresarial *
+                  </label>
+                  <SearchableSelect
+                    disabled={isReadOnly}
+                    value={projectId}
+                    onChange={val => setProjectId(val)}
+                    placeholder="Selecciona el proyecto..."
+                    searchPlaceholder="Buscar proyecto..."
+                    isClearable
+                    options={projects.map(proj => ({
+                      value: proj.id,
+                      label: proj.name || `Proyecto ${proj.id}`,
+                      sublabel: proj.city ? `Ciudad: ${proj.city}` : undefined
+                    }))}
+                    buttonClassName="py-2.5 bg-white border-slate-200 text-xs font-bold"
+                  />
+                </div>
+              )}
+
+              {originType === 'direct_client' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <Building2 size={13} className="text-indigo-600" /> Seleccionar Cliente Corporativo / Particular *
+                  </label>
+                  <SearchableSelect
+                    disabled={isReadOnly}
+                    value={clientId}
+                    onChange={val => setClientId(val)}
+                    placeholder="Selecciona el cliente..."
+                    searchPlaceholder="Buscar cliente o RUC..."
+                    isClearable
+                    options={clients.map(c => ({
+                      value: c.id,
+                      label: getClientName(c),
+                      sublabel: (c as any).ruc || (c as any).email || undefined
+                    }))}
+                    buttonClassName="py-2.5 bg-white border-slate-200 text-xs font-bold"
+                  />
+                </div>
+              )}
+
+              <div className={originType === 'internal_initiative' || originType === 'other' ? 'sm:col-span-2' : ''}>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Notas / Detalles del Origen
+                </label>
+                <input
+                  type="text"
+                  disabled={isReadOnly}
+                  value={originDetails}
+                  onChange={e => setOriginDetails(e.target.value)}
+                  placeholder="Ej. Fruto de la campaña de LinkedIn Q1 2026 / Requerimiento del proyecto Minería Fase 2..."
+                  className="w-full bg-white border border-slate-200 text-xs font-medium p-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -889,7 +1223,7 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
                 2. Planificación y Cronograma de Sesiones por Módulo
               </h3>
               <p className="text-xs text-slate-400 font-medium">
-                Jornadas multidía, capacitadores asignados, tarifas por hora y horas ejecutadas.
+                Jornadas multidía, docentes internos/externos, mix de horarios laborales y horas dictadas.
               </p>
             </div>
 
@@ -941,7 +1275,7 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
             <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center justify-between">
               <span>Cronograma de Jornadas ({sessions.length})</span>
               <span className="text-[11px] font-bold text-indigo-600">
-                Total Honorarios: ${financialMetrics.totalTrainerCost.toFixed(2)} sin IVA
+                Total Honorarios Docentes: ${financialMetrics.totalTrainerCost.toFixed(2)} sin IVA
               </span>
             </h4>
 
@@ -951,6 +1285,15 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
               const execH = session.executedHours !== undefined ? Number(session.executedHours) : pHours;
               const rate = session.hourlyRate !== undefined ? Number(session.hourlyRate) : getDefaultTrainerRate(session.trainerId);
               const sessionTrainerCost = execH * rate;
+
+              // Check if selected trainer is internal
+              const trainerObj = trainers.find(t => t.id === session.trainerId);
+              const isInternalTrainer = trainerObj?.type === 'interno';
+
+              const scheduleType = session.workScheduleType || 'horario_laboral';
+              const inScheduleH = Number(session.workHoursInSchedule || 0);
+              const outScheduleH = Number(session.workHoursOutSchedule || 0);
+              const isMixBalanced = Number((inScheduleH + outScheduleH).toFixed(1)) === Number(execH.toFixed(1));
 
               return (
                 <div
@@ -1062,19 +1405,22 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                         Capacitador *
                       </label>
-                      <select
+                      <SearchableSelect
                         disabled={isReadOnly}
                         value={session.trainerId || ''}
-                        onChange={e => handleUpdateSession(sIdx, 'trainerId', e.target.value)}
-                        className="w-full bg-white border border-slate-200 text-xs font-bold p-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      >
-                        <option value="">Seleccionar Docente...</option>
-                        {trainers.map(tr => (
-                          <option key={`sess_tr_${tr.id}`} value={tr.id}>
-                            {getTrainerName(tr.id)}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={val => handleUpdateSession(sIdx, 'trainerId', val)}
+                        placeholder="Seleccionar Docente..."
+                        searchPlaceholder="Buscar docente o especialidad..."
+                        isClearable
+                        options={trainers.map(tr => ({
+                          value: tr.id,
+                          label: getTrainerName(tr.id),
+                          sublabel: tr.type === 'interno' ? 'Interno' : 'Externo',
+                          badge: tr.type === 'interno' ? 'Interno' : 'Externo',
+                          badgeColor: tr.type === 'interno' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'
+                        }))}
+                        buttonClassName="py-2.5 bg-white border-slate-200 text-xs font-bold"
+                      />
                     </div>
 
                     {/* Costo / Tarifa por Hora */}
@@ -1092,7 +1438,7 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
                           disabled={isReadOnly}
                           value={rate}
                           onChange={e => handleUpdateSession(sIdx, 'hourlyRate', parseFloat(e.target.value) || 0)}
-                          className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-200 text-xs font-black text-right rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          className="w-full pl-7 pr-3 py-2.5 bg-white border-slate-200 text-xs font-black text-right rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         />
                       </div>
                     </div>
@@ -1112,21 +1458,125 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
                           </a>
                         )}
                       </label>
-                      <select
+                      <SearchableSelect
                         disabled={isReadOnly}
                         value={session.spaceId || ''}
-                        onChange={e => handleUpdateSession(sIdx, 'spaceId', e.target.value)}
-                        className="w-full bg-white border border-slate-200 text-xs font-bold p-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      >
-                        <option value="">Seleccionar Sala...</option>
-                        {spaces.map(sp => (
-                          <option key={`sess_sp_${sp.id}`} value={sp.id}>
-                            {sp.type === 'virtual' ? '💻' : '🏢'} {sp.name} ({sp.type})
-                          </option>
-                        ))}
-                      </select>
+                        onChange={val => handleUpdateSession(sIdx, 'spaceId', val)}
+                        placeholder="Seleccionar Sala..."
+                        searchPlaceholder="Buscar sala o espacio..."
+                        isClearable
+                        options={spaces.map(sp => ({
+                          value: sp.id,
+                          label: sp.name,
+                          sublabel: sp.city || sp.platform || sp.link,
+                          badge: sp.type === 'virtual' ? 'Virtual' : 'Físico',
+                          badgeColor: sp.type === 'virtual' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                        }))}
+                        buttonClassName="py-2.5 bg-white border-slate-200 text-xs font-bold"
+                      />
                     </div>
                   </div>
+
+                  {/* Configuración de Horario para Capacitador Interno */}
+                  {isInternalTrainer && (
+                    <div className="bg-indigo-50/60 p-3.5 rounded-xl border border-indigo-100 space-y-2.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <span className="text-[11px] font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <User size={13} className="text-indigo-600" />
+                          Régimen de Horario del Capacitador Interno:
+                        </span>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={isReadOnly}
+                            onClick={() => handleUpdateSession(sIdx, 'workScheduleType', 'horario_laboral')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                              scheduleType === 'horario_laboral'
+                                ? 'bg-indigo-600 text-white shadow-xs'
+                                : 'bg-white text-slate-600 hover:bg-indigo-100/60 border border-slate-200'
+                            }`}
+                          >
+                            <Sun size={12} />
+                            <span>Horario Laboral</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isReadOnly}
+                            onClick={() => handleUpdateSession(sIdx, 'workScheduleType', 'fuera_horario_laboral')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                              scheduleType === 'fuera_horario_laboral'
+                                ? 'bg-indigo-600 text-white shadow-xs'
+                                : 'bg-white text-slate-600 hover:bg-indigo-100/60 border border-slate-200'
+                            }`}
+                          >
+                            <Moon size={12} />
+                            <span>Fuera de Horario</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isReadOnly}
+                            onClick={() => handleUpdateSession(sIdx, 'workScheduleType', 'mixto')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                              scheduleType === 'mixto'
+                                ? 'bg-indigo-600 text-white shadow-xs'
+                                : 'bg-white text-slate-600 hover:bg-indigo-100/60 border border-slate-200'
+                            }`}
+                          >
+                            <Shuffle size={12} />
+                            <span>Mix de Horarios</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Inputs detallados si es MIXTO */}
+                      {scheduleType === 'mixto' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-indigo-100/80 items-center">
+                          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                            <Sun size={13} className="text-amber-500" />
+                            <span className="text-[11px] font-bold text-slate-600">Horas en Jornada:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              disabled={isReadOnly}
+                              value={inScheduleH}
+                              onChange={e => handleUpdateSession(sIdx, 'workHoursInSchedule', parseFloat(e.target.value) || 0)}
+                              className="w-16 text-center font-bold text-xs bg-slate-50 border border-slate-200 rounded p-1 focus:bg-white focus:outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400">h</span>
+                          </div>
+
+                          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                            <Moon size={13} className="text-indigo-500" />
+                            <span className="text-[11px] font-bold text-slate-600">Horas Fuera de Jornada:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              disabled={isReadOnly}
+                              value={outScheduleH}
+                              onChange={e => handleUpdateSession(sIdx, 'workHoursOutSchedule', parseFloat(e.target.value) || 0)}
+                              className="w-16 text-center font-bold text-xs bg-slate-50 border border-slate-200 rounded p-1 focus:bg-white focus:outline-none"
+                            />
+                            <span className="text-[10px] text-slate-400">h</span>
+                          </div>
+
+                          <div className="text-right">
+                            <span className={`text-[11px] font-black px-2.5 py-1 rounded-md border ${
+                              isMixBalanced 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                            }`}>
+                              Suma: {(inScheduleH + outScheduleH).toFixed(1)}h / {execH}h {isMixBalanced ? '✓' : '(Descuadre)'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Notas Pedagógicas de la Sesión */}
                   <div>
@@ -1145,15 +1595,165 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
           </div>
         </div>
 
-        {/* 5. Sección: Desglose Estructurado de Costos y Gastos (Sin IVA) */}
+        {/* 5. Sección: Registro de Ingresos de la Capacitación (Sin IVA) */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6 text-left">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div className="space-y-0.5">
+              <h3 className="text-base font-black text-slate-800 tracking-tight flex items-center gap-2">
+                <DollarSign size={18} className="text-emerald-600" />
+                3. Ingresos de Dinero por Capacitación (Sin IVA)
+              </h3>
+              <p className="text-xs text-slate-400 font-medium">
+                Venta de cupos, inscripciones individuales, contratos corporativos y control de pagos recibidos.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 text-xs font-black text-emerald-700 flex items-center gap-1.5">
+                <span className="text-[10px] uppercase font-bold text-emerald-600">Total Ingresos:</span>
+                <span>${financialMetrics.totalIncome.toFixed(2)}</span>
+              </div>
+
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={handleAddIncomeItem}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
+                >
+                  <Plus size={14} />
+                  <span>+ Añadir Ingreso / Cupo</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {incomes.length === 0 ? (
+            <div className="bg-slate-50/60 p-8 rounded-2xl border border-dashed border-slate-200 text-center space-y-2">
+              <CreditCard size={28} className="mx-auto text-slate-300" />
+              <p className="text-xs font-medium text-slate-500">
+                No hay ingresos registrados para esta capacitación.
+              </p>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={handleAddIncomeItem}
+                  className="text-xs font-bold text-emerald-600 hover:underline cursor-pointer"
+                >
+                  Haz clic aquí para agregar el primer registro de cobro o cupos vendidos.
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                <thead className="bg-slate-100/70 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="p-2.5 w-10 text-center">#</th>
+                    <th className="p-2.5 min-w-[200px]">Concepto / Detalle del Ingreso</th>
+                    <th className="p-2.5 w-24 text-center">Cantidad / Cupos</th>
+                    <th className="p-2.5 w-32 text-right">Precio Unit. ($ sin IVA)</th>
+                    <th className="p-2.5 w-32 text-right">Subtotal ($ sin IVA)</th>
+                    <th className="p-2.5 w-36">Nº Factura / Recibo</th>
+                    <th className="p-2.5 w-32 text-center">Estado Cobro</th>
+                    {!isReadOnly && <th className="p-2.5 w-12 text-center"></th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                  {incomes.map((inc, idx) => (
+                    <tr key={inc.id || idx} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="p-2.5 text-center text-slate-400 font-bold text-[11px]">{idx + 1}</td>
+                      <td className="p-2.5">
+                        <input
+                          type="text"
+                          disabled={isReadOnly}
+                          value={inc.concept}
+                          onChange={e => handleUpdateIncomeItem(idx, 'concept', e.target.value)}
+                          placeholder="Ej. Inscripción 10 alumnos, Contrato B2B Minera..."
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-50"
+                        />
+                      </td>
+                      <td className="p-2.5">
+                        <input
+                          type="number"
+                          min="1"
+                          step="any"
+                          disabled={isReadOnly}
+                          value={inc.quantity}
+                          onChange={e => handleUpdateIncomeItem(idx, 'quantity', e.target.value)}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-center focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-50"
+                        />
+                      </td>
+                      <td className="p-2.5">
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            disabled={isReadOnly}
+                            value={inc.unitPrice}
+                            onChange={e => handleUpdateIncomeItem(idx, 'unitPrice', e.target.value)}
+                            className="w-full pl-6 pr-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-right focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-50"
+                          />
+                        </div>
+                      </td>
+                      <td className="p-2.5 text-right font-black text-emerald-700">
+                        ${(Number(inc.quantity || 0) * Number(inc.unitPrice || 0)).toFixed(2)}
+                      </td>
+                      <td className="p-2.5">
+                        <input
+                          type="text"
+                          disabled={isReadOnly}
+                          value={inc.invoiceOrReceiptNumber || ''}
+                          onChange={e => handleUpdateIncomeItem(idx, 'invoiceOrReceiptNumber', e.target.value)}
+                          placeholder="Ej. F001-00234"
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-50"
+                        />
+                      </td>
+                      <td className="p-2.5 text-center">
+                        <select
+                          disabled={isReadOnly}
+                          value={inc.paymentStatus || 'cobrado'}
+                          onChange={e => handleUpdateIncomeItem(idx, 'paymentStatus', e.target.value)}
+                          className={`text-xs font-bold px-2 py-1.5 rounded-lg border focus:outline-none ${
+                            inc.paymentStatus === 'cobrado' 
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}
+                        >
+                          <option value="cobrado">✅ Cobrado</option>
+                          <option value="pendiente">⏳ Pendiente</option>
+                        </select>
+                      </td>
+                      {!isReadOnly && (
+                        <td className="p-2.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveIncomeItem(idx)}
+                            title="Eliminar ingreso"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* 6. Sección: Desglose Estructurado de Costos y Gastos (Sin IVA) */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6 text-left">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-base font-black text-slate-800 tracking-tight flex items-center gap-2">
-              <DollarSign size={18} className="text-emerald-600" />
-              3. Desglose Estructurado de Costos y Gastos Operativos (Sin IVA)
+              <Calculator size={18} className="text-rose-600" />
+              4. Desglose Estructurado de Costos y Gastos Operativos (Sin IVA)
             </h3>
             <p className="text-xs text-slate-400 font-medium">
-              Agrega y administra los costos de logística, pago por uso de aulas/Zoom y gastos de marketing.
+              Costos directos de ejecución: logística, aulas/Zoom, campañas y acreditaciones/certificados.
             </p>
           </div>
 
@@ -1165,7 +1765,8 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
               'logistics',
               logisticsExpenses,
               financialMetrics.totalLogisticsCost,
-              'bg-blue-600'
+              'bg-blue-600',
+              'Ej. Material didáctico impreso, refrigerios...'
             )}
 
             {/* b) Pago de Uso de Aulas / Zoom */}
@@ -1175,7 +1776,8 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
               'space',
               spaceExpenses,
               financialMetrics.totalSpaceCost,
-              'bg-amber-600'
+              'bg-amber-600',
+              'Ej. Alquiler aula física, licencia Zoom Business...'
             )}
 
             {/* c) Gastos de Marketing */}
@@ -1185,63 +1787,86 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
               'marketing',
               marketingExpenses,
               financialMetrics.totalMarketingCost,
-              'bg-purple-600'
+              'bg-purple-600',
+              'Ej. Pauta digital Meta/Google, folletos...'
+            )}
+
+            {/* d) Gastos de Certificados y Acreditaciones */}
+            {renderExpenseTable(
+              'Gastos en Certificados, Acreditaciones y Avales',
+              <Award size={16} />,
+              'certificates',
+              certificateExpenses,
+              financialMetrics.totalCertificateCost,
+              'bg-indigo-600',
+              'Ej. Emisión carnets OEC, sellos de certificación, diplomas físicos...'
             )}
           </div>
 
-          {/* Resumen Financiero Consolidado */}
+          {/* Resumen Financiero Consolidado y Balance de Rentabilidad */}
           <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-md space-y-4">
             <h4 className="font-black text-sm uppercase tracking-wider text-slate-300 flex items-center gap-2">
               <Receipt size={16} className="text-emerald-400" />
-              Resumen Consolidado de Costos de la Capacitación (Sin IVA)
+              Balance Consolidado de Rentabilidad de la Capacitación (Sin IVA)
             </h4>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5 pt-1">
               <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/60">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                   Honorarios Docentes
                 </span>
-                <span className="text-lg font-black text-emerald-400">
+                <span className="text-base font-black text-blue-400">
                   ${financialMetrics.totalTrainerCost.toFixed(2)}
                 </span>
               </div>
 
               <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/60">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Logística & Materiales
+                  Logística & Aulas
                 </span>
-                <span className="text-lg font-black text-blue-400">
-                  ${financialMetrics.totalLogisticsCost.toFixed(2)}
-                </span>
-              </div>
-
-              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/60">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Aulas & Zoom
-                </span>
-                <span className="text-lg font-black text-amber-400">
-                  ${financialMetrics.totalSpaceCost.toFixed(2)}
+                <span className="text-base font-black text-amber-400">
+                  ${(financialMetrics.totalLogisticsCost + financialMetrics.totalSpaceCost).toFixed(2)}
                 </span>
               </div>
 
               <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/60">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Gastos Marketing
+                  Marketing & Certificados
                 </span>
-                <span className="text-lg font-black text-purple-400">
-                  ${financialMetrics.totalMarketingCost.toFixed(2)}
+                <span className="text-base font-black text-purple-400">
+                  ${(financialMetrics.totalMarketingCost + financialMetrics.totalCertificateCost).toFixed(2)}
+                </span>
+              </div>
+
+              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/60">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Total Ingresos
+                </span>
+                <span className="text-base font-black text-emerald-400">
+                  ${financialMetrics.totalIncome.toFixed(2)}
+                </span>
+              </div>
+
+              <div className={`p-3.5 rounded-xl border ${
+                financialMetrics.netProfit >= 0 ? 'bg-emerald-950/60 border-emerald-500/50' : 'bg-rose-950/60 border-rose-500/50'
+              }`}>
+                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                  Utilidad Neta ({financialMetrics.profitMargin}%)
+                </span>
+                <span className={`text-lg font-black ${financialMetrics.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  ${financialMetrics.netProfit.toFixed(2)}
                 </span>
               </div>
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-800 pt-4">
               <span className="text-xs font-bold text-slate-400">
-                Total Horas Planificadas: <strong className="text-white">{financialMetrics.totalPlannedHours}h</strong> | Total Horas Ejecutadas: <strong className="text-white">{financialMetrics.totalExecutedHours}h</strong>
+                Total Horas Dictadas: <strong className="text-white">{financialMetrics.totalExecutedHours}h</strong> (de {financialMetrics.totalPlannedHours}h planificadas)
               </span>
 
               <div className="flex items-center gap-3">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-300">Gran Total (Sin IVA):</span>
-                <span className="text-2xl font-black text-emerald-400">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-300">Costo Total:</span>
+                <span className="text-xl font-black text-rose-400">
                   ${financialMetrics.grandTotalCost.toFixed(2)}
                 </span>
               </div>
@@ -1251,14 +1876,6 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
 
         {/* Botonera Inferior de Guardado */}
         <div className="flex items-center justify-end gap-3 pt-4 pb-12">
-          <button
-            type="button"
-            onClick={onBack}
-            className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
-          >
-            Cancelar
-          </button>
-
           {!isReadOnly && (
             <button
               type="button"
@@ -1266,8 +1883,41 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
               disabled={isSaving}
               className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-600/25 transition-all cursor-pointer disabled:opacity-50 active:scale-95"
             >
-              <Save size={16} />
-              <span>Guardar Ficha y Cronograma Completo</span>
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  <span>Guardar</span>
+                </>
+              )}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1.5 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all cursor-pointer active:scale-95"
+          >
+            <LogOut size={15} />
+            <span>Salir</span>
+          </button>
+
+          {onDelete && management?.id && !isReadOnly && (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`¿Estás seguro de eliminar permanentemente la capacitación ${code}?`)) {
+                  onDelete(management.id, selectedPlanId);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 text-rose-600 hover:bg-rose-50 text-xs font-bold rounded-xl border border-rose-200 transition-all cursor-pointer active:scale-95"
+            >
+              <Trash2 size={15} />
+              <span>Eliminar</span>
             </button>
           )}
         </div>

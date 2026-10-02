@@ -27,6 +27,7 @@ import {
   EPPItemDelivered 
 } from '../../types';
 import { db, collection, setDoc, doc } from '../../lib/firebase';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 interface EppDeliveryModalProps {
   isOpen: boolean;
@@ -623,19 +624,21 @@ export const EppDeliveryModal: React.FC<EppDeliveryModalProps> = ({
                     <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">
                       Seleccionar Colaborador *
                     </label>
-                    <select
+                    <SearchableSelect
                       required
                       value={selectedMemberId}
-                      onChange={(e) => setSelectedMemberId(e.target.value)}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 rounded-xl text-xs text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    >
-                      <option value="">-- Seleccionar de la nómina --</option>
-                      {members.map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.name} {m.identificationId ? `(${m.identificationId})` : ''} - {m.role}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={val => setSelectedMemberId(val)}
+                      placeholder="-- Seleccionar de la nómina --"
+                      searchPlaceholder="Buscar por nombre o cédula..."
+                      isClearable
+                      options={members.map(m => ({
+                        value: m.id,
+                        label: m.name,
+                        sublabel: `${m.identificationId ? `CI: ${m.identificationId} - ` : ''}${m.role || ''}`,
+                        avatarUrl: m.avatar
+                      }))}
+                      buttonClassName="py-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
+                    />
                   </div>
                 ) : (
                   <div>
@@ -702,25 +705,28 @@ export const EppDeliveryModal: React.FC<EppDeliveryModalProps> = ({
                   <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1">
                     Producto EPP
                   </label>
-                  <select
+                  <SearchableSelect
                     value={itemProductId}
-                    onChange={(e) => {
-                      setItemProductId(e.target.value);
+                    onChange={val => {
+                      setItemProductId(val);
                       setItemSize('');
                     }}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="">-- Seleccionar EPP del Catálogo --</option>
-                    {eppProducts.map(p => {
+                    placeholder="-- Seleccionar EPP del Catálogo --"
+                    searchPlaceholder="Buscar por código, SKU o nombre..."
+                    isClearable
+                    options={eppProducts.map(p => {
                       const st = currentWarehouseStock.find(s => s.productId === p.id);
                       const stockQty = st ? st.currentStock : 0;
-                      return (
-                        <option key={p.id} value={p.id}>
-                          {p.name} {p.sku ? `(${p.sku})` : ''} - Stock en bodega: {stockQty} u.
-                        </option>
-                      );
+                      return {
+                        value: p.id,
+                        label: p.name,
+                        sublabel: `${p.sku ? `SKU: ${p.sku} | ` : ''}Stock bodega: ${stockQty} u.`,
+                        badge: `${stockQty} u.`,
+                        badgeColor: stockQty > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'
+                      };
                     })}
-                  </select>
+                    buttonClassName="py-2 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs"
+                  />
                 </div>
 
                 {/* Size Selector */}

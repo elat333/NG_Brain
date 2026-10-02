@@ -24,7 +24,8 @@ import {
   TrainingManagement, 
   SalesClient, 
   MarketingCampaign,
-  Company
+  Company,
+  Project
 } from '../../types';
 import { TrainingFullDetailView } from './TrainingFullDetailView';
 
@@ -37,6 +38,7 @@ interface TrainingCalendarViewProps {
   managements?: TrainingManagement[];
   clients?: SalesClient[];
   campaigns?: MarketingCampaign[];
+  projects?: Project[];
   onSavePlan: (plan: Partial<TrainingPlan>) => Promise<void>;
   onDeletePlan: (id: string) => Promise<void>;
   onSaveManagementAndPlan?: (mgmt: Partial<TrainingManagement>, planData?: Partial<TrainingPlan>) => Promise<void>;
@@ -52,6 +54,7 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
   managements = [],
   clients = [],
   campaigns = [],
+  projects = [],
   onSavePlan, 
   onDeletePlan,
   onSaveManagementAndPlan,
@@ -152,6 +155,7 @@ export const TrainingCalendarView: React.FC<TrainingCalendarViewProps> = ({
         companies={companies}
         clients={clients}
         campaigns={campaigns}
+        projects={projects}
         onSave={handleSaveDetail}
         onDelete={handleDeleteDetail}
         onBack={handleCloseDetail}

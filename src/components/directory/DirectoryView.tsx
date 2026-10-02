@@ -13,6 +13,7 @@ import {
   Trash,
 } from 'lucide-react';
 import { TeamMember, Company, Industry, Process, SystemRole } from '../../types';
+import { getModuleAccess } from '../../lib/permissions';
 import { MemberEditorView } from '../common/MemberEditorView';
 import { CompanyEditorView } from '../common/CompanyEditorView';
 import { ModulePermissionsTab } from '../common/ModulePermissionsTab';
@@ -50,6 +51,7 @@ interface DirectoryViewProps {
   handleDeleteCompany: (id: string) => void;
   setViewingCompany: (company: Company) => void;
   normalizeText: (text: string) => string;
+  navigateWithUnsavedCheck?: (action: any) => void;
 }
 
 export const DirectoryView: React.FC<DirectoryViewProps> = ({
@@ -85,7 +87,98 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
   handleDeleteCompany,
   setViewingCompany,
   normalizeText,
+  navigateWithUnsavedCheck,
 }) => {
+  const isSysAdmin = currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin';
+  const directoryAccess = getModuleAccess(currentMember, roles, 'directory');
+  const canDelete = isSysAdmin || directoryAccess === 'administrador';
+
+  const handleCancelMember = () => {
+    const doCancel = () => {
+      setIsAddingMember(false);
+      setEditingMember(null);
+      setNewMemberData({
+        name: '',
+        role: '',
+        systemRoleId: '',
+        isSystemAdmin: false,
+        moduleAccess: undefined,
+        categories: ['contacto'],
+        processId: '',
+        companyAssociations: [],
+        identificationId: '',
+        hasRuc: false,
+        ruc: '',
+        skills: '',
+        responsibilities: '',
+        personality: '',
+        notes: '',
+        email: '',
+        phone: '',
+        epp: '',
+      });
+    };
+
+    if (navigateWithUnsavedCheck) {
+      navigateWithUnsavedCheck({
+        type: 'custom',
+        onExecute: doCancel,
+      });
+    } else {
+      doCancel();
+    }
+  };
+
+  const handleCancelCompany = () => {
+    const doCancel = () => {
+      setIsAddingCompany(false);
+      setEditingCompany(null);
+      setNewCompanyData({
+        name: '',
+        ruc: '',
+        description: '',
+        email: '',
+        phone: '',
+        website: '',
+        mainAddress: '',
+        branchAddresses: [],
+        industries: [],
+        notes: '',
+      });
+    };
+
+    if (navigateWithUnsavedCheck) {
+      navigateWithUnsavedCheck({
+        type: 'custom',
+        onExecute: doCancel,
+      });
+    } else {
+      doCancel();
+    }
+  };
+
+  const handleSafeOpenEditMember = (member: TeamMember) => {
+    if (navigateWithUnsavedCheck) {
+      navigateWithUnsavedCheck({
+        type: 'custom',
+        onExecute: () => openEditMember(member),
+      });
+    } else {
+      openEditMember(member);
+    }
+  };
+
+  const handleSafeOpenEditCompany = (company: Company) => {
+    if (navigateWithUnsavedCheck) {
+      navigateWithUnsavedCheck({
+        type: 'custom',
+        onExecute: () => openEditCompany(company),
+      });
+    } else {
+      openEditCompany(company);
+    }
+  };
+
   return (
     <motion.div
       key="directory"
@@ -102,30 +195,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
           processes={processes}
           companies={companies}
           roles={roles}
-          onCancel={() => {
-            setIsAddingMember(false);
-            setEditingMember(null);
-            setNewMemberData({
-              name: '',
-              role: '',
-              systemRoleId: '',
-              isSystemAdmin: false,
-              moduleAccess: undefined,
-              categories: ['contacto'],
-              processId: '',
-              companyAssociations: [],
-              identificationId: '',
-              hasRuc: false,
-              ruc: '',
-              skills: '',
-              responsibilities: '',
-              personality: '',
-              notes: '',
-              email: '',
-              phone: '',
-              epp: '',
-            });
-          }}
+          onCancel={handleCancelMember}
           onSave={handleAddMember}
         />
       ) : isAddingCompany || editingCompany ? (
@@ -134,22 +204,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
           newCompanyData={newCompanyData}
           setNewCompanyData={setNewCompanyData}
           allIndustries={industries}
-          onCancel={() => {
-            setIsAddingCompany(false);
-            setEditingCompany(null);
-            setNewCompanyData({
-              name: '',
-              ruc: '',
-              description: '',
-              email: '',
-              phone: '',
-              website: '',
-              mainAddress: '',
-              branchAddresses: [],
-              industries: [],
-              notes: '',
-            });
-          }}
+          onCancel={handleCancelCompany}
           onSave={handleAddCompany}
         />
       ) : (
@@ -300,17 +355,21 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                               <button
-                                onClick={() => openEditMember(member)}
+                                onClick={() => handleSafeOpenEditMember(member)}
                                 className="p-2 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg shadow-sm"
+                                title="Editar persona"
                               >
                                 <Edit size={16} />
                               </button>
-                              <button
-                                onClick={() => handleDeleteMember(member)}
-                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg shadow-sm"
-                              >
-                                <Trash size={16} />
-                              </button>
+                              {canDelete && (
+                                <button
+                                  onClick={() => handleDeleteMember(member)}
+                                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg shadow-sm"
+                                  title="Eliminar persona"
+                                >
+                                  <Trash size={16} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -409,17 +468,21 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                             <button
-                              onClick={() => openEditCompany(company)}
+                              onClick={() => handleSafeOpenEditCompany(company)}
                               className="p-2 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg shadow-sm"
+                              title="Editar compañía"
                             >
                               <Edit size={16} />
                             </button>
-                            <button
-                              onClick={() => handleDeleteCompany(company.id)}
-                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg shadow-sm"
-                            >
-                              <Trash size={16} />
-                            </button>
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDeleteCompany(company.id)}
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg shadow-sm"
+                                title="Eliminar compañía"
+                              >
+                                <Trash size={16} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -449,21 +512,24 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                         <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
                           <Layers size={20} />
                         </div>
-                        <button
-                          onClick={async () => {
-                            if (window.confirm('¿Deseas eliminar este sector? Solo se eliminará de la lista maestra.')) {
-                              setIndustries(prev => prev.filter(ind => ind.id !== industry.id));
-                              try {
-                                await deleteDoc(doc(db, 'industries', industry.id));
-                              } catch (e) {
-                                console.error('Error al borrar industria de Firestore:', e);
+                        {canDelete && (
+                          <button
+                            onClick={async () => {
+                              if (window.confirm('¿Deseas eliminar este sector? Solo se eliminará de la lista maestra.')) {
+                                setIndustries(prev => prev.filter(ind => ind.id !== industry.id));
+                                try {
+                                  await deleteDoc(doc(db, 'industries', industry.id));
+                                } catch (e) {
+                                  console.error('Error al borrar industria de Firestore:', e);
+                                }
                               }
-                            }
-                          }}
-                          className="p-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          <Trash size={14} />
-                        </button>
+                            }}
+                            className="p-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                            title="Eliminar sector"
+                          >
+                            <Trash size={14} />
+                          </button>
+                        )}
                       </div>
                       <h4 className="font-bold text-gray-800 mb-1">{industry.name}</h4>
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">

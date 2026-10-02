@@ -807,6 +807,19 @@ export interface TrainingExpenseItem {
   quantity: number;
   unitPrice: number; // sin IVA
   subtotal: number;  // quantity * unitPrice (sin IVA)
+  notes?: string;
+}
+
+export interface TrainingIncomeItem {
+  id: string;
+  concept: string; // e.g. "Inscripción 15 participantes", "Venta de Curso In-Company"
+  quantity: number; // Cantidad de cupos o participantes
+  unitPrice: number; // Precio unitario sin IVA
+  subtotal: number; // quantity * unitPrice (sin IVA)
+  paymentStatus?: 'cobrado' | 'pendiente';
+  invoiceOrReceiptNumber?: string;
+  clientId?: string;
+  notes?: string;
 }
 
 export interface TrainingSession {
@@ -821,6 +834,11 @@ export interface TrainingSession {
   hourlyRate?: number;        // Tarifa por hora acordada para esta sesión (editable)
   plannedHours?: number;      // Horas planificadas calculadas de startTime a endTime
   executedHours?: number;     // Horas reales ejecutadas/dictadas
+
+  // Modalidad y Horarios para Capacitador Interno
+  workScheduleType?: 'horario_laboral' | 'fuera_horario_laboral' | 'mixto';
+  workHoursInSchedule?: number; // Horas dentro del horario laboral regular
+  workHoursOutSchedule?: number; // Horas fuera del horario laboral / horas extra
 }
 
 export interface TrainingPlan {
@@ -845,18 +863,35 @@ export interface TrainingManagement {
   code: string; // e.g. CAP-2026-001
   planId: string; // link to TrainingPlan for date, trainer, space
   clientId?: string; // Optional: if given to a specific client
+  
+  // Origen de la Capacitación
+  originType?: 'marketing_campaign' | 'project' | 'direct_client' | 'internal_initiative' | 'other';
   marketingCampaignId?: string; // Optional: if linked to a campaign
+  projectId?: string; // Optional: if linked to a company Project
+  originDetails?: string; // Optional description/notes about the origin
+  
   totalHours: number; // Horas planificadas totales
   totalExecutedHours?: number; // Horas ejecutadas totales
+
+  // Costos y Gastos (sin IVA)
   totalTrainerCost?: number; // Total honorarios docentes sin IVA
   totalLogisticsCost?: number; // Total logística sin IVA
   totalSpaceCost?: number; // Total uso de aulas / Zoom sin IVA
   totalMarketingCost?: number; // Total gastos marketing sin IVA
+  totalCertificateCost?: number; // Total gastos en certificados y acreditaciones sin IVA
   totalCost: number; // Gran total de costos sin IVA
+
+  // Ingresos y Rentabilidad (sin IVA)
+  incomes?: TrainingIncomeItem[];
+  totalIncome?: number; // Gran total de ingresos sin IVA
+  netProfit?: number; // Utilidad neta: totalIncome - totalCost
+  profitMargin?: number; // Margen de rentabilidad %
+
   status: 'ejecutada' | 'pendiente';
   logisticsExpenses?: TrainingExpenseItem[];
   spaceExpenses?: TrainingExpenseItem[];
   marketingExpenses?: TrainingExpenseItem[];
+  certificateExpenses?: TrainingExpenseItem[]; // Gastos en certificados y acreditaciones
   createdAt?: string;
 }
 

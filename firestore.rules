@@ -160,18 +160,15 @@ service cloud.firestore {
 
     match /members/{memberId} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidMember(incoming()) && (isSuperAdmin() || incoming().uid == request.auth.uid);
-      allow update: if isSignedIn() && isValidMember(incoming()) && (
-        isSuperAdmin() || 
-        (incoming().uid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatar', 'personality', 'notes', 'email', 'phone']))
-      );
+      allow create: if isSignedIn() && isValidMember(incoming());
+      allow update: if isSignedIn() && isValidMember(incoming());
       allow delete: if isSuperAdmin();
     }
 
     function isValidMember(data) {
       return data.name is string && data.name.size() <= 100 &&
-             data.role is string && data.role.size() <= 100 &&
-             data.categories is list && data.categories.size() <= 10;
+             (!('role' in data) || data.role == null || (data.role is string && data.role.size() <= 100)) &&
+             (!('categories' in data) || data.categories == null || (data.categories is list && data.categories.size() <= 20));
     }
 
     match /processes/{processId} {
@@ -219,7 +216,8 @@ service cloud.firestore {
 
     match /companies/{companyId} {
       allow read: if isSignedIn();
-      allow write: if isSuperAdmin();
+      allow create, update: if isSignedIn();
+      allow delete: if isSuperAdmin();
     }
 
     match /industries/{industryId} {

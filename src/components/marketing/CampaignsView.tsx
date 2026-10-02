@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { MarketingCampaign, Task, Project, TeamMember, Process } from '../../types';
 import { UniversalCommentsModal, UniversalCommentsThread } from '../common/UniversalCommentsThread';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 interface CampaignsViewProps {
   campaigns: MarketingCampaign[];
@@ -1072,16 +1073,23 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                     <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
                       Responsable / Líder
                     </label>
-                    <select
+                    <SearchableSelect
                       value={editingCampaign.leaderMemberId || ''}
-                      onChange={(e) => setEditingCampaign(prev => ({ ...prev, leaderMemberId: e.target.value }))}
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                    >
-                      <option value="">Seleccionar responsable...</option>
-                      {members.map((m, mIdx) => (
-                        <option key={`mkt_camp_resp_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
+                      onChange={val => setEditingCampaign(prev => ({ ...prev, leaderMemberId: val }))}
+                      placeholder="Seleccionar responsable..."
+                      searchPlaceholder="Buscar líder..."
+                      isClearable
+                      options={[
+                        { value: '', label: 'Seleccionar responsable...' },
+                        ...members.map(m => ({
+                          value: m.id,
+                          label: m.name,
+                          sublabel: m.role || undefined,
+                          avatarUrl: m.avatar
+                        }))
+                      ]}
+                      buttonClassName="p-3 bg-slate-50 border-slate-200 text-xs font-bold"
+                    />
                   </div>
                 </div>
 
@@ -1288,16 +1296,23 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                     <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
                       Responsable
                     </label>
-                    <select
+                    <SearchableSelect
                       value={taskForm.memberId}
-                      onChange={(e) => setTaskForm(prev => ({ ...prev, memberId: e.target.value }))}
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                    >
-                      <option value="">Seleccionar miembro...</option>
-                      {members.map((m, mIdx) => (
-                        <option key={`mkt_camp_task_m_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
+                      onChange={val => setTaskForm(prev => ({ ...prev, memberId: val }))}
+                      placeholder="Seleccionar miembro..."
+                      searchPlaceholder="Buscar miembro..."
+                      isClearable
+                      options={[
+                        { value: '', label: 'Seleccionar miembro...' },
+                        ...members.map(m => ({
+                          value: m.id,
+                          label: m.name,
+                          sublabel: m.role || undefined,
+                          avatarUrl: m.avatar
+                        }))
+                      ]}
+                      buttonClassName="p-3 bg-slate-50 border-slate-200 text-xs font-bold"
+                    />
                   </div>
                 </div>
 

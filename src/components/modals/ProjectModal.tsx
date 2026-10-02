@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { FolderKanban, Edit, X, User, Users, Check } from 'lucide-react';
 import { Process, Project, TeamMember, SystemRole } from '../../types';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 interface ProjectModalProps {
   isOpen: boolean;
@@ -114,25 +115,26 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                   Proceso Asignado
                 </label>
-                <select
+                <SearchableSelect
                   required
-                  className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-sm font-bold"
                   value={newProjectData.processId}
-                  onChange={e => setNewProjectData({ ...newProjectData, processId: e.target.value })}
-                >
-                  <option value="">Selecciona un proceso...</option>
-                  {processes
+                  onChange={val => setNewProjectData({ ...newProjectData, processId: val })}
+                  placeholder="Selecciona un proceso..."
+                  searchPlaceholder="Buscar proceso..."
+                  isClearable
+                  options={processes
                     .filter(p => {
                       const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
                       const access = getModuleAccess(currentMember, roles, `projects_${p.id}`);
                       return isUserAdmin || access === 'lider' || access === 'administrador';
                     })
-                    .map((p, pIdx) => (
-                      <option key={`pmodal_proc_${p.id || pIdx}_${pIdx}`} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                </select>
+                    .map(p => ({
+                      value: p.id,
+                      label: p.name,
+                      sublabel: p.description?.slice(0, 40)
+                    }))}
+                  buttonClassName="py-3 bg-white border-2 border-gray-100 text-sm font-bold"
+                />
               </div>
 
               <div className="space-y-2">
@@ -156,18 +158,23 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   <User size={13} className="text-indigo-600" />
                   Líder / Responsable del Proyecto
                 </label>
-                <select
-                  className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-medium"
+                <SearchableSelect
                   value={newProjectData.leaderId || ''}
-                  onChange={e => setNewProjectData({ ...newProjectData, leaderId: e.target.value })}
-                >
-                  <option value="">Sin responsable específico</option>
-                  {members.map(m => (
-                    <option key={`proj_leader_opt_${m.id}`} value={m.id}>
-                      {m.name} {m.role ? `(${m.role})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={val => setNewProjectData({ ...newProjectData, leaderId: val })}
+                  placeholder="Sin responsable específico"
+                  searchPlaceholder="Buscar líder o miembro..."
+                  isClearable
+                  options={[
+                    { value: '', label: 'Sin responsable específico' },
+                    ...members.map(m => ({
+                      value: m.id,
+                      label: m.name,
+                      sublabel: m.role || undefined,
+                      avatarUrl: m.avatar
+                    }))
+                  ]}
+                  buttonClassName="py-3 bg-white border-2 border-gray-100 text-sm font-medium"
+                />
               </div>
 
               <div className="space-y-2">

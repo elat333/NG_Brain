@@ -51,7 +51,7 @@ export function useAppNavigation() {
   const [managementSubTab, setManagementSubTab] = useState<ManagementSubTabType>('consultant');
   const [importacionesSubTab, setImportacionesSubTab] = useState<ImportacionesSubTabType>('products');
   const [marketingSubTab, setMarketingSubTab] = useState<MarketingSubTab>('campaigns');
-  const [capacitacionSubTab, setCapacitacionSubTab] = useState<CapacitacionSubTab>('calendar');
+  const [capacitacionSubTab, setCapacitacionSubTab] = useState<CapacitacionSubTab>('management');
   const [acreditacionSubTab, setAcreditacionSubTab] = useState<AcreditacionSubTabType>('links');
   const [productosSubTab, setProductosSubTab] = useState<ProductSubTab>('todos');
   const [qhseSubTab, setQhseSubTab] = useState<QHSESubTab>('links');

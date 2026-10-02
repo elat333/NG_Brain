@@ -723,7 +723,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 active={activeTab === 'capacitacion'} 
                 icon={<GraduationCap size={20} />} 
                 label="Capacitación" 
-                onClick={() => toggleNavModule('capacitacion', () => handleTabClick('capacitacion', 'calendar'))} 
+                onClick={() => toggleNavModule('capacitacion', () => {
+                  handleTabClick('capacitacion');
+                  setCapacitacionSubTab('management');
+                })} 
               />
               <AnimatePresence>
                 {expandedNavModule === 'capacitacion' && (

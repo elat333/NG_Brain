@@ -24,6 +24,7 @@ import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { AcreditationAlly, Company, Industry, TeamMember } from '../../types';
 import { CompanyEditorView, normalizeText, cleanFirestoreData } from '../common/CompanyEditorView';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 interface AcreditacionAlliesViewProps {
   allies: AcreditationAlly[];
@@ -841,31 +842,29 @@ export const AcreditacionAlliesView: React.FC<AcreditacionAlliesViewProps> = ({
                       Nueva Persona
                     </button>
                   </div>
-                  <select
+                  <SearchableSelect
                     value={selectedContactId}
-                    onChange={(e) => setSelectedContactId(e.target.value)}
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="">Sin persona de contacto asignada (Opcional)</option>
-                    {categorizedContacts.companyContacts.length > 0 && (
-                      <optgroup label="Contactos vinculados a la Empresa">
-                        {categorizedContacts.companyContacts.map((contact, cIdx) => (
-                          <option key={`ally_co_cnt_${contact.id || cIdx}_${cIdx}`} value={contact.id}>
-                            ⭐ {contact.name} {contact.role ? `(${contact.role})` : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {categorizedContacts.otherContacts.length > 0 && (
-                      <optgroup label="Otras personas del Directorio General">
-                        {categorizedContacts.otherContacts.map((contact, cIdx) => (
-                          <option key={`ally_oth_cnt_${contact.id || cIdx}_${cIdx}`} value={contact.id}>
-                            {contact.name} {contact.role ? `(${contact.role})` : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
+                    onChange={val => setSelectedContactId(val)}
+                    placeholder="Sin persona de contacto asignada (Opcional)"
+                    searchPlaceholder="Buscar por nombre o cargo..."
+                    isClearable
+                    options={[
+                      { value: '', label: 'Sin persona de contacto asignada (Opcional)' },
+                      ...categorizedContacts.companyContacts.map(contact => ({
+                        value: contact.id,
+                        label: `⭐ ${contact.name}`,
+                        sublabel: contact.role || 'Contacto Vinculado',
+                        badge: 'Empresa',
+                        badgeColor: 'bg-indigo-100 text-indigo-700'
+                      })),
+                      ...categorizedContacts.otherContacts.map(contact => ({
+                        value: contact.id,
+                        label: contact.name,
+                        sublabel: contact.role || undefined
+                      }))
+                    ]}
+                    buttonClassName="p-2.5 bg-white border-slate-200 text-xs font-bold"
+                  />
                 </div>
 
                 {/* Status & Agreement Date */}

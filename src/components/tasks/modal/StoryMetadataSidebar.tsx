@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { TaskDependenciesSection } from './TaskDependenciesSection';
 import { TeamMember, Process, Project, Task } from '../../../types';
+import { SearchableSelect } from '../../common/SearchableSelect';
 
 interface StoryMetadataSidebarProps {
   newTaskData: any;
@@ -71,13 +72,20 @@ export const StoryMetadataSidebar: React.FC<StoryMetadataSidebarProps> = ({
           <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
             <Layers size={12} className="text-blue-500" /> Proceso
           </label>
-          <select 
+          <SearchableSelect
             required
             disabled={!canEditMetadataField}
-            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-xs font-bold shadow-sm disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
             value={newTaskData.processId}
-            onChange={e => {
-              const newProcessId = e.target.value;
+            placeholder="Seleccionar Proceso..."
+            searchPlaceholder="Buscar proceso..."
+            isClearable
+            options={processes.map(p => ({
+              value: p.id,
+              label: p.name,
+              sublabel: p.description?.slice(0, 40)
+            }))}
+            onChange={val => {
+              const newProcessId = val;
               const proc = processes.find(p => p.id === newProcessId);
               const isMkt = (proc?.name || '').toLowerCase().includes('marketing') || (proc?.id || '').toLowerCase().includes('marketing');
               
@@ -90,10 +98,8 @@ export const StoryMetadataSidebar: React.FC<StoryMetadataSidebarProps> = ({
                 taskTemplate: (!isMkt && isDesignTemplate) ? 'standard' : currentTemplate
               });
             }}
-          >
-            <option value="">Seleccionar Proceso...</option>
-            {processes.map((p, pIdx) => <option key={`modal_proc_${p.id || pIdx}_${pIdx}`} value={p.id}>{p.name}</option>)}
-          </select>
+            buttonClassName="py-2.5 bg-white border-gray-200 text-xs font-bold"
+          />
         </div>
 
         {/* Plantilla de Tarea */}
@@ -496,12 +502,28 @@ export const StoryMetadataSidebar: React.FC<StoryMetadataSidebarProps> = ({
           <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
             <FolderKanban size={12} className="text-green-500" /> Proyecto
           </label>
-          <select 
+          <SearchableSelect
             disabled={!canEditMetadataField}
-            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none text-xs font-bold shadow-sm disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
             value={newTaskData.projectId}
-            onChange={e => {
-              const newProjId = e.target.value;
+            placeholder="Historia de Usuario Independiente"
+            searchPlaceholder="Buscar proyecto..."
+            isClearable
+            options={[
+              { value: '', label: 'Historia de Usuario Independiente' },
+              ...projects
+                .filter(p => 
+                  (!newTaskData.processId || p.processId === newTaskData.processId) &&
+                  (p.status !== 'completado' || p.id === newTaskData.projectId)
+                )
+                .map(p => ({
+                  value: p.id,
+                  label: p.name,
+                  badge: p.status,
+                  badgeColor: p.status === 'activo' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                }))
+            ]}
+            onChange={val => {
+              const newProjId = val;
               const proj = projects.find(p => p.id === newProjId);
               let nextProcessId = newTaskData.processId;
               if (proj && proj.processId && !newTaskData.processId) {
@@ -519,15 +541,8 @@ export const StoryMetadataSidebar: React.FC<StoryMetadataSidebarProps> = ({
                 taskTemplate: (!isMkt && isDesignTemplate) ? 'standard' : currentTemplate
               });
             }}
-          >
-            <option value="">Historia de Usuario Independiente</option>
-            {projects.filter(p => 
-              (!newTaskData.processId || p.processId === newTaskData.processId) &&
-              (p.status !== 'completado' || p.id === newTaskData.projectId)
-            ).map((p, pIdx) => (
-              <option key={`modal_proj_${p.id || pIdx}_${pIdx}`} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+            buttonClassName="py-2.5 bg-white border-gray-200 text-xs font-bold"
+          />
         </div>
 
         {/* Estado Scrum */}

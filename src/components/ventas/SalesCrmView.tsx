@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Users, Plus, Search, Edit2, Trash2, X, Building, Mail, Phone, Tag, User } from 'lucide-react';
 import { SalesClient, Company, TeamMember } from '../../types';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 interface SalesCrmViewProps {
   clients: SalesClient[];
@@ -292,18 +293,28 @@ export const SalesCrmView: React.FC<SalesCrmViewProps> = ({ clients, companies, 
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                         <Building size={14} /> Entidad del Directorio
                       </label>
-                      <select
+                      <SearchableSelect
                         required={!isCreatingNewEntity}
                         value={editingClient.directoryId || ''}
-                        onChange={e => setEditingClient({ ...editingClient, directoryId: e.target.value })}
-                        className="w-full bg-white border border-slate-200 text-sm font-semibold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      >
-                        <option value="">Seleccione...</option>
-                        {editingClient.clientType === 'B2B' 
-                          ? companies.map((c, cIdx) => <option key={`sales_crm_comp_opt_${c.id || cIdx}_${cIdx}`} value={c.id}>{c.name}</option>)
-                          : members.map((m, mIdx) => <option key={`sales_crm_memb_opt_${m.id || mIdx}_${mIdx}`} value={m.id}>{m.name}</option>)
+                        onChange={val => setEditingClient({ ...editingClient, directoryId: val })}
+                        placeholder="Seleccione..."
+                        searchPlaceholder={editingClient.clientType === 'B2B' ? 'Buscar empresa o RUC...' : 'Buscar persona o cargo...'}
+                        isClearable
+                        options={editingClient.clientType === 'B2B'
+                          ? companies.map(c => ({
+                              value: c.id,
+                              label: c.name,
+                              sublabel: c.ruc ? `RUC: ${c.ruc}` : c.email || undefined
+                            }))
+                          : members.map(m => ({
+                              value: m.id,
+                              label: m.name,
+                              sublabel: m.role || undefined,
+                              avatarUrl: m.avatar
+                            }))
                         }
-                      </select>
+                        buttonClassName="p-3 bg-white border-slate-200 text-sm font-semibold"
+                      />
                     </div>
                   ) : (
                     <div className="space-y-4 p-4 border border-emerald-100 bg-emerald-50/50 rounded-xl">

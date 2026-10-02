@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, Plus, Search, Edit2, Trash2, Clock, DollarSign, Target, Calendar, ExternalLink } from 'lucide-react';
+import { BookOpen, Plus, Search, Edit2, Trash2, Clock, DollarSign, Target, Calendar, ExternalLink, Megaphone, FolderKanban, Sparkles, TrendingUp, TrendingDown } from 'lucide-react';
 import { 
   TrainingManagement, 
   TrainingPlan, 
@@ -9,7 +9,8 @@ import {
   Trainer, 
   TrainingSpace, 
   TeamMember,
-  Company
+  Company,
+  Project
 } from '../../types';
 import { TrainingFullDetailView } from './TrainingFullDetailView';
 
@@ -18,6 +19,7 @@ interface TrainingManagementViewProps {
   plans: TrainingPlan[];
   clients: SalesClient[];
   campaigns: MarketingCampaign[];
+  projects?: Project[];
   trainers: Trainer[];
   spaces?: TrainingSpace[];
   members?: TeamMember[];
@@ -32,6 +34,7 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
   plans, 
   clients, 
   campaigns, 
+  projects = [],
   trainers, 
   spaces = [],
   members = [],
@@ -113,6 +116,7 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
         companies={companies}
         clients={clients}
         campaigns={campaigns}
+        projects={projects}
         onSave={handleSaveDetail}
         onDelete={handleDeleteDetail}
         onBack={handleCloseDetail}
@@ -165,8 +169,9 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
               <tr>
                 <th className="p-4">Código</th>
                 <th className="p-4">Planificación / Evento</th>
-                <th className="p-4">Vínculos</th>
-                <th className="p-4">Horas / Costo</th>
+                <th className="p-4">Origen / Vínculo</th>
+                <th className="p-4">Horas</th>
+                <th className="p-4">Balance Financiero</th>
                 <th className="p-4">Estado</th>
                 <th className="p-4 text-right">Acciones</th>
               </tr>
@@ -176,6 +181,11 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
                 const plan = plans.find(p => p.id === mgmt.planId);
                 const client = clients.find(c => c.id === mgmt.clientId);
                 const camp = campaigns.find(c => c.id === mgmt.marketingCampaignId);
+                const proj = projects.find(pr => pr.id === mgmt.projectId);
+
+                const totalCost = Number(mgmt.totalCost || 0);
+                const totalIncome = Number(mgmt.totalIncome || 0);
+                const netProfit = mgmt.netProfit !== undefined ? Number(mgmt.netProfit) : (totalIncome - totalCost);
                 
                 return (
                   <tr 
@@ -219,22 +229,70 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
                       )}
                     </td>
 
+                    {/* Origen / Vínculo */}
                     <td className="p-4">
                       <div className="space-y-1">
-                        {client && <div className="text-xs flex items-center gap-1 text-slate-600 font-medium"><Target size={12} className="text-indigo-600"/> {getClientName(client)}</div>}
-                        {camp && <div className="text-xs flex items-center gap-1 text-slate-600 font-medium"><Calendar size={12} className="text-purple-600"/> {camp.name || 'Campaña'}</div>}
-                        {!client && !camp && <span className="text-xs text-slate-400">Interna</span>}
+                        {mgmt.originType === 'marketing_campaign' && (
+                          <div className="text-xs flex items-center gap-1.5 text-purple-700 font-semibold bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-100 w-fit">
+                            <Megaphone size={12} className="text-purple-600 shrink-0" />
+                            <span className="truncate max-w-[140px]">{camp ? camp.name : 'Campaña Marketing'}</span>
+                          </div>
+                        )}
+                        {mgmt.originType === 'project' && (
+                          <div className="text-xs flex items-center gap-1.5 text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100 w-fit">
+                            <FolderKanban size={12} className="text-blue-600 shrink-0" />
+                            <span className="truncate max-w-[140px]">{proj ? proj.name : 'Proyecto'}</span>
+                          </div>
+                        )}
+                        {mgmt.originType === 'direct_client' && (
+                          <div className="text-xs flex items-center gap-1.5 text-indigo-700 font-semibold bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 w-fit">
+                            <Target size={12} className="text-indigo-600 shrink-0" />
+                            <span className="truncate max-w-[140px]">{client ? getClientName(client) : 'Cliente Directo'}</span>
+                          </div>
+                        )}
+                        {mgmt.originType === 'internal_initiative' && (
+                          <div className="text-xs flex items-center gap-1.5 text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100 w-fit">
+                            <Sparkles size={12} className="text-emerald-600 shrink-0" />
+                            <span>Iniciativa Interna</span>
+                          </div>
+                        )}
+                        {(!mgmt.originType || mgmt.originType === 'other') && (
+                          <span className="text-xs text-slate-400">
+                            {client ? getClientName(client) : camp ? camp.name : 'General / Interna'}
+                          </span>
+                        )}
                       </div>
                     </td>
 
+                    {/* Horas */}
                     <td className="p-4">
-                      <div className="flex flex-col gap-1">
-                        <span className="flex items-center gap-1 text-xs font-bold text-slate-600">
-                          <Clock size={12} className="text-amber-500"/> {mgmt.totalHours} h
-                        </span>
-                        <span className="flex items-center gap-1 text-xs font-bold text-slate-600">
-                          <DollarSign size={12} className="text-emerald-500"/> ${mgmt.totalCost?.toFixed(2) || '0.00'}
-                        </span>
+                      <div className="flex items-center gap-1 text-xs font-bold text-slate-700">
+                        <Clock size={12} className="text-indigo-500"/>
+                        <span>{mgmt.totalExecutedHours !== undefined ? mgmt.totalExecutedHours : mgmt.totalHours} h</span>
+                        <span className="text-[10px] text-slate-400 font-medium">({mgmt.totalHours || 0}h plan)</span>
+                      </div>
+                    </td>
+
+                    {/* Balance Financiero: Ingresos vs Costos & Utilidad */}
+                    <td className="p-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-slate-400 font-medium text-[11px]">Ingr:</span>
+                          <span className="font-bold text-emerald-600">${totalIncome.toFixed(2)}</span>
+                          <span className="text-slate-300">|</span>
+                          <span className="text-slate-400 font-medium text-[11px]">Cost:</span>
+                          <span className="font-bold text-rose-600">${totalCost.toFixed(2)}</span>
+                        </div>
+                        {totalIncome > 0 && (
+                          <div className="flex items-center gap-1">
+                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
+                              netProfit >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}>
+                              {netProfit >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                              Utilidad: ${netProfit.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </td>
 
@@ -274,7 +332,7 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-500 font-medium">
+                  <td colSpan={7} className="p-8 text-center text-slate-500 font-medium">
                     No se encontraron registros de capacitaciones.
                   </td>
                 </tr>

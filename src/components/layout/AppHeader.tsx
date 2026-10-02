@@ -133,6 +133,7 @@ export interface AppHeaderProps {
   setMyActivitiesOnly?: (val: boolean | ((prev: boolean) => boolean)) => void;
   myActivitiesCount?: number;
   handleExportTasksToCsv?: () => void;
+  navigateWithUnsavedCheck?: (action: any) => void;
   [key: string]: any;
 }
 
@@ -142,6 +143,7 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
     activeTab,
     settingsSubTab,
     setSettingsSubTab,
+    navigateWithUnsavedCheck,
     isReadOnly,
     selectedProcessId,
     setSelectedProcessId,
@@ -1026,46 +1028,68 @@ export const AppHeader: React.FC<AppHeaderProps> = (props) => {
                   <button 
                     onClick={() => {
                       if (directorySubTab === 'people') {
-                        setEditingMember(null);
-                        setNewMemberData({
-                          name: '',
-                          role: '',
-                          systemRoleId: '',
-                          isSystemAdmin: false,
-                          moduleAccess: undefined,
-                          categories: ['contacto'],
-                          processId: '',
-                          companyAssociations: [],
-                          identificationId: '',
-                          hasRuc: false,
-                          ruc: '',
-                          skills: '',
-                          responsibilities: '',
-                          personality: '',
-                          notes: '',
-                          email: '',
-                          phone: '',
-                          epp: ''
-                        });
-                        setIsAddingMember(true);
+                        const openNewPerson = () => {
+                          setEditingMember(null);
+                          setNewMemberData({
+                            name: '',
+                            role: '',
+                            systemRoleId: '',
+                            isSystemAdmin: false,
+                            moduleAccess: undefined,
+                            categories: ['contacto'],
+                            processId: '',
+                            companyAssociations: [],
+                            identificationId: '',
+                            hasRuc: false,
+                            ruc: '',
+                            skills: '',
+                            responsibilities: '',
+                            personality: '',
+                            notes: '',
+                            email: '',
+                            phone: '',
+                            epp: ''
+                          });
+                          setIsAddingMember(true);
+                        };
+
+                        if (navigateWithUnsavedCheck) {
+                          navigateWithUnsavedCheck({
+                            type: 'custom',
+                            onExecute: openNewPerson
+                          });
+                        } else {
+                          openNewPerson();
+                        }
                       } else {
-                        setEditingCompany(null);
-                        setNewCompanyData({
-                          name: '',
-                          ruc: '',
-                          description: '',
-                          email: '',
-                          phone: '',
-                          website: '',
-                          mainAddress: '',
-                          branchAddresses: [],
-                          industries: [],
-                          notes: ''
-                        });
-                        setIsAddingCompany(true);
+                        const openNewCompany = () => {
+                          setEditingCompany(null);
+                          setNewCompanyData({
+                            name: '',
+                            ruc: '',
+                            description: '',
+                            email: '',
+                            phone: '',
+                            website: '',
+                            mainAddress: '',
+                            branchAddresses: [],
+                            industries: [],
+                            notes: ''
+                          });
+                          setIsAddingCompany(true);
+                        };
+
+                        if (navigateWithUnsavedCheck) {
+                          navigateWithUnsavedCheck({
+                            type: 'custom',
+                            onExecute: openNewCompany
+                          });
+                        } else {
+                          openNewCompany();
+                        }
                       }
                     }}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-ng-lime text-ng-black text-xs font-black rounded-xl hover:opacity-90 transition-all shadow-lg shadow-ng-lime/10 uppercase tracking-widest"
+                    className="flex items-center gap-2 px-6 py-2.5 bg-ng-lime text-ng-black text-xs font-black rounded-xl hover:opacity-90 transition-all shadow-lg shadow-ng-lime/10 uppercase tracking-widest cursor-pointer"
                   >
                     <Plus size={18} />
                     {directorySubTab === 'people' ? 'Nueva Persona' : 'Nueva Compañía'}
