@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Building2, Plus, X, Trash, Check } from 'lucide-react';
-import { Company, Industry } from '../../types';
+import { Building2, Plus, X, Trash, Check, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Company, Industry, TeamMember } from '../../types';
 import { normalizeText } from '../../lib/textUtils';
+import { validateRucEcuador, checkIdentificationDuplicate } from '../../lib/fiscalValidators';
 
 export { normalizeText };
 
@@ -31,6 +32,8 @@ export interface CompanyEditorViewProps {
   newCompanyData: any;
   setNewCompanyData: (data: any) => void;
   allIndustries: Industry[];
+  allCompanies?: Company[];
+  allMembers?: TeamMember[];
   onCancel: () => void;
   onSave: (e: React.FormEvent) => void;
   isSaving?: boolean;
@@ -41,12 +44,30 @@ export const CompanyEditorView: React.FC<CompanyEditorViewProps> = ({
   newCompanyData,
   setNewCompanyData,
   allIndustries = [],
+  allCompanies = [],
+  allMembers = [],
   onCancel,
   onSave,
   isSaving = false,
 }) => {
   const [industryInput, setIndustryInput] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Real-time RUC Validation & Duplicate check
+  const rucValidation = useMemo(() => {
+    if (!newCompanyData.ruc) return null;
+    return validateRucEcuador(newCompanyData.ruc);
+  }, [newCompanyData.ruc]);
+
+  const duplicateCheck = useMemo(() => {
+    if (!newCompanyData.ruc) return { isDuplicate: false };
+    return checkIdentificationDuplicate(
+      newCompanyData.ruc,
+      allMembers,
+      allCompanies,
+      editingCompany?.id
+    );
+  }, [newCompanyData.ruc, allMembers, allCompanies, editingCompany?.id]);
 
   const addIndustry = (name: string) => {
     const trimmed = name.trim();
@@ -128,19 +149,57 @@ export const CompanyEditorView: React.FC<CompanyEditorViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">
-                  RUC <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center justify-between ml-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    RUC <span className="text-rose-500">*</span>
+                  </label>
+                  {rucValidation && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                      rucValidation.isValid
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}>
+                      {rucValidation.isValid ? (
+                        <>
+                          <CheckCircle2 size={10} className="text-emerald-600" />
+                          {rucValidation.type === 'ruc_natural' ? 'RUC Natural' : rucValidation.type === 'ruc_privada' ? 'RUC Privado' : 'RUC Válido'}
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle size={10} className="text-rose-600" />
+                          Inválido
+                        </>
+                      )}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   required
                   placeholder="Ej: 1790000000001"
-                  className="w-full px-6 py-4 bg-gray-50 border border-transparent rounded-[1.5rem] focus:outline-none focus:ring-4 focus:ring-slate-50 focus:bg-white focus:border-slate-100 transition-all text-gray-700 font-medium"
+                  className={`w-full px-6 py-4 rounded-[1.5rem] focus:outline-none focus:ring-4 transition-all text-gray-700 font-medium ${
+                    duplicateCheck.isDuplicate
+                      ? 'bg-amber-50/50 border border-amber-300 focus:ring-amber-100'
+                      : rucValidation && !rucValidation.isValid
+                      ? 'bg-rose-50/30 border border-rose-300 focus:ring-rose-100'
+                      : 'bg-gray-50 border border-transparent focus:ring-slate-50 focus:bg-white focus:border-slate-100'
+                  }`}
                   value={newCompanyData.ruc || ''}
                   onChange={(e) =>
                     setNewCompanyData({ ...newCompanyData, ruc: e.target.value })
                   }
                 />
+                {duplicateCheck.isDuplicate && (
+                  <p className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2 flex items-center gap-1.5 mt-1">
+                    <AlertTriangle size={13} className="shrink-0 text-amber-600" />
+                    Atención: Este RUC ya está registrado para "{duplicateCheck.foundEntityName}" ({duplicateCheck.foundIn}).
+                  </p>
+                )}
+                {rucValidation && !rucValidation.isValid && !duplicateCheck.isDuplicate && (
+                  <p className="text-[10px] font-medium text-rose-600 ml-1 mt-1">
+                    {rucValidation.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1 relative">

@@ -978,6 +978,17 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       }} 
                     />
                     <SubNavButton 
+                      key="subnav_mkt_leads"
+                      active={marketingSubTab === 'leads'} 
+                      label="Prospectos (CRM)" 
+                      icon={<Users size={14} />} 
+                      onClick={() => {
+                        setExpandedNavModule('marketing');
+                        handleTabClick('marketing');
+                        setMarketingSubTab('leads');
+                      }} 
+                    />
+                    <SubNavButton 
                       key="subnav_mkt_calendar"
                       active={marketingSubTab === 'content_calendar'} 
                       label="Contenido & Calendario" 

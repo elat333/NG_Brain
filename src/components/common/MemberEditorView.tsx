@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   User, 
   Mail, 
@@ -15,10 +15,14 @@ import {
   Award, 
   HardHat,
   CreditCard,
-  Building
+  Building,
+  CheckCircle2,
+  AlertTriangle,
+  GraduationCap
 } from 'lucide-react';
 import { Process, Company, Role, TeamMember } from '../../types';
 import { SearchableSelect } from './SearchableSelect';
+import { validateIdentification, checkIdentificationDuplicate } from '../../lib/fiscalValidators';
 
 interface MemberEditorViewProps {
   editingMember: TeamMember | null;
@@ -27,6 +31,7 @@ interface MemberEditorViewProps {
   processes: Process[];
   companies: Company[];
   roles: Role[];
+  allMembers?: TeamMember[];
   onCancel: () => void;
   onSave?: (e: React.FormEvent) => void;
 }
@@ -38,6 +43,7 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
   processes,
   companies,
   roles,
+  allMembers = [],
   onCancel,
   onSave
 }) => {
@@ -45,12 +51,30 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [companyRoleInput, setCompanyRoleInput] = useState('');
 
+  // Real-time Fiscal Identification and Duplicate Validation
+  const idValidation = useMemo(() => {
+    if (!newMemberData.identificationId) return null;
+    return validateIdentification(newMemberData.identificationId);
+  }, [newMemberData.identificationId]);
+
+  const duplicateCheck = useMemo(() => {
+    if (!newMemberData.identificationId) return { isDuplicate: false };
+    return checkIdentificationDuplicate(
+      newMemberData.identificationId,
+      allMembers,
+      companies,
+      editingMember?.id
+    );
+  }, [newMemberData.identificationId, allMembers, companies, editingMember?.id]);
+
   const availableCategories = [
-    { id: 'miembro', label: 'Miembro de Equipo', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { id: 'contacto', label: 'Contacto Externo', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { id: 'aliado', label: 'Aliado Estratégico', color: 'bg-purple-50 text-purple-700 border-purple-200' },
-    { id: 'proveedor', label: 'Proveedor', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+    { id: 'miembro', label: 'Colaborador Interno', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    { id: 'alumno', label: 'Alumno / Capacitado', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+    { id: 'docente', label: 'Docente / Instructor', color: 'bg-teal-50 text-teal-700 border-teal-200' },
     { id: 'cliente', label: 'Cliente', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    { id: 'proveedor', label: 'Proveedor', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+    { id: 'aliado', label: 'Aliado Estratégico', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+    { id: 'contacto', label: 'Contacto Externo', color: 'bg-blue-50 text-blue-700 border-blue-200' },
   ];
 
   const handleToggleCategory = (catId: string) => {
@@ -214,17 +238,55 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                  <CreditCard size={14} className="text-blue-500" />
-                  Cédula / Identificación
+                <label className="text-xs font-bold text-gray-700 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <CreditCard size={14} className="text-blue-500" />
+                    Cédula / Identificación
+                  </span>
+                  {idValidation && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                      idValidation.isValid
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}>
+                      {idValidation.isValid ? (
+                        <>
+                          <CheckCircle2 size={10} className="text-emerald-600" />
+                          {idValidation.type === 'cedula' ? 'Cédula Válida' : idValidation.type.startsWith('ruc') ? 'RUC Válido' : 'Documento Válido'}
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle size={10} className="text-rose-600" />
+                          Inválido
+                        </>
+                      )}
+                    </span>
+                  )}
                 </label>
                 <input
                   type="text"
                   placeholder="Ej: 0102030405"
                   value={newMemberData.identificationId || ''}
                   onChange={(e) => setNewMemberData({ ...newMemberData, identificationId: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                  className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-xs font-bold text-gray-800 focus:bg-white focus:outline-none transition-all ${
+                    duplicateCheck.isDuplicate
+                      ? 'border-amber-400 bg-amber-50/50 focus:ring-2 focus:ring-amber-500'
+                      : idValidation && !idValidation.isValid
+                      ? 'border-rose-300 focus:ring-2 focus:ring-rose-500'
+                      : 'border-gray-200 focus:ring-2 focus:ring-blue-500'
+                  }`}
                 />
+                {duplicateCheck.isDuplicate && (
+                  <p className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 flex items-center gap-1.5">
+                    <AlertTriangle size={13} className="shrink-0 text-amber-600" />
+                    Atención: Este documento ya está registrado para "{duplicateCheck.foundEntityName}" ({duplicateCheck.foundIn}).
+                  </p>
+                )}
+                {idValidation && !idValidation.isValid && !duplicateCheck.isDuplicate && (
+                  <p className="text-[10px] font-medium text-rose-600">
+                    {idValidation.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

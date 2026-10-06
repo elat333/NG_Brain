@@ -14,7 +14,10 @@ import {
   FolderKanban, 
   Eye, 
   Wrench,
-  ArrowUpRight
+  ArrowUpRight,
+  Check,
+  RotateCcw,
+  Archive
 } from 'lucide-react';
 import { Task, TeamMember, Process, Project, Role, TaskComment } from '../../types';
 import { commentService } from '../../services/commentService';
@@ -64,7 +67,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [scopeFilter, setScopeFilter] = useState<'my' | 'all'>('my');
   const [processFilter, setProcessFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [commentTab, setCommentTab] = useState<'all' | 'reviews' | 'mentions'>('all');
+  const [commentTab, setCommentTab] = useState<'pending' | 'mentions' | 'seen' | 'resolved' | 'all'>('pending');
   const [liveComments, setLiveComments] = useState<TaskComment[]>([]);
 
   // Suscripción en tiempo real a comentarios de historias
@@ -203,7 +206,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     });
   }, [scopedStories, activeCategory, todayStr]);
 
-  // Feed de comentarios
+  // Estadísticas reactivas de comentarios (distinguiendo visto personal y resuelto global)
+  const commentStats = useMemo(() => {
+    let pendingCount = 0;
+    let mentionsCount = 0;
+    let seenCount = 0;
+    let resolvedCount = 0;
+
+    liveComments.forEach(comment => {
+      const isResolved = comment.status === 'resolved' || Boolean(comment.archived);
+      const isSeenByMe = Boolean(currentMember && comment.readByMemberIds?.includes(currentMember.id));
+
+      if (isResolved) {
+        resolvedCount++;
+      }
+
+      if (isSeenByMe) {
+        seenCount++;
+      } else {
+        pendingCount++;
+        if (currentMember) {
+          const isMentioned = comment.mentionedMemberIds?.includes(currentMember.id);
+          const isTarget = comment.targetMemberId === currentMember.id;
+          if (isMentioned || isTarget) {
+            mentionsCount++;
+          }
+        }
+      }
+    });
+
+    return { 
+      pending: pendingCount, 
+      mentions: mentionsCount, 
+      seen: seenCount,
+      resolved: resolvedCount, 
+      total: liveComments.length 
+    };
+  }, [liveComments, currentMember]);
+
+  // Feed de comentarios enfocado por defecto en Por Atender / Pendientes (no vistos por el usuario)
   const feedComments = useMemo(() => {
     const taskMap = new Map(tasks.map(t => [t.id, t]));
     const list: { comment: TaskComment; task?: Task; member?: TeamMember; process?: Process }[] = [];
@@ -212,20 +253,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const task = comment.taskId ? taskMap.get(comment.taskId) : undefined;
       const member = members.find(m => m.id === comment.authorId);
       const process = task?.processId ? processes.find(p => p.id === task.processId) : undefined;
+      const isResolved = comment.status === 'resolved' || Boolean(comment.archived);
+      const isSeenByMe = Boolean(currentMember && comment.readByMemberIds?.includes(currentMember.id));
 
-      // Aplicar filtro de tab de comentarios
-      if (commentTab === 'reviews' && !comment.requiresReview) return;
-      if (commentTab === 'mentions' && currentMember) {
-        const isMentioned = comment.mentionedMemberIds?.includes(currentMember.id);
-        const isTarget = comment.targetMemberId === currentMember.id;
-        if (!isMentioned && !isTarget) return;
+      // Aplicar filtro de pestaña de comentarios
+      if (commentTab === 'pending') {
+        if (isSeenByMe) return; // Solo comentarios no vistos por mí
+      } else if (commentTab === 'mentions') {
+        if (isSeenByMe) return;
+        if (currentMember) {
+          const isMentioned = comment.mentionedMemberIds?.includes(currentMember.id);
+          const isTarget = comment.targetMemberId === currentMember.id;
+          if (!isMentioned && !isTarget) return;
+        }
+      } else if (commentTab === 'seen') {
+        if (!isSeenByMe) return; // Solo los que ya marqué como vistos
+      } else if (commentTab === 'resolved') {
+        if (!isResolved) return; // Resueltos globalmente
       }
+      // 'all' muestra todos sin filtrar
 
       list.push({ comment, task, member, process });
     });
 
-    return list.slice(0, 30);
+    return list.slice(0, 40);
   }, [liveComments, tasks, members, processes, commentTab, currentMember]);
+
+  // Manejador para resolver o reabrir globalmente un comentario
+  const handleToggleCommentStatus = async (e: React.MouseEvent, comment: TaskComment) => {
+    e.stopPropagation();
+    try {
+      const isCurrentlyResolved = comment.status === 'resolved' || Boolean(comment.archived);
+      const newStatus = isCurrentlyResolved ? 'pending' : 'resolved';
+      await commentService.toggleCommentStatus(
+        comment.id,
+        newStatus,
+        currentMember?.name || 'Usuario',
+        comment.taskId
+      );
+    } catch (err) {
+      console.error('Error alternando estado del comentario en dashboard:', err);
+    }
+  };
+
+  // Manejador para marcar o desmarcar como "Visto" de forma individual
+  const handleToggleCommentRead = async (e: React.MouseEvent, comment: TaskComment) => {
+    e.stopPropagation();
+    if (!currentMember) return;
+    try {
+      const isCurrentlyRead = Boolean(comment.readByMemberIds?.includes(currentMember.id));
+      await commentService.markCommentAsReadForMember(
+        comment.id,
+        currentMember.id,
+        !isCurrentlyRead,
+        comment.taskId
+      );
+    } catch (err) {
+      console.error('Error alternando visto en comentario en dashboard:', err);
+    }
+  };
 
   // Helper para tiempo relativo
   const formatTimeAgo = (dateStr: string) => {
@@ -291,92 +377,185 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {/* Pestañas de Filtro de Comentarios */}
-            <div className="flex items-center bg-gray-50 p-1 rounded-xl text-[10px] font-bold">
+            <div className="flex items-center bg-gray-50 p-1 rounded-xl text-[10px] font-bold gap-1 overflow-x-auto no-scrollbar">
               <button
-                onClick={() => setCommentTab('all')}
-                className={`flex-1 py-1 rounded-lg transition-all cursor-pointer text-center ${
-                  commentTab === 'all' ? 'bg-white text-gray-900 shadow-2xs font-black' : 'text-gray-500 hover:text-gray-800'
+                type="button"
+                onClick={() => setCommentTab('pending')}
+                className={`py-1 px-2 rounded-lg transition-all cursor-pointer text-center truncate ${
+                  commentTab === 'pending' ? 'bg-white text-purple-700 shadow-2xs font-black' : 'text-gray-500 hover:text-gray-800'
                 }`}
+                title="Comentarios no marcados como vistos por ti"
               >
-                Todos ({liveComments.length})
+                Por Atender ({commentStats.pending})
               </button>
               <button
-                onClick={() => setCommentTab('reviews')}
-                className={`flex-1 py-1 rounded-lg transition-all cursor-pointer text-center ${
-                  commentTab === 'reviews' ? 'bg-white text-purple-700 shadow-2xs font-black' : 'text-gray-500 hover:text-gray-800'
-                }`}
-              >
-                Revisiones ({liveComments.filter(c => c.requiresReview).length})
-              </button>
-              <button
+                type="button"
                 onClick={() => setCommentTab('mentions')}
-                className={`flex-1 py-1 rounded-lg transition-all cursor-pointer text-center ${
+                className={`py-1 px-2 rounded-lg transition-all cursor-pointer text-center truncate ${
                   commentTab === 'mentions' ? 'bg-white text-blue-700 shadow-2xs font-black' : 'text-gray-500 hover:text-gray-800'
                 }`}
+                title="Menciones directas pendientes"
               >
-                Menciones
+                Menciones ({commentStats.mentions})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCommentTab('seen')}
+                className={`py-1 px-2 rounded-lg transition-all cursor-pointer text-center truncate ${
+                  commentTab === 'seen' ? 'bg-white text-indigo-700 shadow-2xs font-black' : 'text-gray-500 hover:text-gray-800'
+                }`}
+                title="Comentarios que ya marcaste como vistos"
+              >
+                Vistos ({commentStats.seen})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCommentTab('resolved')}
+                className={`py-1 px-2 rounded-lg transition-all cursor-pointer text-center truncate ${
+                  commentTab === 'resolved' ? 'bg-white text-emerald-700 shadow-2xs font-black' : 'text-gray-500 hover:text-gray-800'
+                }`}
+                title="Comentarios resueltos globalmente por el equipo"
+              >
+                Resueltos ({commentStats.resolved})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCommentTab('all')}
+                className={`py-1 px-2 rounded-lg transition-all cursor-pointer text-center shrink-0 ${
+                  commentTab === 'all' ? 'bg-white text-gray-900 shadow-2xs font-black' : 'text-gray-500 hover:text-gray-800'
+                }`}
+                title="Todos los comentarios"
+              >
+                Todos
               </button>
             </div>
 
             {/* Lista del Feed de Comentarios */}
             <div className="space-y-2.5 max-h-[480px] lg:max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
-              {feedComments.map(({ comment, task, member, process }, idx) => (
-                <div
-                  key={`feed_comment_${comment.id || idx}`}
-                  onClick={() => task && onOpenTask?.(task)}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer ${
-                    comment.requiresReview && comment.status === 'pending'
-                      ? 'bg-purple-50/60 border-purple-200 hover:border-purple-400'
-                      : 'bg-gray-50/60 border-gray-100 hover:border-blue-300 hover:bg-white'
-                  }`}
-                >
-                  {/* Encabezado del Comentario */}
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className="w-5 h-5 rounded-full bg-blue-600 text-white font-black text-[9px] flex items-center justify-center shrink-0">
-                        {member?.avatar ? (
-                          <img src={member.avatar} alt={comment.authorName} className="w-full h-full object-cover rounded-full" />
-                        ) : (
-                          comment.authorName.charAt(0).toUpperCase()
+              {feedComments.map(({ comment, task, member, process }, idx) => {
+                const isResolved = comment.status === 'resolved' || Boolean(comment.archived);
+                const isSeenByMe = Boolean(currentMember && comment.readByMemberIds?.includes(currentMember.id));
+
+                return (
+                  <div
+                    key={`feed_comment_${comment.id || idx}`}
+                    onClick={() => task && onOpenTask?.(task)}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                      isResolved
+                        ? 'bg-emerald-50/20 border-emerald-100 hover:border-emerald-300'
+                        : comment.requiresReview
+                        ? 'bg-purple-50/60 border-purple-200 hover:border-purple-400'
+                        : 'bg-gray-50/60 border-gray-100 hover:border-blue-300 hover:bg-white'
+                    }`}
+                  >
+                    {/* Encabezado del Comentario */}
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="w-5 h-5 rounded-full bg-blue-600 text-white font-black text-[9px] flex items-center justify-center shrink-0">
+                          {member?.avatar ? (
+                            <img src={member.avatar} alt={comment.authorName} className="w-full h-full object-cover rounded-full" />
+                          ) : (
+                            comment.authorName.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-xs font-black text-gray-900 truncate block">
+                            {comment.authorName}
+                          </span>
+                          <span className="text-[9px] text-gray-400 font-medium">
+                            {formatTimeAgo(comment.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                        {/* Estado Resuelto Global */}
+                        {isResolved ? (
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 flex items-center gap-0.5 shrink-0" title={`Resuelto por ${comment.resolvedBy || 'el equipo'}`}>
+                            <CheckCircle2 size={9} className="text-emerald-600" />
+                            <span>Resuelto</span>
+                          </span>
+                        ) : comment.requiresReview ? (
+                          <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-700 shrink-0">
+                            Revisión
+                          </span>
+                        ) : null}
+
+                        {/* Botón Acción Resolver (Global) */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleCommentStatus(e, comment)}
+                          className={`px-2 py-0.5 rounded-lg text-[9px] font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+                            isResolved
+                              ? 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200'
+                              : 'bg-white text-gray-700 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 border-gray-200 shadow-2xs'
+                          }`}
+                          title={isResolved ? "Reabrir para todo el equipo" : "Marcar como resuelto para todo el equipo"}
+                        >
+                          {isResolved ? (
+                            <>
+                              <RotateCcw size={9} />
+                              <span>Reabrir</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check size={9} className="text-emerald-600 group-hover:text-white" />
+                              <span>Resolver</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Botón Acción Visto (Personal) */}
+                        {currentMember && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleCommentRead(e, comment)}
+                            className={`px-2 py-0.5 rounded-lg text-[9px] font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+                              isSeenByMe
+                                ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                : 'bg-blue-600 text-white hover:bg-blue-700 border-blue-600 shadow-2xs'
+                            }`}
+                            title={isSeenByMe ? "Desmarcar visto de tu bandeja personal" : "Marcar como visto (quitar de tu feed de pendientes)"}
+                          >
+                            <Eye size={9} />
+                            <span>{isSeenByMe ? 'Visto ✓' : 'Visto'}</span>
+                          </button>
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-black text-gray-900 truncate block">
-                          {comment.authorName}
-                        </span>
-                        <span className="text-[9px] text-gray-400 font-medium">
-                          {formatTimeAgo(comment.createdAt)}
-                        </span>
-                      </div>
                     </div>
 
-                    {comment.requiresReview && (
-                      <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-700 shrink-0">
-                        Revisión
-                      </span>
+                    {/* Texto del Comentario */}
+                    <p className="text-xs text-gray-700 leading-relaxed break-words bg-white/70 p-2 rounded-lg border border-gray-100/60 mb-1.5">
+                      {comment.text}
+                    </p>
+
+                    {/* Metadata de Resolución si está resuelto */}
+                    {isResolved && (
+                      <div className="flex items-center gap-1 text-[9px] text-emerald-700 font-semibold mb-1">
+                        <CheckCircle2 size={10} className="text-emerald-600 shrink-0" />
+                        <span>Resuelto {comment.resolvedBy ? `por ${comment.resolvedBy}` : ''}</span>
+                        {comment.resolvedAt && (
+                          <span className="text-gray-400 font-normal">· {formatTimeAgo(comment.resolvedAt)}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Historia y Proceso Vinculados */}
+                    {task && (
+                      <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium pt-1 border-t border-gray-100">
+                        <span className="truncate max-w-[180px] text-blue-600 font-bold hover:underline">
+                          📌 {task.title}
+                        </span>
+                        {process && (
+                          <span className="text-gray-400 shrink-0 text-[9px]">
+                            {process.name}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
-
-                  {/* Texto del Comentario */}
-                  <p className="text-xs text-gray-700 leading-relaxed break-words bg-white/70 p-2 rounded-lg border border-gray-100/60 mb-1.5">
-                    {comment.text}
-                  </p>
-
-                  {/* Historia y Proceso Vinculados */}
-                  {task && (
-                    <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium pt-1 border-t border-gray-100">
-                      <span className="truncate max-w-[180px] text-blue-600 font-bold hover:underline">
-                        📌 {task.title}
-                      </span>
-                      {process && (
-                        <span className="text-gray-400 shrink-0 text-[9px]">
-                          {process.name}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
 
               {feedComments.length === 0 && (
                 <div className="py-8 text-center text-xs text-gray-400 space-y-1">

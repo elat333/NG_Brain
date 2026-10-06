@@ -11,7 +11,8 @@ import {
   orderBy, 
   limit, 
   onSnapshot,
-  arrayUnion
+  arrayUnion,
+  arrayRemove
 } from '../lib/firebase';
 import { TaskComment, Task, UniversalComment, CommentEntityType } from '../types';
 
@@ -358,11 +359,15 @@ export const commentService = {
     resolvedBy?: string,
     taskId?: string
   ): Promise<void> {
+    const isResolved = newStatus === 'resolved';
     const updateData: any = {
-      status: newStatus
+      status: newStatus,
+      archived: isResolved,
+      archivedAt: isResolved ? new Date().toISOString() : null,
+      archivedBy: isResolved ? (resolvedBy || 'Usuario') : null
     };
 
-    if (newStatus === 'resolved') {
+    if (isResolved) {
       updateData.resolvedAt = new Date().toISOString();
       updateData.resolvedBy = resolvedBy || 'Usuario';
     } else {
@@ -406,6 +411,56 @@ export const commentService = {
         }
       } catch (taskErr) {
         // Silencioso si no tiene permisos sobre la tarea padre
+      }
+    }
+  },
+
+  /**
+   * Marca o desmarca un comentario de tarea como 'visto' de forma personal por un miembro
+   */
+  async markCommentAsReadForMember(
+    commentId: string,
+    memberId: string,
+    isRead: boolean = true,
+    taskId?: string
+  ): Promise<void> {
+    const updatePayload = {
+      readByMemberIds: isRead ? arrayUnion(memberId) : arrayRemove(memberId)
+    };
+
+    try {
+      const commentRef = doc(db, COMMENTS_COLLECTION, commentId);
+      await updateDoc(commentRef, updatePayload);
+    } catch (err) {
+      console.warn('Error al actualizar readByMemberIds en task_comments:', err);
+    }
+
+    if (taskId) {
+      try {
+        const taskRef = doc(db, 'tasks', taskId);
+        const taskSnap = await getDoc(taskRef);
+        if (taskSnap.exists()) {
+          const taskData = taskSnap.data();
+          const comments = Array.isArray(taskData.comments) ? taskData.comments : [];
+          const updatedComments = comments.map((c: any) => {
+            if (c.id === commentId) {
+              const currentRead = Array.isArray(c.readByMemberIds) ? c.readByMemberIds : [];
+              const nextRead = isRead 
+                ? Array.from(new Set([...currentRead, memberId]))
+                : currentRead.filter((id: string) => id !== memberId);
+              return {
+                ...c,
+                readByMemberIds: nextRead
+              };
+            }
+            return c;
+          });
+          await updateDoc(taskRef, {
+            comments: sanitizeForFirestore(updatedComments)
+          });
+        }
+      } catch (taskErr) {
+        // Silencioso
       }
     }
   },
@@ -622,10 +677,14 @@ export const commentService = {
     newStatus: 'pending' | 'resolved',
     resolvedBy?: string
   ): Promise<void> {
+    const isResolved = newStatus === 'resolved';
     const updateData: any = {
       status: newStatus,
-      resolvedAt: newStatus === 'resolved' ? new Date().toISOString() : null,
-      resolvedBy: newStatus === 'resolved' ? (resolvedBy || 'Usuario') : null
+      resolvedAt: isResolved ? new Date().toISOString() : null,
+      resolvedBy: isResolved ? (resolvedBy || 'Usuario') : null,
+      archived: isResolved,
+      archivedAt: isResolved ? new Date().toISOString() : null,
+      archivedBy: isResolved ? (resolvedBy || 'Usuario') : null
     };
 
     try {
@@ -636,6 +695,30 @@ export const commentService = {
         await updateDoc(doc(db, 'task_comments', commentId), sanitizeForFirestore(updateData));
       } catch (errLegacy) {
         console.warn('Fallo en fallback legacy status:', errLegacy);
+      }
+    }
+  },
+
+  /**
+   * Marca o desmarca cualquier comentario como 'visto' de forma personal por un miembro
+   */
+  async markUniversalCommentAsReadForMember(
+    commentId: string,
+    memberId: string,
+    isRead: boolean = true
+  ): Promise<void> {
+    const updatePayload = {
+      readByMemberIds: isRead ? arrayUnion(memberId) : arrayRemove(memberId)
+    };
+
+    try {
+      await updateDoc(doc(db, 'comments', commentId), updatePayload);
+    } catch (err) {
+      console.warn('No se pudo actualizar readByMemberIds en /comments, probando legacy:', err);
+      try {
+        await updateDoc(doc(db, 'task_comments', commentId), updatePayload);
+      } catch (errLegacy) {
+        console.warn('Fallo en fallback legacy visto:', errLegacy);
       }
     }
   },

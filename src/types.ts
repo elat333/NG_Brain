@@ -3,11 +3,57 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type PersonCategory = 'miembro' | 'cliente' | 'proveedor' | 'aliado' | 'contacto' | 'otro';
+export type PersonCategory = 
+  | 'miembro' 
+  | 'colaborador' 
+  | 'cliente' 
+  | 'proveedor' 
+  | 'aliado' 
+  | 'contacto' 
+  | 'alumno' 
+  | 'docente' 
+  | 'otro';
+
+export interface PartyContactMechanism {
+  id: string;
+  type: 'email' | 'phone' | 'mobile' | 'whatsapp' | 'website';
+  value: string;
+  label?: string; // e.g. "Facturación", "Personal", "Gerencia"
+  isPrimary?: boolean;
+}
+
+export type PartyRelationType = 
+  | 'empleado'
+  | 'representante_legal'
+  | 'gerente'
+  | 'contacto_comercial'
+  | 'socio'
+  | 'proveedor'
+  | 'cliente'
+  | 'consultor'
+  | 'contacto_emergencia'
+  | 'matriz'
+  | 'filial'
+  | 'alianza'
+  | 'otro';
+
+export interface PartyRelation {
+  id: string;
+  sourceId: string;
+  sourceType: 'person' | 'company';
+  targetId: string;
+  targetType: 'person' | 'company';
+  targetName: string;
+  relationType: PartyRelationType;
+  roleOrPosition?: string;
+  notes?: string;
+  createdAt?: string;
+}
 
 export interface Company {
   id: string;
   name: string;
+  commercialName?: string;
   ruc: string;
   industry?: string;
   description?: string; // Long description of the company
@@ -18,6 +64,9 @@ export interface Company {
   mainAddress?: string; // Address of the headquarters (Matriz)
   branchAddresses?: string[]; // Array of branch addresses (Sucursales)
   industries?: string[]; // Multiple industries or sectors
+  contactMechanisms?: PartyContactMechanism[];
+  requiresEpp?: boolean; // Si la empresa tiene política activa de dotación de EPP para su personal
+  relations?: PartyRelation[];
   notes?: string;
   createdAt: string;
 }
@@ -51,6 +100,7 @@ export interface CompanyAssociation {
 export interface TeamMember {
   id: string;
   name: string;
+  commercialName?: string; // Para Persona Natural con RUC
   role: string; // Basic profile job title (e.g. "Especialista en Seguridad")
   systemRoleId?: string; // Link to Role.id
   isSystemAdmin?: boolean; // If true, has absolute full access without any restriction
@@ -59,7 +109,7 @@ export interface TeamMember {
   };
   categories: PersonCategory[]; 
   processId?: string;
-  companyAssociations: CompanyAssociation[]; // New: list of companies and roles
+  companyAssociations: CompanyAssociation[]; // List of companies and roles
   identificationId?: string; // Cedula or Passport
   hasRuc?: boolean; // If they have a RUC
   ruc?: string; // For "Persona Natural con RUC"
@@ -71,6 +121,10 @@ export interface TeamMember {
   notes?: string;       
   email?: string;
   phone?: string;
+  address?: string;
+  contactMechanisms?: PartyContactMechanism[];
+  requiresEpp?: boolean; // Si este colaborador específico es sujeto de dotación de EPP
+  relations?: PartyRelation[]; // Vínculos bidireccionales cruzados (Tryton)
   epp?: string[];      
   supervisedMembersForLinks?: string[]; // IDs de personas cuyos links de interés puede ver y supervisar
   canViewAllCompanyLinks?: boolean; // Si tiene permiso para ver todos los enlaces creados en la empresa
@@ -106,9 +160,13 @@ export interface TaskComment {
   text: string;
   createdAt: string;
   requiresReview?: boolean; // Si es una solicitud de revisión/cambio formal
-  status?: 'pending' | 'resolved'; // Estado de la solicitud de revisión
+  status?: 'pending' | 'resolved'; // Estado global de la solicitud de revisión / corrección
   resolvedAt?: string;
   resolvedBy?: string;
+  archived?: boolean; // Si el comentario fue archivado globalmente
+  archivedAt?: string;
+  archivedBy?: string;
+  readByMemberIds?: string[]; // IDs de miembros que ya marcaron como Visto de forma individual
   targetMemberId?: string;
   mentionedMemberIds?: string[];
 }
@@ -132,6 +190,10 @@ export interface UniversalComment {
   status?: 'pending' | 'resolved';
   resolvedAt?: string;
   resolvedBy?: string;
+  archived?: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+  readByMemberIds?: string[]; // IDs de miembros que ya marcaron como Visto de forma individual
   targetMemberId?: string;
   mentionedMemberIds?: string[];
 }

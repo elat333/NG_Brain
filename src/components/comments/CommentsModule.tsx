@@ -3,7 +3,7 @@ import {
   MessageSquare, CheckCircle2, Clock, AlertCircle, 
   Search, Check, Trash2, Megaphone, Link as LinkIcon, 
   FileText, CheckSquare, FolderKanban, ShieldCheck, 
-  ArrowRight, AtSign, Shield, Bookmark, Users
+  ArrowRight, AtSign, Shield, Bookmark, Users, RotateCcw, Eye
 } from 'lucide-react';
 import { 
   UniversalComment, 
@@ -61,7 +61,7 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
   const [allNotes, setAllNotes] = useState<PersonalNote[]>([]);
   const [allLinks, setAllLinks] = useState<PersonalLink[]>([]);
   const [filterEntity, setFilterEntity] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'resolved'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'seen' | 'resolved'>('pending');
   const [filterProcessId, setFilterProcessId] = useState<string>('all');
   const [onlyMentionsMe, setOnlyMentionsMe] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -114,11 +114,16 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
         return false;
       }
 
-      // 2. Filtro por estado de revisión
+      // 2. Filtro por estado de visto (personal) o resolución (global)
+      const isResolved = comment.status === 'resolved' || Boolean(comment.archived);
+      const isSeenByMe = Boolean(currentMember && comment.readByMemberIds?.includes(currentMember.id));
+
       if (filterStatus === 'pending') {
-        if (!comment.requiresReview || comment.status !== 'pending') return false;
+        if (isSeenByMe) return false; // Solo los que no he visto
+      } else if (filterStatus === 'seen') {
+        if (!isSeenByMe) return false; // Solo los que he marcado como vistos
       } else if (filterStatus === 'resolved') {
-        if (!comment.requiresReview || comment.status !== 'resolved') return false;
+        if (!isResolved) return false; // Resueltos globalmente
       }
 
       // 3. Filtro por proceso
@@ -244,23 +249,25 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
     });
   }, [comments, filterEntity, filterStatus, filterProcessId, onlyMentionsMe, searchTerm, currentMember, taskMap, notesMap, linksMap]);
 
-  // Estadísticas globales
+  // Estadísticas globales (distinguiendo visto personal y resuelto global)
   const stats = useMemo(() => {
     const total = comments.length;
-    const reviewRequests = comments.filter(c => c.requiresReview);
-    const pending = reviewRequests.filter(c => c.status === 'pending').length;
-    const resolved = reviewRequests.filter(c => c.status === 'resolved').length;
+    const pending = comments.filter(c => !currentMember || !c.readByMemberIds?.includes(currentMember.id)).length;
+    const seen = comments.filter(c => currentMember && Boolean(c.readByMemberIds?.includes(currentMember.id))).length;
+    const resolved = comments.filter(c => c.status === 'resolved' || Boolean(c.archived)).length;
     
     let mentionsCount = 0;
     if (currentMember) {
       mentionsCount = comments.filter(c => 
-        c.mentionedMemberIds?.includes(currentMember.id) ||
-        c.text.toLowerCase().includes(`@${currentMember.name.toLowerCase()}`) ||
-        c.targetMemberId === currentMember.id
+        (!c.readByMemberIds?.includes(currentMember.id)) && (
+          c.mentionedMemberIds?.includes(currentMember.id) ||
+          c.text.toLowerCase().includes(`@${currentMember.name.toLowerCase()}`) ||
+          c.targetMemberId === currentMember.id
+        )
       ).length;
     }
 
-    return { total, pending, resolved, mentionsCount };
+    return { total, pending, seen, resolved, mentionsCount };
   }, [comments, currentMember]);
 
   // Configuración visual por tipo de entidad
@@ -314,10 +321,26 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
   const handleResolve = async (e: React.MouseEvent, comment: UniversalComment) => {
     e.stopPropagation();
     try {
-      const nextStatus = comment.status === 'resolved' ? 'pending' : 'resolved';
+      const isCurrentlyResolved = comment.status === 'resolved' || Boolean(comment.archived);
+      const nextStatus = isCurrentlyResolved ? 'pending' : 'resolved';
       await commentService.toggleUniversalCommentStatus(comment.id, nextStatus, currentMember?.name);
     } catch (err) {
       console.error('Error alternando estado del comentario:', err);
+    }
+  };
+
+  const handleToggleSeen = async (e: React.MouseEvent, comment: UniversalComment) => {
+    e.stopPropagation();
+    if (!currentMember) return;
+    try {
+      const isCurrentlyRead = Boolean(comment.readByMemberIds?.includes(currentMember.id));
+      await commentService.markUniversalCommentAsReadForMember(
+        comment.id,
+        currentMember.id,
+        !isCurrentlyRead
+      );
+    } catch (err) {
+      console.error('Error alternando visto en comentario universal:', err);
     }
   };
 
@@ -382,37 +405,78 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
           {/* Tarjetas de Métricas Rápidas (solo en bandeja de comentarios) */}
           <div className="flex items-center justify-between gap-2.5 flex-wrap">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="bg-white border border-gray-100 px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5">
-                <span className="text-xs font-bold text-gray-500">Total</span>
-                <span className="text-sm font-black text-gray-900">{stats.total}</span>
-              </div>
-
-              <div className={`border px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5 transition-colors ${
-                stats.pending > 0 ? 'bg-amber-50/80 border-amber-200 text-amber-900' : 'bg-white border-gray-100 text-gray-700'
-              }`}>
+              <button
+                type="button"
+                onClick={() => setFilterStatus('pending')}
+                className={`border px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5 transition-all cursor-pointer ${
+                  filterStatus === 'pending'
+                    ? 'bg-amber-50 border-amber-300 text-amber-950 font-black ring-2 ring-amber-400/20'
+                    : 'bg-white border-gray-100 text-gray-700 hover:border-amber-200'
+                }`}
+                title="Ver comentarios no marcados como vistos por ti"
+              >
                 <AlertCircle size={14} className={stats.pending > 0 ? 'text-amber-600 animate-pulse' : 'text-gray-400'} />
-                <span className="text-xs font-bold">Por Revisar</span>
+                <span className="text-xs font-bold">Por Atender</span>
                 <span className="text-sm font-black">{stats.pending}</span>
-              </div>
+              </button>
 
-              <div className="bg-white border border-gray-100 px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setFilterStatus('seen')}
+                className={`border px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5 transition-all cursor-pointer ${
+                  filterStatus === 'seen'
+                    ? 'bg-blue-50 border-blue-300 text-blue-950 font-black ring-2 ring-blue-400/20'
+                    : 'bg-white border-gray-100 text-gray-700 hover:border-blue-200'
+                }`}
+                title="Ver comentarios marcados como vistos por ti"
+              >
+                <Eye size={14} className="text-blue-500" />
+                <span className="text-xs font-bold">Vistos por mí</span>
+                <span className="text-sm font-black text-blue-700">{stats.seen}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterStatus('resolved')}
+                className={`border px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5 transition-all cursor-pointer ${
+                  filterStatus === 'resolved'
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-black ring-2 ring-emerald-400/20'
+                    : 'bg-white border-gray-100 text-gray-700 hover:border-emerald-200'
+                }`}
+                title="Ver comentarios resueltos o archivados globalmente"
+              >
                 <CheckCircle2 size={14} className="text-emerald-500" />
-                <span className="text-xs font-bold text-gray-500">Resueltos</span>
+                <span className="text-xs font-bold">Resueltos</span>
                 <span className="text-sm font-black text-emerald-700">{stats.resolved}</span>
-              </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterStatus('all')}
+                className={`border px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5 transition-all cursor-pointer ${
+                  filterStatus === 'all'
+                    ? 'bg-gray-900 border-gray-900 text-white font-black'
+                    : 'bg-white border-gray-100 text-gray-700 hover:border-gray-300'
+                }`}
+                title="Ver todos los comentarios"
+              >
+                <span className="text-xs font-bold">Total</span>
+                <span className={`text-sm font-black ${filterStatus === 'all' ? 'text-white' : 'text-gray-900'}`}>{stats.total}</span>
+              </button>
             </div>
 
             {currentMember && (
               <button
+                type="button"
                 onClick={() => setOnlyMentionsMe(!onlyMentionsMe)}
-                className={`border px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5 transition-all ${
+                className={`border px-3.5 py-2 rounded-2xl shadow-xs flex items-center gap-2.5 transition-all cursor-pointer ${
                   onlyMentionsMe
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-blue-500/20'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-blue-500/20 font-black'
                     : 'bg-white border-gray-100 text-gray-700 hover:border-blue-200'
                 }`}
               >
                 <AtSign size={14} className={onlyMentionsMe ? 'text-white' : 'text-blue-500'} />
-                <span className="text-xs font-bold">Menciones a mí</span>
+                <span className="text-xs font-bold">Menciones pendientes</span>
                 <span className={`text-xs font-black px-1.5 py-0.2 rounded-full ${
                   onlyMentionsMe ? 'bg-white text-blue-600' : 'bg-blue-50 text-blue-700'
                 }`}>
@@ -499,18 +563,19 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as any)}
-            className="w-full md:w-auto px-3 py-2 bg-gray-50 border border-gray-200/80 rounded-xl text-xs font-semibold text-gray-700 focus:outline-hidden focus:border-blue-500"
+            className="w-full md:w-auto px-3 py-2 bg-gray-50 border border-gray-200/80 rounded-xl text-xs font-semibold text-gray-700 focus:outline-hidden focus:border-blue-500 cursor-pointer"
           >
-            <option value="all">Todos los estados</option>
-            <option value="pending">⚠️ Pendientes de revisión</option>
-            <option value="resolved">✅ Resueltos / Aprobados</option>
+            <option value="pending">🟡 Por Atender / Pendientes (No vistos)</option>
+            <option value="seen">👁️ Vistos por mí</option>
+            <option value="resolved">🟢 Resueltos (Global)</option>
+            <option value="all">⚪ Todos los estados</option>
           </select>
 
           {/* Filtro por Proceso */}
           <select
             value={filterProcessId}
             onChange={(e) => setFilterProcessId(e.target.value)}
-            className="w-full md:w-auto px-3 py-2 bg-gray-50 border border-gray-200/80 rounded-xl text-xs font-semibold text-gray-700 focus:outline-hidden focus:border-blue-500"
+            className="w-full md:w-auto px-3 py-2 bg-gray-50 border border-gray-200/80 rounded-xl text-xs font-semibold text-gray-700 focus:outline-hidden focus:border-blue-500 cursor-pointer"
           >
             <option value="all">Todos los procesos</option>
             {processes.map(proc => (
@@ -537,15 +602,17 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
             const meta = getEntityMeta(comment.entityType);
             const isAuthor = currentMember && currentMember.id === comment.authorId;
             const canManage = isAuthor || currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin';
+            const isResolved = comment.status === 'resolved' || Boolean(comment.archived);
+            const isSeenByMe = Boolean(currentMember && comment.readByMemberIds?.includes(currentMember.id));
 
             return (
               <div
                 key={comment.id}
                 className={`bg-white rounded-2xl border transition-all p-4 shadow-xs hover:shadow-md ${
-                  comment.requiresReview
-                    ? comment.status === 'resolved'
-                      ? 'border-emerald-200/80 bg-emerald-50/15'
-                      : 'border-amber-300 bg-amber-50/30'
+                  isResolved
+                    ? 'border-emerald-200/80 bg-emerald-50/15'
+                    : comment.requiresReview
+                    ? 'border-purple-300 bg-purple-50/25'
                     : 'border-gray-100 hover:border-gray-200'
                 }`}
               >
@@ -588,38 +655,30 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
                     {/* Badge de Entidad */}
                     <button
                       onClick={() => handleOpenEntity(comment)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-colors hover:opacity-80 ${meta.badgeClass}`}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-colors hover:opacity-80 cursor-pointer ${meta.badgeClass}`}
                     >
                       {meta.icon}
                       <span>{meta.label}: {comment.entityTitle || 'Ver detalle'}</span>
                       <ArrowRight size={11} className="opacity-60" />
                     </button>
 
-                    {/* Estado de Revisión */}
-                    {comment.requiresReview && (
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold border ${
-                        comment.status === 'resolved'
-                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                          : 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
-                      }`}>
-                        {comment.status === 'resolved' ? (
-                          <>
-                            <CheckCircle2 size={12} className="text-emerald-600" />
-                            <span>Resuelto</span>
-                          </>
-                        ) : (
-                          <>
-                            <AlertCircle size={12} className="text-amber-600" />
-                            <span>Revisión pendiente</span>
-                          </>
-                        )}
+                    {/* Estado de Revisión / Resolución */}
+                    {isResolved ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold border bg-emerald-100 text-emerald-800 border-emerald-200">
+                        <CheckCircle2 size={12} className="text-emerald-600" />
+                        <span>Resuelto</span>
                       </span>
-                    )}
+                    ) : comment.requiresReview ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold border bg-purple-100 text-purple-800 border-purple-300 animate-pulse">
+                        <AlertCircle size={12} className="text-purple-600" />
+                        <span>Revisión pendiente</span>
+                      </span>
+                    ) : null}
 
                     {canManage && (
                       <button
                         onClick={(e) => handleDelete(e, comment.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-50 transition-colors"
+                        className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                         title="Eliminar comentario"
                       >
                         <Trash2 size={13} />
@@ -634,40 +693,68 @@ export const CommentsModule: React.FC<CommentsModuleProps> = ({
                 </div>
 
                 {/* Pie con Acciones */}
-                {comment.requiresReview && (
-                  <div className="mt-3 pt-2.5 border-t border-black/5 flex items-center justify-between pl-11 text-[11px]">
-                    <div>
-                      {comment.status === 'resolved' ? (
-                        <span className="text-emerald-700 font-semibold flex items-center gap-1 text-[10px]">
-                          <ShieldCheck size={12} className="text-emerald-600" />
-                          Revisado por {comment.resolvedBy || 'un revisor'} el {comment.resolvedAt ? new Date(comment.resolvedAt).toLocaleDateString() : ''}
-                        </span>
-                      ) : (
-                        <span className="text-amber-700 text-[10px] font-medium">
-                          Solicitud abierta para revisión por el equipo
-                        </span>
-                      )}
-                    </div>
+                <div className="mt-3 pt-2.5 border-t border-black/5 flex items-center justify-between pl-11 text-[11px] gap-2 flex-wrap">
+                  <div>
+                    {isResolved ? (
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1 text-[10px]">
+                        <ShieldCheck size={12} className="text-emerald-600" />
+                        Resuelto {comment.resolvedBy || comment.archivedBy ? `por ${comment.resolvedBy || comment.archivedBy}` : ''} {comment.resolvedAt || comment.archivedAt ? `el ${new Date(comment.resolvedAt || comment.archivedAt!).toLocaleDateString()}` : ''}
+                      </span>
+                    ) : comment.requiresReview ? (
+                      <span className="text-purple-700 text-[10px] font-semibold flex items-center gap-1">
+                        <AlertCircle size={12} className="text-purple-600" />
+                        Solicitud de revisión abierta para el equipo
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-[10px] font-medium">
+                        Comentario activo
+                      </span>
+                    )}
+                  </div>
 
+                  <div className="flex items-center gap-2">
+                    {/* Botón Acción Visto (Personal) */}
+                    {currentMember && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleSeen(e, comment)}
+                        className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                          isSeenByMe
+                            ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                            : 'bg-blue-600 text-white hover:bg-blue-700 border-blue-600 shadow-xs'
+                        }`}
+                        title={isSeenByMe ? "Desmarcar visto de tu bandeja personal" : "Marcar como visto (quitar de tu bandeja de pendientes)"}
+                      >
+                        <Eye size={11} />
+                        <span>{isSeenByMe ? 'Visto ✓' : 'Marcar como visto'}</span>
+                      </button>
+                    )}
+
+                    {/* Botón Acción Resolver (Global) */}
                     <button
+                      type="button"
                       onClick={(e) => handleResolve(e, comment)}
-                      className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1.5 ${
-                        comment.status === 'resolved'
-                          ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
+                      className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                        isResolved
+                          ? 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-700 border-emerald-600 shadow-xs'
                       }`}
+                      title={isResolved ? "Reabrir para todo el equipo" : "Marcar como resuelto para todo el equipo"}
                     >
-                      {comment.status === 'resolved' ? (
-                        'Reabrir solicitud'
+                      {isResolved ? (
+                        <>
+                          <RotateCcw size={11} />
+                          <span>Reabrir</span>
+                        </>
                       ) : (
                         <>
-                          <Check size={12} />
-                          <span>Marcar como resuelto</span>
+                          <Check size={11} />
+                          <span>Resolver</span>
                         </>
                       )}
                     </button>
                   </div>
-                )}
+                </div>
               </div>
             );
           })

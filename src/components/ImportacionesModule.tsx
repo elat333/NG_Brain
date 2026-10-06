@@ -6,7 +6,6 @@ import {
   FileText, 
   UploadCloud, 
   CheckCircle2, 
-  XCircle, 
   Plus, 
   Search, 
   Edit, 
@@ -14,34 +13,20 @@ import {
   Eye, 
   Star, 
   Globe, 
-  DollarSign, 
-  Filter, 
   Sparkles, 
-  ArrowRight, 
-  FileCheck, 
-  AlertCircle, 
   X, 
   ChevronRight, 
-  Check, 
-  ExternalLink, 
-  Calendar, 
-  Hash, 
-  Tag, 
   Mail, 
   Phone, 
-  User,
-  Layers,
-  MapPin,
-  RefreshCw,
-  ShoppingBag,
-  Download,
-  LayoutList,
-  LayoutGrid,
-  SlidersHorizontal,
-  RotateCcw,
-  GripVertical,
-  MoveUp,
-  MoveDown
+  RefreshCw, 
+  LayoutList, 
+  LayoutGrid, 
+  SlidersHorizontal, 
+  RotateCcw, 
+  GripVertical, 
+  MoveUp, 
+  MoveDown,
+  FileCheck
 } from 'lucide-react';
 import { 
   ImportProduct, 
@@ -60,6 +45,9 @@ import {
   deleteDoc, 
   doc 
 } from 'firebase/firestore';
+import { ImportProduct360View } from './importaciones/ImportProduct360View';
+import { ImportSupplier360View } from './importaciones/ImportSupplier360View';
+import { ImportProforma360View } from './importaciones/ImportProforma360View';
 
 export interface ProductColumnConfig {
   id: string;
@@ -88,143 +76,6 @@ interface ImportacionesModuleProps {
 }
 
 export type ImportacionesSubTab = 'products' | 'suppliers' | 'proformas' | 'upload_proforma' | 'permissions';
-
-const SAMPLE_PRODUCTS: ImportProduct[] = [
-  {
-    id: 'prod-1',
-    code: 'IMP-PANEL-500W',
-    name: 'Panel Solar Monocristalino 500W High-Efficiency',
-    description: 'Panel fotovoltaico de alta eficiencia con tecnología PERC y vidrio templado antirreflejo.',
-    category: 'Energía Solar',
-    supplierId: 'sup-1',
-    supplierName: 'Suntech Power Overseas Ltd.',
-    unit: 'Unidad',
-    unitPrice: 145.50,
-    currency: 'USD',
-    minOrderQuantity: 50,
-    hsCode: '8541.40.10',
-    originCountry: 'China',
-    specifications: {
-      'Eficiencia': '21.3%',
-      'Garantía': '25 años',
-      'Dimensiones': '2094 x 1038 x 35 mm'
-    },
-    status: 'activo',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'prod-2',
-    code: 'IMP-[#INV-30KW]',
-    name: 'Inversor Trifásico Híbrido 30kW',
-    description: 'Inversor solar híbrido industrial con monitoreo en nube y protección IP65.',
-    category: 'Inversores',
-    supplierId: 'sup-1',
-    supplierName: 'Suntech Power Overseas Ltd.',
-    unit: 'Unidad',
-    unitPrice: 2450.00,
-    currency: 'USD',
-    minOrderQuantity: 2,
-    hsCode: '8504.40.90',
-    originCountry: 'China',
-    specifications: {
-      'Voltaje máx DC': '1000V',
-      'Eficiencia Máxima': '98.6%',
-      'Protección': 'IP65'
-    },
-    status: 'activo',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'prod-3',
-    code: 'IMP-BATT-LFP-10K',
-    name: 'Batería de Litio LiFePO4 10.24kWh Rack',
-    description: 'Módulo de almacenamiento de energía LiFePO4 con BMS inteligente y 6000 ciclos.',
-    category: 'Almacenamiento',
-    supplierId: 'sup-2',
-    supplierName: 'GreenTech Energy Solutions Inc.',
-    unit: 'Unidad',
-    unitPrice: 1890.00,
-    currency: 'USD',
-    minOrderQuantity: 5,
-    hsCode: '8507.60.00',
-    originCountry: 'Alemania',
-    specifications: {
-      'Capacidad': '200Ah / 51.2V',
-      'Ciclos de Vida': '6000+',
-      'BMS Integrado': 'Sí'
-    },
-    status: 'activo',
-    createdAt: new Date().toISOString()
-  }
-];
-
-const SAMPLE_SUPPLIERS: ImportSupplier[] = [
-  {
-    id: 'sup-1',
-    companyId: '',
-    companyName: 'Suntech Power Overseas Ltd.',
-    code: 'PROV-CN-001',
-    contactPerson: 'Chen Wei (International Sales Manager)',
-    contactEmail: 'sales@suntech-power.cn',
-    contactPhone: '+86 510 8531 8888',
-    country: 'China',
-    city: 'Wuxi, Jiangsu',
-    paymentTerms: '30% TT Adelantado, 70% contra B/L',
-    rating: 5,
-    notes: 'Proveedor principal de paneles fotovoltaicos. Excelente tiempo de entrega y calidad certicada TUV/CE.',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'sup-2',
-    companyId: '',
-    companyName: 'GreenTech Energy Solutions Inc.',
-    code: 'PROV-DE-002',
-    contactPerson: 'Hans Muller',
-    contactEmail: 'h.muller@greentech-de.com',
-    contactPhone: '+49 30 1234 5678',
-    country: 'Alemania',
-    city: 'Berlín',
-    paymentTerms: 'LC a la vista 100%',
-    rating: 4,
-    notes: 'Especialista en sistemas de baterías de alta densidad y tecnología alemana certificada.',
-    createdAt: new Date().toISOString()
-  }
-];
-
-const SAMPLE_PROFORMAS: ImportProforma[] = [
-  {
-    id: 'prof-1',
-    proformaNumber: 'PI-2025-0891',
-    supplierId: 'sup-1',
-    supplierName: 'Suntech Power Overseas Ltd.',
-    issueDate: '2025-08-01',
-    expirationDate: '2025-09-01',
-    currency: 'USD',
-    subtotal: 14750.00,
-    shippingCost: 1800.00,
-    taxes: 0.00,
-    totalAmount: 16550.00,
-    incoterm: 'FOB',
-    status: 'aprobada',
-    notes: 'Proforma para el proyecto de electrificación rural de la zona norte.',
-    createdAt: new Date().toISOString(),
-    items: [
-      {
-        id: 'item-1',
-        code: 'IMP-PANEL-500W',
-        name: 'Panel Solar Monocristalino 500W High-Efficiency',
-        description: 'Panel fotovoltaico PERC 500W TUV',
-        category: 'Energía Solar',
-        quantity: 100,
-        unitPrice: 145.50,
-        totalPrice: 14550.00,
-        unit: 'Unidad',
-        hsCode: '8541.40.10',
-        isValidated: true
-      }
-    ]
-  }
-];
 
 export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
   companies,
@@ -328,16 +179,15 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
     setProductColumns(DEFAULT_PRODUCT_COLUMNS);
   };
 
-  // Modals & Selection
+  // Full Screen 360 View States
   const [selectedProduct, setSelectedProduct] = useState<ImportProduct | null>(null);
-  const [isEditingProduct, setIsEditingProduct] = useState<boolean>(false);
-  const [productForm, setProductForm] = useState<Partial<ImportProduct>>({});
+  const [isCreatingProduct, setIsCreatingProduct] = useState<boolean>(false);
 
   const [selectedSupplier, setSelectedSupplier] = useState<ImportSupplier | null>(null);
-  const [isEditingSupplier, setIsEditingSupplier] = useState<boolean>(false);
-  const [supplierForm, setSupplierForm] = useState<Partial<ImportSupplier>>({});
+  const [isCreatingSupplier, setIsCreatingSupplier] = useState<boolean>(false);
 
   const [selectedProforma, setSelectedProforma] = useState<ImportProforma | null>(null);
+  const [isCreatingProforma, setIsCreatingProforma] = useState<boolean>(false);
 
   // Upload / Process Proforma State
   const [uploadSupplierId, setUploadSupplierId] = useState<string>('');
@@ -363,21 +213,21 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
     setLoading(true);
     
     const unsubProducts = onSnapshot(collection(db, 'importation_products'), (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportProduct));
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportProduct));
       setProducts(list);
     }, (error) => {
       console.error('Error fetching importation_products:', error);
     });
 
     const unsubSuppliers = onSnapshot(collection(db, 'importation_suppliers'), (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportSupplier));
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportSupplier));
       setSuppliers(list);
     }, (error) => {
       console.error('Error fetching importation_suppliers:', error);
     });
 
     const unsubProformas = onSnapshot(collection(db, 'importation_proformas'), (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportProforma));
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportProforma));
       setProformas(list);
       setLoading(false);
     }, (error) => {
@@ -394,166 +244,72 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
 
   const canEdit = accessLevel === 'colaborador' || accessLevel === 'lider' || accessLevel === 'administrador';
 
-  // --- HANDLERS PRODUCT ---
-  const handleOpenAddProduct = () => {
-    setProductForm({
-      code: `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
-      name: '',
-      description: '',
-      category: 'General',
-      supplierId: suppliers[0]?.id || '',
-      supplierName: suppliers[0]?.companyName || '',
-      unit: 'Unidad',
-      unitPrice: 0,
-      currency: 'USD',
-      minOrderQuantity: 1,
-      hsCode: '',
-      originCountry: '',
-      status: 'activo'
-    });
-    setSelectedProduct(null);
-    setIsEditingProduct(true);
-  };
-
-  const handleOpenEditProduct = (prod: ImportProduct) => {
-    setProductForm({ ...prod });
-    setSelectedProduct(prod);
-    setIsEditingProduct(true);
-  };
-
-  const handleSaveProduct = async () => {
-    if (!productForm.name || !productForm.code) {
-      alert('Por favor ingrese al menos el código y nombre del producto.');
-      return;
+  // --- 360 CRUD HANDLERS ---
+  const handleSaveProduct360 = async (payload: Partial<ImportProduct>) => {
+    if (selectedProduct) {
+      await updateDoc(doc(db, 'importation_products', selectedProduct.id), payload);
+    } else {
+      await addDoc(collection(db, 'importation_products'), payload);
     }
+  };
 
-    const supplierObj = suppliers.find(s => s.id === productForm.supplierId);
-    const supplierName = supplierObj ? supplierObj.companyName : productForm.supplierName || 'Proveedor Desconocido';
+  const handleDeleteProduct360 = async (id: string) => {
+    await deleteDoc(doc(db, 'importation_products', id));
+  };
 
-    const payload: Omit<ImportProduct, 'id'> = {
-      code: productForm.code || '',
-      name: productForm.name || '',
-      description: productForm.description || '',
-      category: productForm.category || 'General',
-      supplierId: productForm.supplierId || '',
-      supplierName: supplierName,
-      unit: productForm.unit || 'Unidad',
-      unitPrice: Number(productForm.unitPrice) || 0,
-      currency: productForm.currency || 'USD',
-      minOrderQuantity: Number(productForm.minOrderQuantity) || 1,
-      hsCode: productForm.hsCode || '',
-      originCountry: productForm.originCountry || '',
-      specifications: productForm.specifications || {},
-      status: (productForm.status as any) || 'activo',
-      createdAt: selectedProduct?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+  const handleSaveSupplier360 = async (payload: Partial<ImportSupplier>) => {
+    if (selectedSupplier) {
+      await updateDoc(doc(db, 'importation_suppliers', selectedSupplier.id), payload);
+    } else {
+      await addDoc(collection(db, 'importation_suppliers'), payload);
+    }
+  };
 
-    try {
-      if (selectedProduct) {
-        await updateDoc(doc(db, 'importation_products', selectedProduct.id), payload);
+  const handleDeleteSupplier360 = async (id: string) => {
+    await deleteDoc(doc(db, 'importation_suppliers', id));
+  };
+
+  const handleSaveProforma360 = async (payload: Partial<ImportProforma>) => {
+    if (selectedProforma) {
+      await updateDoc(doc(db, 'importation_proformas', selectedProforma.id), payload);
+    } else {
+      await addDoc(collection(db, 'importation_proformas'), payload);
+    }
+  };
+
+  const handleDeleteProforma360 = async (id: string) => {
+    await deleteDoc(doc(db, 'importation_proformas', id));
+  };
+
+  const handleSyncProductsFromProforma = async (itemsToSync: ImportProformaItem[], sup?: ImportSupplier) => {
+    const supplierObj = sup || suppliers.find(s => s.id === (selectedProforma?.supplierId || uploadSupplierId)) || suppliers[0];
+    const supplierName = supplierObj ? supplierObj.companyName : 'Proveedor Proforma';
+
+    for (const item of itemsToSync) {
+      const existing = products.find(p => p.code.toLowerCase() === item.code.toLowerCase());
+      const prodPayload: Omit<ImportProduct, 'id'> = {
+        code: item.code || `SKU-${Date.now()}`,
+        name: item.name,
+        description: item.description || item.name,
+        category: item.category || 'Importaciones',
+        supplierId: supplierObj ? supplierObj.id : '',
+        supplierName: supplierName,
+        unit: item.unit || 'Unidad',
+        unitPrice: item.unitPrice,
+        currency: 'USD',
+        minOrderQuantity: 1,
+        hsCode: item.hsCode || '',
+        originCountry: supplierObj ? supplierObj.country : 'Internacional',
+        status: 'activo',
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      if (existing) {
+        await updateDoc(doc(db, 'importation_products', existing.id), prodPayload);
       } else {
-        await addDoc(collection(db, 'importation_products'), payload);
+        await addDoc(collection(db, 'importation_products'), prodPayload);
       }
-      setIsEditingProduct(false);
-      setSelectedProduct(null);
-    } catch (e) {
-      console.error(e);
-      // Fallback local
-      if (selectedProduct) {
-        setProducts(prev => prev.map(p => p.id === selectedProduct.id ? { ...p, ...payload } : p));
-      } else {
-        setProducts(prev => [{ id: `prod-${Date.now()}`, ...payload }, ...prev]);
-      }
-      setIsEditingProduct(false);
-      setSelectedProduct(null);
-    }
-  };
-
-  const handleDeleteProduct = async (id: string) => {
-    if (!window.confirm('¿Está seguro de eliminar este producto de la base de datos?')) return;
-    try {
-      await deleteDoc(doc(db, 'importation_products', id));
-    } catch (e) {
-      setProducts(prev => prev.filter(p => p.id !== id));
-    }
-  };
-
-  // --- HANDLERS SUPPLIER ---
-  const handleOpenAddSupplier = () => {
-    setSupplierForm({
-      code: `PROV-${Math.floor(100 + Math.random() * 900)}`,
-      companyId: companies[0]?.id || '',
-      companyName: companies[0]?.name || '',
-      contactPerson: '',
-      contactEmail: '',
-      contactPhone: '',
-      country: 'China',
-      city: '',
-      paymentTerms: 'FOB - 30% Adelantado, 70% contra B/L',
-      rating: 5,
-      notes: ''
-    });
-    setSelectedSupplier(null);
-    setIsEditingSupplier(true);
-  };
-
-  const handleOpenEditSupplier = (sup: ImportSupplier) => {
-    setSupplierForm({ ...sup });
-    setSelectedSupplier(sup);
-    setIsEditingSupplier(true);
-  };
-
-  const handleSaveSupplier = async () => {
-    if (!supplierForm.companyName) {
-      alert('Por favor ingrese el nombre de la compañía o proveedor.');
-      return;
-    }
-
-    const companyObj = companies.find(c => c.id === supplierForm.companyId);
-    const companyName = companyObj ? companyObj.name : supplierForm.companyName;
-
-    const payload: Omit<ImportSupplier, 'id'> = {
-      code: supplierForm.code || `PROV-${Date.now()}`,
-      companyId: supplierForm.companyId || '',
-      companyName: companyName,
-      contactPerson: supplierForm.contactPerson || '',
-      contactEmail: supplierForm.contactEmail || '',
-      contactPhone: supplierForm.contactPhone || '',
-      country: supplierForm.country || 'Internacional',
-      city: supplierForm.city || '',
-      paymentTerms: supplierForm.paymentTerms || '',
-      rating: Number(supplierForm.rating) || 5,
-      notes: supplierForm.notes || '',
-      createdAt: selectedSupplier?.createdAt || new Date().toISOString()
-    };
-
-    try {
-      if (selectedSupplier) {
-        await updateDoc(doc(db, 'importation_suppliers', selectedSupplier.id), payload);
-      } else {
-        await addDoc(collection(db, 'importation_suppliers'), payload);
-      }
-      setIsEditingSupplier(false);
-      setSelectedSupplier(null);
-    } catch (e) {
-      console.error(e);
-      if (selectedSupplier) {
-        setSuppliers(prev => prev.map(s => s.id === selectedSupplier.id ? { ...s, ...payload } : s));
-      } else {
-        setSuppliers(prev => [{ id: `sup-${Date.now()}`, ...payload }, ...prev]);
-      }
-      setIsEditingSupplier(false);
-      setSelectedSupplier(null);
-    }
-  };
-
-  const handleDeleteSupplier = async (id: string) => {
-    if (!window.confirm('¿Está seguro de eliminar este proveedor?')) return;
-    try {
-      await deleteDoc(doc(db, 'importation_suppliers', id));
-    } catch (e) {
-      setSuppliers(prev => prev.filter(s => s.id !== id));
     }
   };
 
@@ -567,14 +323,11 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
     setIsParsingProforma(true);
 
     setTimeout(() => {
-      // Intelligent mock parsing logic
       const lines = proformaText.split('\n').filter(l => l.trim().length > 0);
       const itemsParsed: ImportProformaItem[] = [];
-
       let runningSubtotal = 0;
 
       lines.forEach((line, idx) => {
-        // Try to parse quantities and prices
         const numbers = line.match(/\d+([.,]\d+)?/g);
         const codeMatch = line.match(/([A-Z0-9]{3,}-[A-Z0-9-]+)/i);
         
@@ -634,7 +387,6 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
         expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       });
 
-      // Initial validation map
       const initialMap: Record<string, boolean> = {};
       itemsParsed.forEach(it => { initialMap[it.id] = true; });
       setValidatedItemIds(initialMap);
@@ -675,7 +427,6 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
     const supplierName = supplierObj ? supplierObj.companyName : 'Proveedor Proforma';
 
     // 1. Push products to importation_products
-    const newProductsPushed: ImportProduct[] = [];
     for (const item of approvedItems) {
       const prodPayload: Omit<ImportProduct, 'id'> = {
         code: item.code || `SKU-${Date.now()}`,
@@ -695,16 +446,10 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
       };
 
       try {
-        const ref = await addDoc(collection(db, 'importation_products'), prodPayload);
-        newProductsPushed.push({ id: ref.id, ...prodPayload });
+        await addDoc(collection(db, 'importation_products'), prodPayload);
       } catch (e) {
-        newProductsPushed.push({ id: `prod-${Date.now()}-${Math.random()}`, ...prodPayload });
+        console.error(e);
       }
-    }
-
-    // Update local state fallback
-    if (newProductsPushed.length > 0) {
-      setProducts(prev => [...newProductsPushed, ...prev]);
     }
 
     // 2. Save Proforma
@@ -730,11 +475,11 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
       try {
         await addDoc(collection(db, 'importation_proformas'), proformaPayload);
       } catch (e) {
-        setProformas(prev => [{ id: `prof-${Date.now()}`, ...proformaPayload }, ...prev]);
+        console.error(e);
       }
     }
 
-    alert(`¡Éxito! Se han validado y guardado ${approvedItems.length} ficha(s) de producto en la Base de Datos de Productos de Importación.`);
+    alert(`¡Éxito! Se han validado y guardado ${approvedItems.length} ficha(s) de producto en el Catálogo de Importación.`);
     
     // Reset state and move to products tab
     setProformaText('');
@@ -830,31 +575,25 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
             <button
               onClick={() => {
                 setSelectedProduct(product);
-                setIsEditingProduct(false);
+                setIsCreatingProduct(false);
               }}
-              className="px-2.5 py-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1 font-bold text-xs"
-              title="Ver Ficha Completa"
+              className="px-2.5 py-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1 font-bold text-xs cursor-pointer"
+              title="Ver Ficha 360°"
             >
               <Eye size={14} />
-              <span className="hidden sm:inline">Ficha</span>
+              <span className="hidden sm:inline">Ficha 360°</span>
             </button>
             {canEdit && (
-              <>
-                <button
-                  onClick={() => handleOpenEditProduct(product)}
-                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                  title="Editar"
-                >
-                  <Edit size={14} />
-                </button>
-                <button
-                  onClick={() => handleDeleteProduct(product.id)}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  title="Eliminar"
-                >
-                  <Trash size={14} />
-                </button>
-              </>
+              <button
+                onClick={() => {
+                  setSelectedProduct(product);
+                  setIsCreatingProduct(false);
+                }}
+                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                title="Editar"
+              >
+                <Edit size={14} />
+              </button>
             )}
           </div>
         );
@@ -863,13 +602,112 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
     }
   };
 
+  // ==================== FULL-SCREEN VIEW 1: PRODUCT 360 ====================
+  if (selectedProduct || isCreatingProduct) {
+    return (
+      <ImportProduct360View
+        product={selectedProduct}
+        isCreating={isCreatingProduct}
+        suppliers={suppliers}
+        companies={companies}
+        proformas={proformas}
+        onBack={() => {
+          setSelectedProduct(null);
+          setIsCreatingProduct(false);
+        }}
+        onSave={handleSaveProduct360}
+        onDelete={handleDeleteProduct360}
+        onNavigateToSupplier={(supId) => {
+          setSelectedProduct(null);
+          setIsCreatingProduct(false);
+          const foundSup = suppliers.find(s => s.id === supId);
+          if (foundSup) {
+            setActiveSubTab('suppliers');
+            setSelectedSupplier(foundSup);
+          }
+        }}
+        onNavigateToProforma={(prof) => {
+          setSelectedProduct(null);
+          setIsCreatingProduct(false);
+          setActiveSubTab('proformas');
+          setSelectedProforma(prof);
+        }}
+        canEdit={canEdit}
+        canDelete={canEdit}
+      />
+    );
+  }
+
+  // ==================== FULL-SCREEN VIEW 2: SUPPLIER 360 ====================
+  if (selectedSupplier || isCreatingSupplier) {
+    return (
+      <ImportSupplier360View
+        supplier={selectedSupplier}
+        isCreating={isCreatingSupplier}
+        companies={companies}
+        products={products}
+        proformas={proformas}
+        onBack={() => {
+          setSelectedSupplier(null);
+          setIsCreatingSupplier(false);
+        }}
+        onSave={handleSaveSupplier360}
+        onDelete={handleDeleteSupplier360}
+        onNavigateToProduct={(prod) => {
+          setSelectedSupplier(null);
+          setIsCreatingSupplier(false);
+          setActiveSubTab('products');
+          setSelectedProduct(prod);
+        }}
+        onNavigateToProforma={(prof) => {
+          setSelectedSupplier(null);
+          setIsCreatingSupplier(false);
+          setActiveSubTab('proformas');
+          setSelectedProforma(prof);
+        }}
+        canEdit={canEdit}
+        canDelete={canEdit}
+      />
+    );
+  }
+
+  // ==================== FULL-SCREEN VIEW 3: PROFORMA 360 ====================
+  if (selectedProforma || isCreatingProforma) {
+    return (
+      <ImportProforma360View
+        proforma={selectedProforma}
+        isCreating={isCreatingProforma}
+        suppliers={suppliers}
+        onBack={() => {
+          setSelectedProforma(null);
+          setIsCreatingProforma(false);
+        }}
+        onSave={handleSaveProforma360}
+        onDelete={handleDeleteProforma360}
+        onSyncProductsToCatalog={handleSyncProductsFromProforma}
+        onNavigateToSupplier={(supId) => {
+          setSelectedProforma(null);
+          setIsCreatingProforma(false);
+          const foundSup = suppliers.find(s => s.id === supId);
+          if (foundSup) {
+            setActiveSubTab('suppliers');
+            setSelectedSupplier(foundSup);
+          }
+        }}
+        canEdit={canEdit}
+        canDelete={canEdit}
+      />
+    );
+  }
+
+  // ==================== DEFAULT TREE LIST VIEWS & TABS ====================
   return (
     <div className="space-y-6">
       {/* SUBTAB 1: BASE DE DATOS DE PRODUCTOS */}
       {activeSubTab === 'products' && (
         <div className="space-y-6">
           {/* SEARCH & FILTERS BAR */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
               <div className="relative flex-1 min-w-[200px]">
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -878,7 +716,7 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                   placeholder="Buscar por código, nombre, categoría, código arancelario..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all"
                 />
               </div>
 
@@ -886,7 +724,7 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500/30"
               >
                 <option value="">Todas las Categorías</option>
                 {categoriesList.map((cat, cIdx) => (
@@ -898,7 +736,7 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
               <select
                 value={supplierFilter}
                 onChange={(e) => setSupplierFilter(e.target.value)}
-                className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500/30"
               >
                 <option value="">Todos los Proveedores</option>
                 {suppliers.map((sup, sIdx) => (
@@ -913,7 +751,7 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsColumnConfigModalOpen(true)}
-                  className="px-3 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 shadow-2xs"
+                  className="px-3 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 shadow-2xs cursor-pointer"
                   title="Modificar Ancho y Orden de Columnas"
                 >
                   <SlidersHorizontal size={15} className="text-blue-600" />
@@ -925,9 +763,9 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setProductViewMode('list')}
-                  className={`p-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  className={`p-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                     productViewMode === 'list'
-                      ? 'bg-white text-blue-600 shadow-sm'
+                      ? 'bg-white text-blue-600 shadow-xs'
                       : 'text-gray-500 hover:text-gray-800'
                   }`}
                   title="Vista de Lista"
@@ -938,9 +776,9 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setProductViewMode('grid')}
-                  className={`p-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  className={`p-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                     productViewMode === 'grid'
-                      ? 'bg-white text-blue-600 shadow-sm'
+                      ? 'bg-white text-blue-600 shadow-xs'
                       : 'text-gray-500 hover:text-gray-800'
                   }`}
                   title="Vista de Módulo / Tarjetas"
@@ -952,8 +790,11 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
 
               {canEdit && (
                 <button
-                  onClick={handleOpenAddProduct}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    setIsCreatingProduct(true);
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
                 >
                   <Plus size={16} />
                   <span>Nuevo Producto</span>
@@ -964,7 +805,7 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
 
           {/* PRODUCTS LIST VIEW (DEFAULT) */}
           {productViewMode === 'list' ? (
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -978,7 +819,6 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                           }`}
                         >
                           <span className="truncate block pr-2">{col.label}</span>
-                          {/* Excel style draggable handle */}
                           <div
                             onMouseDown={(e) => handleResizeStart(e, col.id)}
                             className="absolute top-0 right-0 w-3 h-full cursor-col-resize hover:bg-blue-500/40 active:bg-blue-600 transition-colors z-10 group-hover:bg-slate-300"
@@ -990,7 +830,14 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-xs font-medium text-gray-700">
                     {filteredProducts.map((product, pIdx) => (
-                      <tr key={`imp_prod_row_${product.id || pIdx}_${pIdx}`} className="hover:bg-slate-50/80 transition-colors group">
+                      <tr 
+                        key={`imp_prod_row_${product.id || pIdx}_${pIdx}`} 
+                        onClick={() => {
+                          setSelectedProduct(product);
+                          setIsCreatingProduct(false);
+                        }}
+                        className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
+                      >
                         {productColumns.map((col, cIdx) => (
                           <td
                             key={`imp_prod_cell_${product.id || pIdx}_${col.id}_${cIdx}`}
@@ -1029,7 +876,11 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                   layout
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all p-6 relative flex flex-col justify-between group overflow-hidden"
+                  onClick={() => {
+                    setSelectedProduct(product);
+                    setIsCreatingProduct(false);
+                  }}
+                  className="bg-white rounded-3xl border border-gray-100 shadow-xs hover:shadow-md transition-all p-6 relative flex flex-col justify-between group overflow-hidden cursor-pointer"
                 >
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-2">
@@ -1080,34 +931,14 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
 
                   <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-100">
                     <button
-                      onClick={() => {
-                        setSelectedProduct(product);
-                        setIsEditingProduct(false);
-                      }}
-                      className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                      type="button"
+                      className="flex items-center gap-1.5 text-xs font-bold text-blue-600 group-hover:text-blue-800 transition-colors"
                     >
                       <Eye size={14} />
-                      <span>Ver Ficha Completa</span>
+                      <span>Ver Ficha 360°</span>
                     </button>
 
-                    {canEdit && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleOpenEditProduct(product)}
-                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Editar"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteProduct(product.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash size={14} />
-                        </button>
-                      </div>
-                    )}
+                    <ChevronRight size={16} className="text-slate-400 group-hover:translate-x-1 transition-transform" />
                   </div>
                 </motion.div>
               ))}
@@ -1129,7 +960,7 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
       {/* SUBTAB 2: PROVEEDORES */}
       {activeSubTab === 'suppliers' && (
         <div className="space-y-6">
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div className="relative flex-1 min-w-[280px]">
               <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -1137,14 +968,17 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                 placeholder="Buscar proveedor por nombre, código, país, contacto..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all"
               />
             </div>
 
             {canEdit && (
               <button
-                onClick={handleOpenAddSupplier}
-                className="flex items-center gap-2 px-5 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
+                onClick={() => {
+                  setSelectedSupplier(null);
+                  setIsCreatingSupplier(true);
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
               >
                 <Plus size={16} />
                 <span>Nuevo Proveedor</span>
@@ -1158,15 +992,22 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
               const supplierProductsCount = products.filter(p => p.supplierId === sup.id).length;
 
               return (
-                <div key={`imp_sup_card_${sup.id || sIdx}_${sIdx}`} className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all p-6 space-y-4">
+                <div 
+                  key={`imp_sup_card_${sup.id || sIdx}_${sIdx}`} 
+                  onClick={() => {
+                    setSelectedSupplier(sup);
+                    setIsCreatingSupplier(false);
+                  }}
+                  className="bg-white rounded-3xl border border-gray-100 shadow-xs hover:shadow-md transition-all p-6 space-y-4 cursor-pointer group"
+                >
                   <div className="flex items-start justify-between gap-4 pb-4 border-b border-gray-100">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-lg shadow-sm">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-lg shadow-xs">
                         {sup.companyName.charAt(0)}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-extrabold text-gray-900 text-lg">{sup.companyName}</h3>
+                          <h3 className="font-extrabold text-gray-900 text-lg group-hover:text-blue-600 transition-colors">{sup.companyName}</h3>
                           <span className="text-[10px] font-mono font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
                             {sup.code}
                           </span>
@@ -1193,12 +1034,12 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div className="space-y-1 bg-gray-50 p-3 rounded-2xl">
                       <span className="text-[9px] font-extrabold uppercase tracking-wider text-gray-400 block">Contacto Principal</span>
-                      <p className="font-bold text-gray-800">{sup.contactPerson || 'No especificado'}</p>
+                      <p className="font-bold text-gray-800 truncate">{sup.contactPerson || 'No especificado'}</p>
                       {sup.contactEmail && (
-                        <p className="text-gray-500 text-[11px] flex items-center gap-1"><Mail size={11} /> {sup.contactEmail}</p>
+                        <p className="text-gray-500 text-[11px] flex items-center gap-1 truncate"><Mail size={11} /> {sup.contactEmail}</p>
                       )}
                       {sup.contactPhone && (
-                        <p className="text-gray-500 text-[11px] flex items-center gap-1"><Phone size={11} /> {sup.contactPhone}</p>
+                        <p className="text-gray-500 text-[11px] flex items-center gap-1 truncate"><Phone size={11} /> {sup.contactPhone}</p>
                       )}
                     </div>
 
@@ -1206,11 +1047,11 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                       <span className="text-[9px] font-extrabold uppercase tracking-wider text-gray-400 block">Compañía Vinculada</span>
                       {linkedCompany ? (
                         <div>
-                          <p className="font-bold text-blue-700">{linkedCompany.name}</p>
+                          <p className="font-bold text-blue-700 truncate">{linkedCompany.name}</p>
                           <p className="text-[10px] text-gray-500">RUC: {linkedCompany.ruc}</p>
                         </div>
                       ) : (
-                        <p className="text-gray-400 italic text-[11px]">No enlazada al directorio principal</p>
+                        <p className="text-gray-400 italic text-[11px]">Proveedor independiente</p>
                       )}
                       <div className="pt-1 mt-1 border-t border-gray-200/60">
                         <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
@@ -1223,38 +1064,19 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                   {sup.paymentTerms && (
                     <div className="text-xs bg-blue-50/60 p-3 rounded-2xl border border-blue-100/50">
                       <span className="text-[9px] font-extrabold uppercase tracking-wider text-blue-600 block">Términos de Pago / Incoterms</span>
-                      <p className="font-semibold text-blue-900">{sup.paymentTerms}</p>
+                      <p className="font-semibold text-blue-900 truncate">{sup.paymentTerms}</p>
                     </div>
                   )}
 
                   <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                     <button
-                      onClick={() => {
-                        setSelectedSupplier(sup);
-                        setIsEditingSupplier(false);
-                      }}
-                      className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                      type="button"
+                      className="flex items-center gap-1.5 text-xs font-bold text-blue-600 group-hover:text-blue-800 transition-colors"
                     >
                       <Eye size={14} />
-                      <span>Ver Ficha del Proveedor</span>
+                      <span>Ver Ficha 360° del Proveedor</span>
                     </button>
-
-                    {canEdit && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleOpenEditSupplier(sup)}
-                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSupplier(sup.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash size={14} />
-                        </button>
-                      </div>
-                    )}
+                    <ChevronRight size={16} className="text-slate-400 group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>
               );
@@ -1266,7 +1088,7 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
       {/* SUBTAB 3: PROFORMAS */}
       {activeSubTab === 'proformas' && (
         <div className="space-y-6">
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div className="relative flex-1 min-w-[280px]">
               <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -1274,20 +1096,35 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                 placeholder="Buscar proforma por número, proveedor, incoterm..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500/30 transition-all"
               />
             </div>
 
-            <button
-              onClick={() => setActiveSubTab('upload_proforma')}
-              className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-emerald-500/20 active:scale-95"
-            >
-              <UploadCloud size={16} />
-              <span>Cargar Nueva Proforma</span>
-            </button>
+            <div className="flex items-center gap-2.5">
+              {canEdit && (
+                <button
+                  onClick={() => {
+                    setSelectedProforma(null);
+                    setIsCreatingProforma(true);
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
+                >
+                  <Plus size={16} />
+                  <span>Nueva Proforma</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => setActiveSubTab('upload_proforma')}
+                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
+              >
+                <UploadCloud size={16} />
+                <span>Cargar con IA</span>
+              </button>
+            </div>
           </div>
 
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -1302,7 +1139,14 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
               </thead>
               <tbody className="divide-y divide-gray-100 text-xs font-medium">
                 {filteredProformas.map((pf, pfIdx) => (
-                  <tr key={`imp_pf_row_${pf.id || pfIdx}_${pfIdx}`} className="hover:bg-slate-50/50 transition-colors">
+                  <tr 
+                    key={`imp_pf_row_${pf.id || pfIdx}_${pfIdx}`} 
+                    onClick={() => {
+                      setSelectedProforma(pf);
+                      setIsCreatingProforma(false);
+                    }}
+                    className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                  >
                     <td className="px-6 py-4 font-mono font-black text-blue-600">
                       {pf.proformaNumber}
                     </td>
@@ -1331,11 +1175,15 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => setSelectedProforma(pf)}
-                        className="px-3 py-1.5 bg-gray-100 hover:bg-blue-50 text-gray-700 hover:text-blue-600 font-bold rounded-lg text-xs transition-colors inline-flex items-center gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedProforma(pf);
+                          setIsCreatingProforma(false);
+                        }}
+                        className="px-3 py-1.5 bg-gray-100 hover:bg-blue-50 text-gray-700 hover:text-blue-600 font-bold rounded-lg text-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
                       >
                         <Eye size={13} />
-                        <span>Detalles ({pf.items?.length || 0})</span>
+                        <span>Ficha 360° ({pf.items?.length || 0})</span>
                       </button>
                     </td>
                   </tr>
@@ -1354,10 +1202,10 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
         </div>
       )}
 
-      {/* SUBTAB 4: CARGAR Y VALIDAR PROFORMA */}
+      {/* SUBTAB 4: CARGAR Y VALIDAR PROFORMA CON IA */}
       {activeSubTab === 'upload_proforma' && (
         <div className="space-y-6">
-          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-xs space-y-6">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
                 <Sparkles size={24} />
@@ -1430,7 +1278,7 @@ export const ImportacionesModule: React.FC<ImportacionesModuleProps> = ({
 IMP-PANEL-500W Panel Solar 500W PERC - Cantidad: 50 - Precio Unitario: 140.00
 IMP-INV-10KW Inversor 10kW On-Grid - Cantidad: 5 - Precio Unitario: 850.00
 IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
-                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-mono text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-mono text-gray-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30"
               />
             </div>
 
@@ -1438,7 +1286,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
               <button
                 onClick={handleParseProformaText}
                 disabled={isParsingProforma || !proformaText.trim()}
-                className={`flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95 ${
+                className={`flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95 cursor-pointer ${
                   (!proformaText.trim() || isParsingProforma) ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
@@ -1477,7 +1325,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
 
                 <button
                   onClick={handleApproveAndSaveProducts}
-                  className="flex items-center gap-2 px-6 py-3 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95"
+                  className="flex items-center gap-2 px-6 py-3 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
                 >
                   <CheckCircle2 size={16} />
                   <span>Aprobar y Enviar a Base de Productos</span>
@@ -1525,7 +1373,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                             type="checkbox"
                             checked={isValidated}
                             onChange={() => handleToggleValidateItem(item.id)}
-                            className="w-5 h-5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            className="w-5 h-5 rounded-md text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                           />
                           <span className="text-xs font-black text-gray-400">#{idx + 1}</span>
                           <span className="text-xs font-mono font-bold px-2 py-0.5 bg-gray-200 text-gray-800 rounded">
@@ -1536,7 +1384,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                         <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
                           isValidated ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
                         }`}>
-                          {isValidated ? 'Validado para DB' : 'Omite Envo'}
+                          {isValidated ? 'Validado para DB' : 'Omite Envío'}
                         </span>
                       </div>
 
@@ -1618,560 +1466,6 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
         </div>
       )}
 
-      {/* MODAL EDIT / CREATE PRODUCT */}
-      <AnimatePresence>
-        {isEditingProduct && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 space-y-6 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-                <h3 className="text-lg font-extrabold text-gray-900">
-                  {selectedProduct ? 'Editar Ficha de Producto' : 'Crear Nuevo Producto'}
-                </h3>
-                <button
-                  onClick={() => setIsEditingProduct(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Código / SKU</label>
-                  <input
-                    type="text"
-                    value={productForm.code || ''}
-                    onChange={(e) => setProductForm({ ...productForm, code: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-mono font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Nombre del Producto</label>
-                  <input
-                    type="text"
-                    value={productForm.name || ''}
-                    onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block font-bold text-gray-700 mb-1">Descripción</label>
-                  <textarea
-                    rows={3}
-                    value={productForm.description || ''}
-                    onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Proveedor</label>
-                  <select
-                    value={productForm.supplierId || ''}
-                    onChange={(e) => {
-                      const sup = suppliers.find(s => s.id === e.target.value);
-                      setProductForm({ 
-                        ...productForm, 
-                        supplierId: e.target.value,
-                        supplierName: sup?.companyName || '' 
-                      });
-                    }}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold"
-                  >
-                    <option value="">Seleccionar Proveedor...</option>
-                    {suppliers.map((s, sIdx) => (
-                      <option key={`import_supplier_opt_${s.id || sIdx}_${sIdx}`} value={s.id}>{s.companyName}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Categoría</label>
-                  <input
-                    type="text"
-                    value={productForm.category || ''}
-                    onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Precio Unitario ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={productForm.unitPrice || 0}
-                    onChange={(e) => setProductForm({ ...productForm, unitPrice: Number(e.target.value) })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Unidad de Medida</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: Unidad, Caja, Metro, Kg"
-                    value={productForm.unit || ''}
-                    onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Partida Arancelaria (HS Code)</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: 8541.40.10"
-                    value={productForm.hsCode || ''}
-                    onChange={(e) => setProductForm({ ...productForm, hsCode: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-mono text-blue-600 font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">País de Origen</label>
-                  <input
-                    type="text"
-                    value={productForm.originCountry || ''}
-                    onChange={(e) => setProductForm({ ...productForm, originCountry: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => setIsEditingProduct(false)}
-                  className="px-4 py-2 text-gray-600 font-bold text-xs"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSaveProduct}
-                  className="px-6 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md"
-                >
-                  Guardar Ficha
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL EDIT / CREATE SUPPLIER */}
-      <AnimatePresence>
-        {isEditingSupplier && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 space-y-6 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-                <h3 className="text-lg font-extrabold text-gray-900">
-                  {selectedSupplier ? 'Editar Ficha del Proveedor' : 'Registrar Nuevo Proveedor'}
-                </h3>
-                <button
-                  onClick={() => setIsEditingSupplier(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Compañía Vinculada (Directorio)</label>
-                  <select
-                    value={supplierForm.companyId || ''}
-                    onChange={(e) => {
-                      const comp = companies.find(c => c.id === e.target.value);
-                      setSupplierForm({
-                        ...supplierForm,
-                        companyId: e.target.value,
-                        companyName: comp?.name || supplierForm.companyName
-                      });
-                    }}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold"
-                  >
-                    <option value="">Seleccionar del Directorio de Compañías...</option>
-                    {companies.map((c, cIdx) => (
-                      <option key={`imp_comp_${c.id || cIdx}_${cIdx}`} value={c.id}>{c.name} (RUC: {c.ruc})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Nombre Comercial / Razón Social</label>
-                  <input
-                    type="text"
-                    value={supplierForm.companyName || ''}
-                    onChange={(e) => setSupplierForm({ ...supplierForm, companyName: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Contacto Principal</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: John Doe (Gerente de Exportaciones)"
-                    value={supplierForm.contactPerson || ''}
-                    onChange={(e) => setSupplierForm({ ...supplierForm, contactPerson: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Correo Electrónico</label>
-                  <input
-                    type="email"
-                    value={supplierForm.contactEmail || ''}
-                    onChange={(e) => setSupplierForm({ ...supplierForm, contactEmail: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Teléfono de Contacto</label>
-                  <input
-                    type="text"
-                    value={supplierForm.contactPhone || ''}
-                    onChange={(e) => setSupplierForm({ ...supplierForm, contactPhone: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">País de Origen</label>
-                  <input
-                    type="text"
-                    value={supplierForm.country || ''}
-                    onChange={(e) => setSupplierForm({ ...supplierForm, country: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block font-bold text-gray-700 mb-1">Términos de Pago / Incoterms habituales</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: FOB - 30% TT, 70% B/L"
-                    value={supplierForm.paymentTerms || ''}
-                    onChange={(e) => setSupplierForm({ ...supplierForm, paymentTerms: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block font-bold text-gray-700 mb-1">Notas / Observaciones</label>
-                  <textarea
-                    rows={3}
-                    value={supplierForm.notes || ''}
-                    onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => setIsEditingSupplier(false)}
-                  className="px-4 py-2 text-gray-600 font-bold text-xs"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSaveSupplier}
-                  className="px-6 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md"
-                >
-                  Guardar Proveedor
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL DETALLES PRODUCTO */}
-      <AnimatePresence>
-        {selectedProduct && !isEditingProduct && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 space-y-6"
-            >
-              <div className="flex items-start justify-between pb-4 border-b border-gray-100">
-                <div>
-                  <span className="text-[10px] font-mono font-extrabold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md uppercase">
-                    {selectedProduct.code}
-                  </span>
-                  <h3 className="text-xl font-extrabold text-gray-900 mt-2">{selectedProduct.name}</h3>
-                </div>
-                <button
-                  onClick={() => setSelectedProduct(null)}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="space-y-4 text-xs">
-                <div>
-                  <span className="text-[10px] font-black uppercase text-gray-400 block">Descripción</span>
-                  <p className="text-gray-700 font-medium leading-relaxed mt-1">
-                    {selectedProduct.description || 'Sin descripción disponible.'}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-400">Proveedor</span>
-                    <p className="font-extrabold text-slate-800">{selectedProduct.supplierName}</p>
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-400">Precio Unitario</span>
-                    <p className="font-extrabold text-emerald-700 text-sm">
-                      ${selectedProduct.unitPrice.toFixed(2)} {selectedProduct.currency}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-400">Partida Arancelaria</span>
-                    <p className="font-mono font-bold text-blue-600">{selectedProduct.hsCode || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-400">País de Origen</span>
-                    <p className="font-bold text-slate-800">{selectedProduct.originCountry || 'N/A'}</p>
-                  </div>
-                </div>
-
-                {selectedProduct.specifications && Object.keys(selectedProduct.specifications).length > 0 && (
-                  <div>
-                    <span className="text-[10px] font-black uppercase text-gray-400 block mb-2">Especificaciones Técnicas</span>
-                    <div className="space-y-1 bg-gray-50 p-3 rounded-2xl">
-                      {Object.entries(selectedProduct.specifications).map(([k, v], specIdx) => (
-                        <div key={`imp_prod_spec_${k}_${specIdx}`} className="flex justify-between border-b border-gray-200/50 py-1 last:border-none">
-                          <span className="font-bold text-gray-600">{k}:</span>
-                          <span className="font-semibold text-gray-900">{v}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => setSelectedProduct(null)}
-                  className="px-6 py-2.5 bg-gray-900 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl"
-                >
-                  Cerrar Ficha
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL DETALLES PROFORMA */}
-      <AnimatePresence>
-        {selectedProforma && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-gray-100 space-y-6 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-start justify-between pb-4 border-b border-gray-100">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-black text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">
-                      {selectedProforma.proformaNumber}
-                    </span>
-                    <span className="text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                      {selectedProforma.status}
-                    </span>
-                  </div>
-                  <h3 className="text-xl font-extrabold text-gray-900 mt-2">{selectedProforma.supplierName}</h3>
-                </div>
-                <button
-                  onClick={() => setSelectedProforma(null)}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-4 gap-4 p-4 bg-slate-50 rounded-2xl text-xs">
-                <div>
-                  <span className="text-[9px] font-black uppercase text-slate-400">Incoterm</span>
-                  <p className="font-bold text-slate-800">{selectedProforma.incoterm}</p>
-                </div>
-                <div>
-                  <span className="text-[9px] font-black uppercase text-slate-400">Fecha Emisión</span>
-                  <p className="font-bold text-slate-800">{selectedProforma.issueDate}</p>
-                </div>
-                <div>
-                  <span className="text-[9px] font-black uppercase text-slate-400">Subtotal</span>
-                  <p className="font-bold text-slate-800">${selectedProforma.subtotal.toFixed(2)}</p>
-                </div>
-                <div>
-                  <span className="text-[9px] font-black uppercase text-slate-400">Total Proforma</span>
-                  <p className="font-black text-emerald-700 text-sm">${selectedProforma.totalAmount.toFixed(2)} USD</p>
-                </div>
-              </div>
-
-              {/* ITEMS TABLE */}
-              <div>
-                <h4 className="text-xs font-extrabold text-gray-800 mb-3 uppercase tracking-wider">
-                  Detalle de Productos en Proforma
-                </h4>
-                <div className="border border-gray-100 rounded-2xl overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-100 text-[9px] font-black text-gray-400 uppercase">
-                        <th className="p-3">Código</th>
-                        <th className="p-3">Producto</th>
-                        <th className="p-3 text-center">Cant.</th>
-                        <th className="p-3 text-right">Precio Unit.</th>
-                        <th className="p-3 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-medium">
-                      {selectedProforma.items?.map((it, itIdx) => (
-                        <tr key={`imp_prof_item_${it.id || itIdx}_${itIdx}`}>
-                          <td className="p-3 font-mono font-bold text-gray-700">{it.code}</td>
-                          <td className="p-3 font-bold text-gray-900">{it.name}</td>
-                          <td className="p-3 text-center font-bold">{it.quantity}</td>
-                          <td className="p-3 text-right">${it.unitPrice.toFixed(2)}</td>
-                          <td className="p-3 text-right font-black text-slate-900">${it.totalPrice.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {selectedProforma.notes && (
-                <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-100/50 text-xs">
-                  <span className="text-[9px] font-black uppercase text-amber-700 block">Observaciones</span>
-                  <p className="text-amber-900 font-medium">{selectedProforma.notes}</p>
-                </div>
-              )}
-
-              <div className="flex justify-end pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => setSelectedProforma(null)}
-                  className="px-6 py-2.5 bg-gray-900 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl"
-                >
-                  Cerrar Proforma
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL DETALLES PROVEEDOR */}
-      <AnimatePresence>
-        {selectedSupplier && !isEditingSupplier && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 space-y-6 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-start justify-between pb-4 border-b border-gray-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-lg shadow-sm">
-                    {selectedSupplier.companyName.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-extrabold text-gray-900">{selectedSupplier.companyName}</h3>
-                    <p className="text-xs text-gray-500 font-mono">Código: {selectedSupplier.code}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedSupplier(null)}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="space-y-4 text-xs">
-                <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-400">Contacto</span>
-                    <p className="font-extrabold text-slate-800">{selectedSupplier.contactPerson || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-400">País / Ubicación</span>
-                    <p className="font-extrabold text-slate-800">{selectedSupplier.country} {selectedSupplier.city ? `- ${selectedSupplier.city}` : ''}</p>
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-400">Correo Electrónico</span>
-                    <p className="font-bold text-blue-600">{selectedSupplier.contactEmail || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-400">Teléfono</span>
-                    <p className="font-bold text-slate-800">{selectedSupplier.contactPhone || 'N/A'}</p>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-xs font-extrabold text-gray-800 mb-2 uppercase tracking-wider">
-                    Productos Ofrecidos por este Proveedor ({products.filter(p => p.supplierId === selectedSupplier.id).length})
-                  </h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {products.filter(p => p.supplierId === selectedSupplier.id).map((p, pIdx) => (
-                      <div key={`imp_supprod_${p.id || pIdx}_${pIdx}`} className="p-3 bg-gray-50 rounded-xl flex items-center justify-between border border-gray-100">
-                        <div>
-                          <span className="font-bold text-gray-900 block">{p.name}</span>
-                          <span className="text-[10px] font-mono text-gray-400">{p.code}</span>
-                        </div>
-                        <span className="font-extrabold text-emerald-700">${p.unitPrice.toFixed(2)} {p.currency}</span>
-                      </div>
-                    ))}
-                    {products.filter(p => p.supplierId === selectedSupplier.id).length === 0 && (
-                      <p className="text-gray-400 italic text-xs">No hay productos registrados de este proveedor aún.</p>
-                    )}
-                  </div>
-                </div>
-
-                {selectedSupplier.notes && (
-                  <div>
-                    <span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Notas</span>
-                    <p className="p-3 bg-gray-50 rounded-2xl text-gray-700 leading-relaxed">{selectedSupplier.notes}</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => setSelectedSupplier(null)}
-                  className="px-6 py-2.5 bg-gray-900 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl"
-                >
-                  Cerrar Ficha
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
       {/* MODAL CONFIGURACIÓN DE COLUMNAS DE PRODUCTOS */}
       <AnimatePresence>
         {isColumnConfigModalOpen && (
@@ -2194,7 +1488,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                 </div>
                 <button
                   onClick={() => setIsColumnConfigModalOpen(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200/60 rounded-xl transition-all"
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200/60 rounded-xl transition-all cursor-pointer"
                 >
                   <X size={18} />
                 </button>
@@ -2225,7 +1519,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                           max="600"
                           value={col.width}
                           onChange={(e) => handleUpdateColumnWidth(col.id, parseInt(e.target.value) || 100)}
-                          className="w-14 text-xs font-black text-gray-900 bg-transparent text-right focus:outline-none"
+                          className="w-14 text-xs font-black text-gray-900 bg-transparent text-right focus:outline-hidden"
                         />
                         <span className="text-[10px] text-gray-400 font-bold">px</span>
                       </div>
@@ -2235,7 +1529,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                         type="button"
                         onClick={() => moveColumn(idx, 'up')}
                         disabled={idx === 0}
-                        className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:hover:text-gray-600 transition-all"
+                        className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:hover:text-gray-600 transition-all cursor-pointer"
                         title="Mover a la izquierda (subir)"
                       >
                         <MoveUp size={14} />
@@ -2246,7 +1540,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                         type="button"
                         onClick={() => moveColumn(idx, 'down')}
                         disabled={idx === productColumns.length - 1}
-                        className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:hover:text-gray-600 transition-all"
+                        className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:text-blue-600 hover:border-blue-300 disabled:opacity-30 disabled:hover:text-gray-600 transition-all cursor-pointer"
                         title="Mover a la derecha (bajar)"
                       >
                         <MoveDown size={14} />
@@ -2260,7 +1554,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                 <button
                   type="button"
                   onClick={handleResetColumns}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
                 >
                   <RotateCcw size={14} />
                   <span>Restablecer Todo</span>
@@ -2269,7 +1563,7 @@ IMP-CABLE-4MM Cable Solar 4mm2 Rojo - Cantidad: 1000 - Precio Unitario: 0.85`}
                 <button
                   type="button"
                   onClick={() => setIsColumnConfigModalOpen(false)}
-                  className="px-6 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20"
+                  className="px-6 py-2.5 bg-ng-lime hover:bg-[#d4eb3f] text-ng-black font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 cursor-pointer"
                 >
                   Guardar y Cerrar
                 </button>

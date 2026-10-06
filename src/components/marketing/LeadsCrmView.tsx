@@ -22,34 +22,40 @@ import {
   MapPin,
   Tag
 } from 'lucide-react';
-import { MarketingLead, MarketingCampaign, TeamMember } from '../../types';
-import { SearchableSelect } from '../common/SearchableSelect';
+import { MarketingLead, MarketingCampaign, TeamMember, Task } from '../../types';
+import { Lead360View } from './Lead360View';
 
 interface LeadsCrmViewProps {
   leads: MarketingLead[];
   campaigns: MarketingCampaign[];
   members: TeamMember[];
+  tasks?: Task[];
   currentMember: TeamMember | null;
   accessLevel: 'ninguno' | 'lector' | 'colaborador' | 'lider' | 'administrador';
   onSaveLead: (lead: MarketingLead) => Promise<void>;
   onDeleteLead: (leadId: string) => Promise<void>;
   onUpdateLeadStage: (leadId: string, stage: MarketingLead['stage']) => Promise<void>;
+  onAddStoryForLead?: (storyData: Partial<Task>) => Promise<void>;
+  onOpenStory?: (story: Task) => void;
 }
 
 export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
   leads,
   campaigns,
   members,
+  tasks = [],
   currentMember,
   accessLevel,
   onSaveLead,
   onDeleteLead,
-  onUpdateLeadStage
+  onUpdateLeadStage,
+  onAddStoryForLead,
+  onOpenStory
 }) => {
   const [search, setSearch] = useState('');
   const [campaignFilter, setCampaignFilter] = useState<string>('todos');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingLead, setEditingLead] = useState<Partial<MarketingLead>>({});
+  const [selectedLead, setSelectedLead] = useState<MarketingLead | null>(null);
+  const [isCreatingLead, setIsCreatingLead] = useState(false);
 
   const isReadOnly = accessLevel === 'lector';
 
@@ -64,55 +70,48 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
   ];
 
   const handleOpenCreate = (prefillStage?: MarketingLead['stage']) => {
-    setEditingLead({
-      id: `lead-${Date.now()}`,
-      name: '',
-      companyName: '',
-      email: '',
-      phone: '+593 ',
-      channel: 'meta_ads',
-      stage: prefillStage || 'nuevo',
-      estimatedValue: 3500,
-      assignedMemberId: currentMember?.id || '',
-      campaignId: campaigns[0]?.id || '',
-      city: 'Quito',
-      notes: '',
-      tags: ['B2B']
-    });
-    setIsModalOpen(true);
+    setSelectedLead(null);
+    setIsCreatingLead(true);
   };
 
   const handleOpenEdit = (lead: MarketingLead) => {
-    setEditingLead({ ...lead });
-    setIsModalOpen(true);
+    setSelectedLead(lead);
+    setIsCreatingLead(false);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingLead.name) return;
-
-    const finalLead: MarketingLead = {
-      id: editingLead.id || `lead-${Date.now()}`,
-      name: editingLead.name,
-      companyName: editingLead.companyName || '',
-      email: editingLead.email || '',
-      phone: editingLead.phone || '',
-      channel: editingLead.channel || 'meta_ads',
-      stage: editingLead.stage || 'nuevo',
-      estimatedValue: Number(editingLead.estimatedValue) || 0,
-      assignedMemberId: editingLead.assignedMemberId,
-      campaignId: editingLead.campaignId,
-      city: editingLead.city || '',
-      notes: editingLead.notes || '',
-      tags: editingLead.tags || [],
-      lastContactDate: editingLead.lastContactDate || new Date().toISOString().split('T')[0],
-      createdAt: editingLead.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    await onSaveLead(finalLead);
-    setIsModalOpen(false);
+  const handleSaveLeadFrom360 = async (lead: MarketingLead) => {
+    await onSaveLead(lead);
+    setSelectedLead(null);
+    setIsCreatingLead(false);
   };
+
+  // If in Form View (Tryton Form Mode: Detail or Create)
+  if (selectedLead || isCreatingLead) {
+    return (
+      <Lead360View
+        lead={selectedLead}
+        isCreating={isCreatingLead}
+        campaigns={campaigns}
+        members={members}
+        tasks={tasks}
+        currentMember={currentMember}
+        onBack={() => {
+          setSelectedLead(null);
+          setIsCreatingLead(false);
+        }}
+        onSave={handleSaveLeadFrom360}
+        onDelete={async (leadId) => {
+          await onDeleteLead(leadId);
+          setSelectedLead(null);
+          setIsCreatingLead(false);
+        }}
+        onAddStoryForLead={onAddStoryForLead}
+        onOpenStory={onOpenStory}
+        canEdit={!isReadOnly}
+        canDelete={!isReadOnly}
+      />
+    );
+  }
 
   // Pipeline metrics
   const totalLeadsCount = leads.length;
@@ -137,7 +136,7 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
     <div className="space-y-6">
       {/* Pipeline KPI Banner */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3.5">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-black">
             <Users size={22} />
           </div>
@@ -147,7 +146,7 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3.5">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-black">
             <TrendingUp size={22} />
           </div>
@@ -157,7 +156,7 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3.5">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black">
             <DollarSign size={22} />
           </div>
@@ -167,7 +166,7 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3.5">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-black">
             <CheckCircle2 size={22} />
           </div>
@@ -179,7 +178,7 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
       </div>
 
       {/* Header Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-100 shadow-xs">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-black text-slate-900">Embudo de Ventas & Oportunidades (CRM)</h2>
           <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg">
@@ -195,14 +194,14 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
               placeholder="Buscar prospecto, empresa, fono..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 font-bold focus:ring-2 focus:ring-ng-lime focus:outline-none w-56"
+              className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 font-bold focus:ring-2 focus:ring-ng-lime focus:outline-hidden w-56"
             />
           </div>
 
           <select
             value={campaignFilter}
             onChange={(e) => setCampaignFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-ng-lime"
+            className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-ng-lime"
           >
             <option value="todos">Todas las Campañas</option>
             {campaigns.map((c, cIdx) => (
@@ -213,7 +212,7 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
           {!isReadOnly && (
             <button
               onClick={() => handleOpenCreate()}
-              className="flex items-center gap-2 px-4 py-2 bg-ng-lime text-ng-black font-black text-xs uppercase tracking-wider rounded-xl hover:opacity-90 transition-all shadow-sm shrink-0"
+              className="flex items-center gap-2 px-4 py-2 bg-ng-lime text-ng-black font-black text-xs uppercase tracking-wider rounded-xl hover:opacity-90 transition-all shadow-xs shrink-0 cursor-pointer"
             >
               <Plus size={16} />
               Nuevo Prospecto
@@ -252,7 +251,7 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
                 {!isReadOnly && (
                   <button
                     onClick={() => handleOpenCreate(stage.id)}
-                    className="p-1 hover:bg-white rounded-lg text-slate-400 hover:text-slate-700 transition-colors"
+                    className="p-1 hover:bg-white rounded-lg text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
                     title={`Añadir a ${stage.title}`}
                   >
                     <Plus size={14} />
@@ -270,7 +269,8 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
                   return (
                     <div
                       key={`mkt_lead_card_${lead.id || lIdx}_${lIdx}`}
-                      className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all space-y-2.5 text-left"
+                      onClick={() => handleOpenEdit(lead)}
+                      className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all space-y-2.5 text-left cursor-pointer"
                     >
                       {/* Lead Name & Value */}
                       <div className="flex items-start justify-between gap-2">
@@ -302,60 +302,57 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
                         </p>
                       )}
 
-                      {/* Action buttons: WhatsApp & Call */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
+                      {/* Assigned & Actions */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
                         <div className="flex items-center gap-1.5">
+                          {assigned ? (
+                            <img
+                              src={assigned.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(assigned.name)}`}
+                              alt={assigned.name}
+                              className="w-5 h-5 rounded-full object-cover"
+                              title={`Asignado a: ${assigned.name}`}
+                            />
+                          ) : (
+                            <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-[10px]">
+                              ?
+                            </div>
+                          )}
+                          <span className="text-[10px] text-slate-400 font-bold truncate max-w-[80px]">
+                            {assigned?.name.split(' ')[0] || 'Sin Asignar'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1">
                           {cleanPhone && (
                             <a
                               href={`https://wa.me/${cleanPhone}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors flex items-center gap-1 font-bold text-[10px]"
-                              title="Chat en WhatsApp"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"
+                              title="Contactar vía WhatsApp"
                             >
-                              <MessageCircle size={12} />
-                              <span className="hidden sm:inline">WhatsApp</span>
+                              <MessageCircle size={13} />
                             </a>
                           )}
-                          {lead.email && (
+                          {lead.phone && (
                             <a
-                              href={`mailto:${lead.email}`}
-                              className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-lg transition-colors"
-                              title={lead.email}
+                              href={`tel:${lead.phone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                              title="Llamar"
                             >
-                              <Mail size={12} />
+                              <Phone size={13} />
                             </a>
                           )}
                         </div>
-
-                        {/* Stage mover dropdown */}
-                        {!isReadOnly && (
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => handleOpenEdit(lead)}
-                              className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100"
-                              title="Editar Prospecto"
-                            >
-                              <Edit size={12} />
-                            </button>
-                            <select
-                              value={lead.stage}
-                              onChange={(e) => onUpdateLeadStage(lead.id, e.target.value as any)}
-                              className="text-[9px] font-black uppercase bg-slate-100 text-slate-700 border-none rounded py-0.5 px-1 cursor-pointer focus:ring-1 focus:ring-ng-lime"
-                            >
-                              {stages.map((s, sIdx) => (
-                                <option key={`mkt_lead_card_st_${lead.id}_${s.id}_${sIdx}`} value={s.id}>{s.title}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
                       </div>
                     </div>
                   );
                 })}
 
                 {stageLeads.length === 0 && (
-                  <div className="py-8 text-center text-[10px] font-bold text-slate-300 italic">
+                  <div className="text-center py-8 text-slate-300 text-[11px] font-bold">
                     Sin prospectos
                   </div>
                 )}
@@ -364,219 +361,6 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
           );
         })}
       </div>
-
-      {/* CREATE / EDIT LEAD MODAL */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full p-6 space-y-4 text-left max-h-[90vh] overflow-y-auto custom-scrollbar"
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-                    <Users size={18} />
-                  </div>
-                  <h3 className="text-lg font-black text-slate-900">
-                    {editingLead.id?.startsWith('lead-') ? 'Nuevo Prospecto / Lead' : 'Editar Prospecto'}
-                  </h3>
-                </div>
-                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSave} className="space-y-3.5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
-                      Nombre del Contacto *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ej: Ing. Carlos Villacís"
-                      value={editingLead.name || ''}
-                      onChange={(e) => setEditingLead(prev => ({ ...prev, name: e.target.value }))}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
-                      Empresa / Institución
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej: Industrias Lácteas del Sur"
-                      value={editingLead.companyName || ''}
-                      onChange={(e) => setEditingLead(prev => ({ ...prev, companyName: e.target.value }))}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
-                      Teléfono / WhatsApp *
-                    </label>
-                    <input
-                      type="tel"
-                      placeholder="+593 99 876 5432"
-                      value={editingLead.phone || ''}
-                      onChange={(e) => setEditingLead(prev => ({ ...prev, phone: e.target.value }))}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
-                      Correo Electrónico
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="contacto@empresa.ec"
-                      value={editingLead.email || ''}
-                      onChange={(e) => setEditingLead(prev => ({ ...prev, email: e.target.value }))}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
-                      Etapa
-                    </label>
-                    <select
-                      value={editingLead.stage || 'nuevo'}
-                      onChange={(e) => setEditingLead(prev => ({ ...prev, stage: e.target.value as any }))}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                    >
-                      {stages.map((s, sIdx) => (
-                        <option key={`mkt_lead_modal_st_${s.id}_${sIdx}`} value={s.id}>{s.title}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
-                      Valor Estimado ($)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="100"
-                      value={editingLead.estimatedValue || 0}
-                      onChange={(e) => setEditingLead(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
-                      Origen / Canal
-                    </label>
-                    <select
-                      value={editingLead.channel || 'meta_ads'}
-                      onChange={(e) => setEditingLead(prev => ({ ...prev, channel: e.target.value as any }))}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                    >
-                      <option value="meta_ads">Meta Ads (FB/IG)</option>
-                      <option value="google_ads">Google Ads</option>
-                      <option value="tiktok">TikTok</option>
-                      <option value="organico">Orgánico / Web</option>
-                      <option value="referido">Referido</option>
-                      <option value="evento">Evento / BTL</option>
-                      <option value="directo">Directo</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
-                      Campaña Asociada
-                    </label>
-                    <SearchableSelect
-                      value={editingLead.campaignId || ''}
-                      onChange={val => setEditingLead(prev => ({ ...prev, campaignId: val }))}
-                      placeholder="Sin campaña específica"
-                      searchPlaceholder="Buscar campaña..."
-                      isClearable
-                      options={[
-                        { value: '', label: 'Sin campaña específica' },
-                        ...campaigns.map(c => ({
-                          value: c.id,
-                          label: c.code,
-                          sublabel: c.name || undefined
-                        }))
-                      ]}
-                      buttonClassName="p-2.5 bg-slate-50 border-slate-200 text-xs font-bold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
-                      Responsable Comercial
-                    </label>
-                    <SearchableSelect
-                      value={editingLead.assignedMemberId || ''}
-                      onChange={val => setEditingLead(prev => ({ ...prev, assignedMemberId: val }))}
-                      placeholder="Seleccionar responsable..."
-                      searchPlaceholder="Buscar comercial..."
-                      isClearable
-                      options={[
-                        { value: '', label: 'Seleccionar responsable...' },
-                        ...members.map(m => ({
-                          value: m.id,
-                          label: m.name,
-                          sublabel: m.role || undefined,
-                          avatarUrl: m.avatar
-                        }))
-                      ]}
-                      buttonClassName="p-2.5 bg-slate-50 border-slate-200 text-xs font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">
-                    Notas de Contacto y Requerimientos
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="Servicios de interés, fecha de última llamada, objeciones o acuerdos..."
-                    value={editingLead.notes || ''}
-                    onChange={(e) => setEditingLead(prev => ({ ...prev, notes: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-ng-lime focus:outline-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-ng-lime text-ng-black font-black text-xs uppercase tracking-wider rounded-xl hover:opacity-90"
-                  >
-                    Guardar Prospecto
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

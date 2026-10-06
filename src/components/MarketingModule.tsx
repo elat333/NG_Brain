@@ -13,7 +13,8 @@ import {
   SlidersHorizontal,
   DollarSign,
   Link2,
-  Shield
+  Shield,
+  FileText
 } from 'lucide-react';
 import { 
   MarketingCampaign, 
@@ -43,13 +44,14 @@ import {
   initialMarketingMetrics 
 } from '../lib/initialData';
 import { CampaignsView } from './marketing/CampaignsView';
+import { LeadsCrmView } from './marketing/LeadsCrmView';
 import { ContentCalendarView } from './marketing/ContentCalendarView';
 import { MetricsAnalyticsView } from './marketing/MetricsAnalyticsView';
 import { PersonalLinksView } from './common/PersonalLinksView';
 import { PersonalNotesView } from './common/PersonalNotesView';
 import { ModulePermissionsTab } from './common/ModulePermissionsTab';
 
-export type MarketingSubTab = 'campaigns' | 'content_calendar' | 'metrics_analytics' | 'links' | 'notes' | 'permissions';
+export type MarketingSubTab = 'campaigns' | 'leads' | 'content_calendar' | 'metrics_analytics' | 'links' | 'notes' | 'permissions';
 
 interface MarketingModuleProps {
   currentMember: TeamMember | null;
@@ -61,10 +63,10 @@ interface MarketingModuleProps {
   accessLevel?: 'ninguno' | 'lector' | 'colaborador' | 'lider' | 'administrador';
   activeSubTab?: MarketingSubTab;
   onSubTabChange?: (tab: MarketingSubTab) => void;
-  onAddTask?: (taskData: Partial<Task>) => Promise<any>;
-  onAddProject?: (projectData: Partial<Project>) => Promise<any>;
   onOpenTask?: (task: Task) => void;
   onOpenCreateTaskModal?: (initialOverrides?: Partial<Task>) => void;
+  onAddProject?: (projectData: Partial<Project>) => Promise<void>;
+  onAddTask?: (taskData: Partial<Task>) => Promise<void>;
 }
 
 const deepCleanUndefined = (obj: any): any => {
@@ -79,15 +81,6 @@ const deepCleanUndefined = (obj: any): any => {
   return result;
 };
 
-const deduplicateById = <T extends { id: string }>(items: T[]): T[] => {
-  const seen = new Set<string>();
-  return items.filter(item => {
-    if (!item?.id || seen.has(item.id)) return false;
-    seen.add(item.id);
-    return true;
-  });
-};
-
 export const MarketingModule: React.FC<MarketingModuleProps> = ({
   currentMember,
   members,
@@ -98,30 +91,39 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
   accessLevel = 'administrador',
   activeSubTab: externalSubTab,
   onSubTabChange,
-  onAddTask,
-  onAddProject,
   onOpenTask,
-  onOpenCreateTaskModal
+  onOpenCreateTaskModal,
+  onAddProject,
+  onAddTask
 }) => {
   const [internalSubTab, setInternalSubTab] = useState<MarketingSubTab>('campaigns');
   const activeSubTab = externalSubTab || internalSubTab;
 
   const handleSetSubTab = (tab: MarketingSubTab) => {
-    setInternalSubTab(tab);
     if (onSubTabChange) {
       onSubTabChange(tab);
+    } else {
+      setInternalSubTab(tab);
     }
   };
 
-  // State collections
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [contents, setContents] = useState<MarketingContent[]>([]);
   const [leads, setLeads] = useState<MarketingLead[]>([]);
   const [metrics, setMetrics] = useState<MarketingMetricRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Firestore Sync with fallback to initial seed data
+  const deduplicateById = <T extends { id: string }>(items: T[]): T[] => {
+    const seen = new Set<string>();
+    return items.filter(item => {
+      if (!item.id || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  };
+
+  // Sync with Firestore
   useEffect(() => {
     let unsubCampaigns = () => {};
     let unsubContents = () => {};
@@ -139,8 +141,8 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
       });
 
       // 2. Contents
-      const cntCol = collection(db, 'marketing_contents');
-      unsubContents = onSnapshot(cntCol, (snapshot) => {
+      const contCol = collection(db, 'marketing_contents');
+      unsubContents = onSnapshot(contCol, (snapshot) => {
         const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MarketingContent));
         setContents(deduplicateById(docs));
       }, (err) => {
@@ -187,8 +189,6 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
   // --- Campaign Handlers ---
   const handleSaveCampaign = async (campaign: MarketingCampaign, createLinkedProject: boolean) => {
     setSaveError(null);
-    setSaveError(null);
-    console.log('MarketingModule: handleSaveCampaign called with:', campaign, createLinkedProject);
     let linkedProjId = campaign.projectId;
 
     // Automatic synchronization with Projects
@@ -219,15 +219,13 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
       ...campaign,
     };
     if (linkedProjId) {
-        campaignToSave.projectId = linkedProjId;
+      campaignToSave.projectId = linkedProjId;
     }
 
     const cleanCampaign = deepCleanUndefined(campaignToSave);
 
     try {
-      console.log('MarketingModule: about to setDoc marketing_campaigns:', campaignToSave);
       await setDoc(doc(db, 'marketing_campaigns', cleanCampaign.id), cleanCampaign);
-      console.log('MarketingModule: setDoc marketing_campaigns SUCCESS');
       setCampaigns(prev => {
         const idx = prev.findIndex(c => c.id === campaignToSave.id);
         if (idx >= 0) {
@@ -254,13 +252,13 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
     }
   };
 
-  // --- Task Creation for Campaign ---
+  // --- Story / Task Creation for Campaign ---
   const handleAddTaskForCampaign = async (taskData: Partial<Task>) => {
     Object.keys(taskData).forEach(key => { if ((taskData as any)[key] === undefined) delete (taskData as any)[key]; });
-    const taskId = taskData.id || `task-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const taskId = taskData.id || `story-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     const newTask: Task = {
       id: taskId,
-      title: taskData.title || 'Nueva Tarea',
+      title: taskData.title || 'Nueva Historia',
       description: taskData.description || '',
       status: taskData.status || 'backlog',
       priority: taskData.priority || 'media',
@@ -390,6 +388,7 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
   const subTabsList: { id: MarketingSubTab; label: string; icon: any; count?: number }[] = [
     { id: 'links', label: 'Enlaces de Interés', icon: <Link2 size={16} /> },
     { id: 'campaigns', label: 'Campañas', icon: <Target size={16} />, count: campaigns.length },
+    { id: 'leads', label: 'Prospectos (CRM)', icon: <Users size={16} />, count: leads.length },
     { id: 'content_calendar', label: 'Contenido & Calendario', icon: <Calendar size={16} />, count: contents.length },
     { id: 'metrics_analytics', label: 'Métricas & KPIs', icon: <BarChart2 size={16} /> },
     ...(canSeePermissions ? [{ id: 'permissions' as MarketingSubTab, label: 'Permisos', icon: <Shield size={16} /> }] : [])
@@ -397,8 +396,6 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
 
   return (
     <div className="space-y-1 text-left">
-
-
       {/* Subtab Views Rendering */}
       <div>
         {activeSubTab === 'campaigns' && (
@@ -415,6 +412,7 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
               projects={projects}
               members={members}
               processes={processes}
+              leads={leads}
               currentMember={currentMember}
               accessLevel={accessLevel}
               onSaveCampaign={handleSaveCampaign}
@@ -422,6 +420,29 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
               onAddTaskForCampaign={handleAddTaskForCampaign}
               onOpenTask={onOpenTask}
               onOpenCreateTaskModal={onOpenCreateTaskModal}
+            />
+          </motion.div>
+        )}
+
+        {activeSubTab === 'leads' && (
+          <motion.div
+            key="leads"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+          >
+            <LeadsCrmView
+              leads={leads}
+              campaigns={campaigns}
+              members={members}
+              tasks={tasks}
+              currentMember={currentMember}
+              accessLevel={accessLevel}
+              onSaveLead={handleSaveLead}
+              onDeleteLead={handleDeleteLead}
+              onUpdateLeadStage={handleUpdateLeadStage}
+              onAddStoryForLead={handleAddTaskForCampaign}
+              onOpenStory={onOpenTask}
             />
           </motion.div>
         )}
@@ -444,7 +465,6 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
             />
           </motion.div>
         )}
-
 
         {activeSubTab === 'metrics_analytics' && (
           <motion.div
