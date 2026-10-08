@@ -31,7 +31,6 @@ import { TrainingManagementView } from './capacitacion/TrainingManagementView';
 import { PersonalLinksView } from './common/PersonalLinksView';
 import { PersonalNotesView } from './common/PersonalNotesView';
 import { ModulePermissionsTab } from './common/ModulePermissionsTab';
-import { CapacitacionPermissionsMatrix } from './capacitacion/CapacitacionPermissionsMatrix';
 import { getModuleAccess } from '../lib/permissions';
 
 export type CapacitacionSubTab = 'trainers' | 'physical_spaces' | 'virtual_spaces' | 'calendar' | 'management' | 'links' | 'notes' | 'permissions';
@@ -268,7 +267,9 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
           )}
           {currentTab === 'permissions' && (
             <motion.div key="permissions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-              <CapacitacionPermissionsMatrix 
+              <ModulePermissionsTab 
+                moduleId="capacitacion"
+                moduleName="Capacitación"
                 currentMember={currentMember}
                 members={members || []}
                 processes={processes || []}

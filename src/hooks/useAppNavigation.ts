@@ -22,7 +22,8 @@ export type MainTabType =
   | 'productos' 
   | 'inventario'
   | 'qhse'
-  | 'comments';
+  | 'comments'
+  | 'finanzas';
 
 export type InventarioSubTabType = 'existencias' | 'bodegas' | 'solicitudes' | 'facturas' | 'permissions';
 export type VentasSubTabType = 'links' | 'notes' | 'crm' | 'pipeline' | 'quotes' | 'goals' | 'permissions';
@@ -34,6 +35,18 @@ export type ImportacionesSubTabType = 'products' | 'suppliers' | 'proformas' | '
 export type AcreditacionSubTabType = 'links' | 'notes' | 'allies' | 'certifications' | 'permissions';
 export type TasksSubTabType = 'board' | 'permissions' | 'comments';
 export type CommentsSubTabType = 'inbox' | 'notes' | 'links' | 'permissions';
+export type FinanzasSubTabType = 
+  | 'treasury' 
+  | 'accounts' 
+  | 'bank_entities' 
+  | 'statements' 
+  | 'bank_statements' 
+  | 'budgets' 
+  | 'reconciliation' 
+  | 'config_chart' 
+  | 'config_journals' 
+  | 'config_taxes' 
+  | 'permissions';
 
 export function useAppNavigation() {
   const [activeTab, setActiveTab] = useState<MainTabType>('dashboard');
@@ -41,6 +54,7 @@ export function useAppNavigation() {
   const [expandedNavModule, setExpandedNavModule] = useState<string | null>(null);
 
   // Sub-pestañas de cada módulo
+  const [finanzasSubTab, setFinanzasSubTab] = useState<FinanzasSubTabType>('treasury');
   const [inventarioSubTab, setInventarioSubTab] = useState<InventarioSubTabType>('existencias');
   const [tasksSubTab, setTasksSubTab] = useState<TasksSubTabType>('board');
   const [commentsSubTab, setCommentsSubTab] = useState<CommentsSubTabType>('inbox');
@@ -54,7 +68,7 @@ export function useAppNavigation() {
   const [capacitacionSubTab, setCapacitacionSubTab] = useState<CapacitacionSubTab>('management');
   const [acreditacionSubTab, setAcreditacionSubTab] = useState<AcreditacionSubTabType>('links');
   const [productosSubTab, setProductosSubTab] = useState<ProductSubTab>('todos');
-  const [qhseSubTab, setQhseSubTab] = useState<QHSESubTab>('links');
+  const [qhseSubTab, setQhseSubTab] = useState<QHSESubTab>('inspections');
 
   // Estados visuales de procesos/fichas
   const [selectedProcessId, setSelectedProcessId] = useState<string>('');
@@ -90,7 +104,8 @@ export function useAppNavigation() {
     qhseSubTab, 
     importacionesSubTab,
     tasksSubTab,
-    commentsSubTab
+    commentsSubTab,
+    finanzasSubTab
   ]);
 
   return {
@@ -101,6 +116,8 @@ export function useAppNavigation() {
     expandedNavModule,
     setExpandedNavModule,
     toggleNavModule,
+    finanzasSubTab,
+    setFinanzasSubTab,
     tasksSubTab,
     setTasksSubTab,
     commentsSubTab,

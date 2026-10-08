@@ -410,12 +410,13 @@ export function useTaskManager({
   const handleAddTask = async (e?: React.FormEvent) => {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (!newTaskData.title || !newTaskData.processId) return;
-    let taskAccess = getModuleAccess(currentMember, roles, `tasks_${newTaskData.processId}`);
     const taskProcessId = newTaskData.processId;
-    if (taskProcessId === 'proc-mkt' || (taskProcessId && taskProcessId.includes('mkt'))) {
+    const procObj = processes.find(p => p.id === taskProcessId);
+    let taskAccess = getModuleAccess(currentMember, roles, `tasks_${taskProcessId}`);
+    if (taskProcessId === 'proc-mkt' || (taskProcessId && taskProcessId.includes('mkt')) || (procObj && (procObj.name || '').toLowerCase().includes('marketing'))) {
       const mktAccess = getModuleAccess(currentMember, roles, 'marketing');
       if (mktAccess !== 'ninguno') taskAccess = mktAccess;
-    } else if (taskProcessId === 'proc-acred' || taskProcessId === 'acreditacion' || (taskProcessId && taskProcessId.includes('acred'))) {
+    } else if (taskProcessId === 'proc-acred' || taskProcessId === 'acreditacion' || (taskProcessId && taskProcessId.includes('acred')) || (procObj && (procObj.name || '').toLowerCase().includes('acreditacion'))) {
       const acredAccess = getModuleAccess(currentMember, roles, 'acreditacion');
       if (acredAccess !== 'ninguno') taskAccess = acredAccess;
     }
@@ -532,11 +533,12 @@ export function useTaskManager({
       }
     }
 
+    const procObj = processes.find(p => p.id === taskProcessId);
     let taskAccess = getModuleAccess(currentMember, roles, taskProcessId ? `tasks_${taskProcessId}` : 'tasks');
-    if (taskProcessId === 'proc-mkt' || (taskProcessId && taskProcessId.includes('mkt'))) {
+    if (taskProcessId === 'proc-mkt' || (taskProcessId && taskProcessId.includes('mkt')) || (procObj && (procObj.name || '').toLowerCase().includes('marketing'))) {
       const mktAccess = getModuleAccess(currentMember, roles, 'marketing');
       if (mktAccess !== 'ninguno') taskAccess = mktAccess;
-    } else if (taskProcessId === 'proc-acred' || taskProcessId === 'acreditacion' || (taskProcessId && taskProcessId.includes('acred'))) {
+    } else if (taskProcessId === 'proc-acred' || taskProcessId === 'acreditacion' || (taskProcessId && taskProcessId.includes('acred')) || (procObj && (procObj.name || '').toLowerCase().includes('acreditacion'))) {
       const acredAccess = getModuleAccess(currentMember, roles, 'acreditacion');
       if (acredAccess !== 'ninguno') taskAccess = acredAccess;
     }
@@ -563,6 +565,9 @@ export function useTaskManager({
     const otherFieldsChanged = (
       editingTask.title !== newTaskData.title ||
       editingTask.status !== newTaskData.status ||
+      (editingTask.processId || '') !== (newTaskData.processId || '') ||
+      (editingTask.projectId || '') !== (newTaskData.projectId || '') ||
+      (editingTask.taskTemplate || 'standard') !== (newTaskData.taskTemplate || 'standard') ||
       (editingTask.description || '') !== (newTaskData.description || '') ||
       (editingTask.storyDescription || '') !== (newTaskData.storyDescription || '') ||
       (editingTask.acceptanceCriteria || '') !== (newTaskData.acceptanceCriteria || '') ||
@@ -581,6 +586,8 @@ export function useTaskManager({
       (editingTask.actualEndTime || '') !== (newTaskData.actualEndTime || '') ||
       (editingTask.plannedStartTime || '') !== (newTaskData.plannedStartTime || '') ||
       (editingTask.plannedEndTime || '') !== (newTaskData.plannedEndTime || '') ||
+      JSON.stringify(editingTask.auxiliaryIds || []) !== JSON.stringify(newTaskData.auxiliaryIds || []) ||
+      JSON.stringify(editingTask.blockedByTaskIds || []) !== JSON.stringify(newTaskData.blockedByTaskIds || []) ||
       deliverablesChanged ||
       designDataChanged
     );
@@ -644,6 +651,19 @@ export function useTaskManager({
         const newState = statusLabels[newTaskData.status] || newTaskData.status;
         changes.push(`Cambió el estado de "${oldState}" a "${newState}"`);
       }
+      if ((editingTask.processId || '') !== (newTaskData.processId || '')) {
+        const prevProc = processes.find(p => p.id === editingTask.processId)?.name || editingTask.processId || 'Sin Proceso';
+        const nextProc = processes.find(p => p.id === newTaskData.processId)?.name || newTaskData.processId || 'Sin Proceso';
+        changes.push(`Cambió el proceso de "${prevProc}" a "${nextProc}"`);
+      }
+      if ((editingTask.projectId || '') !== (newTaskData.projectId || '')) {
+        const prevProj = projects.find(p => p.id === editingTask.projectId)?.name || editingTask.projectId || 'Sin Proyecto';
+        const nextProj = projects.find(p => p.id === newTaskData.projectId)?.name || newTaskData.projectId || 'Sin Proyecto';
+        changes.push(`Cambió el proyecto de "${prevProj}" a "${nextProj}"`);
+      }
+      if ((editingTask.taskTemplate || 'standard') !== (newTaskData.taskTemplate || 'standard')) {
+        changes.push(`Cambió la plantilla a "${newTaskData.taskTemplate || 'standard'}"`);
+      }
       if ((editingTask.description || '') !== (newTaskData.description || '')) {
         changes.push('Modificó la descripción');
       }
@@ -681,54 +701,50 @@ export function useTaskManager({
 
       const isUserAdmin = currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin';
       const isProcessLeader = !!(isUserAdmin || taskAccess === 'lider' || taskAccess === 'administrador');
+      const isResponsible = !!(currentMember && (
+        editingTask.memberId === currentMember.id || 
+        newTaskData.memberId === currentMember.id ||
+        editingTask.auxiliaryId === currentMember.id ||
+        newTaskData.auxiliaryId === currentMember.id ||
+        (Array.isArray(editingTask.auxiliaryIds) && currentMember.id && editingTask.auxiliaryIds.includes(currentMember.id)) ||
+        (Array.isArray(newTaskData.auxiliaryIds) && currentMember.id && newTaskData.auxiliaryIds.includes(currentMember.id))
+      ));
 
-      if (!isProcessLeader) {
-        const isResponsible = !!(currentMember && (editingTask.memberId === currentMember.id || newTaskData.memberId === currentMember.id));
-        const canSaveActualHours = isResponsible && (newTaskData.status === 'in_progress' || newTaskData.status === 'review');
-        const finalActualHours = canSaveActualHours ? (Number(newTaskData.actualHours) || 0) : (editingTask.actualHours || 0);
+      const canSaveActualHours = isProcessLeader || (isResponsible && (newTaskData.status === 'in_progress' || newTaskData.status === 'review'));
+      const finalActualHours = canSaveActualHours ? (Number(newTaskData.actualHours) || 0) : (editingTask.actualHours || 0);
 
-        await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({
-          status: newTaskData.status as any,
-          deliverables: newTaskData.deliverables || [],
-          actualHours: finalActualHours,
-          actualStartDate: newTaskData.actualStartDate || '',
-          actualEndDate: newTaskData.actualEndDate || '',
-          actualStartTime: newTaskData.actualStartTime || '',
-          actualEndTime: newTaskData.actualEndTime || '',
-          history: updatedHistory
-        }));
-      } else {
-        await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore({ 
-          title: newTaskData.title,
-          description: newTaskData.description || '',
-          storyDescription: newTaskData.storyDescription || '',
-          acceptanceCriteria: newTaskData.acceptanceCriteria || '',
-          priority: newTaskData.priority || 'media',
-          processId: taskProcessId,
-          plannedDate: newTaskData.plannedDate || '',
-          plannedEndDate: newTaskData.plannedEndDate || '',
-          plannedStartTime: newTaskData.plannedStartTime || '',
-          plannedEndTime: newTaskData.plannedEndTime || '',
-          actualEndDate: newTaskData.actualEndDate || '',
-          actualStartDate: newTaskData.actualStartDate || '',
-          actualStartTime: newTaskData.actualStartTime || '',
-          actualEndTime: newTaskData.actualEndTime || '',
-          memberId: newTaskData.memberId || '',
-          auxiliaryId: newTaskData.auxiliaryId || '',
-          auxiliaryIds: newTaskData.auxiliaryIds || [],
-          revisorId: newTaskData.revisorId || '',
-          projectId: newTaskData.projectId || '',
-          taskTemplate: newTaskData.taskTemplate || 'standard',
-          designData: newTaskData.designData || { campaign: '', formats: '', elements: [] },
-          status: newTaskData.status as any,
-          deliverables: newTaskData.deliverables,
-          plannedHours: newTaskData.plannedHours || 0,
-          actualHours: newTaskData.actualHours || 0,
-          dueDate: newTaskData.dueDate || '',
-          blockedByTaskIds: newTaskData.blockedByTaskIds,
-          history: updatedHistory
-        }));
-      }
+      const updatePayload: any = {
+        title: isProcessLeader || isResponsible ? newTaskData.title : editingTask.title,
+        description: newTaskData.description || '',
+        storyDescription: newTaskData.storyDescription || '',
+        acceptanceCriteria: newTaskData.acceptanceCriteria || '',
+        priority: newTaskData.priority || 'media',
+        processId: isProcessLeader || isResponsible ? (newTaskData.processId || taskProcessId) : (editingTask.processId || taskProcessId),
+        plannedDate: isProcessLeader ? (newTaskData.plannedDate || '') : (editingTask.plannedDate || ''),
+        plannedEndDate: isProcessLeader ? (newTaskData.plannedEndDate || '') : (editingTask.plannedEndDate || ''),
+        plannedStartTime: isProcessLeader ? (newTaskData.plannedStartTime || '') : (editingTask.plannedStartTime || ''),
+        plannedEndTime: isProcessLeader ? (newTaskData.plannedEndTime || '') : (editingTask.plannedEndTime || ''),
+        actualEndDate: newTaskData.actualEndDate || '',
+        actualStartDate: newTaskData.actualStartDate || '',
+        actualStartTime: newTaskData.actualStartTime || '',
+        actualEndTime: newTaskData.actualEndTime || '',
+        memberId: isProcessLeader ? (newTaskData.memberId || '') : (editingTask.memberId || ''),
+        auxiliaryId: isProcessLeader ? (newTaskData.auxiliaryId || '') : (editingTask.auxiliaryId || ''),
+        auxiliaryIds: isProcessLeader ? (newTaskData.auxiliaryIds || []) : (editingTask.auxiliaryIds || []),
+        revisorId: isProcessLeader ? (newTaskData.revisorId || '') : (editingTask.revisorId || ''),
+        projectId: isProcessLeader || isResponsible ? (newTaskData.projectId || '') : (editingTask.projectId || ''),
+        taskTemplate: newTaskData.taskTemplate || 'standard',
+        designData: newTaskData.designData || { campaign: '', formats: '', elements: [] },
+        status: newTaskData.status as any,
+        deliverables: newTaskData.deliverables || [],
+        plannedHours: isProcessLeader ? (Number(newTaskData.plannedHours) || 0) : (editingTask.plannedHours || 0),
+        actualHours: finalActualHours,
+        dueDate: isProcessLeader ? (newTaskData.dueDate || '') : (editingTask.dueDate || ''),
+        blockedByTaskIds: isProcessLeader ? (newTaskData.blockedByTaskIds || []) : (editingTask.blockedByTaskIds || []),
+        history: updatedHistory
+      };
+
+      await updateDoc(doc(db, 'tasks', editingTask.id), sanitizeForFirestore(updatePayload));
     } catch (error: any) {
       console.error("Error updating task: ", error);
       alert(`Error al guardar la tarea en Firestore: ${error?.message || "Verifique que tiene permisos correspondientes en el proceso."}`);
@@ -752,11 +768,12 @@ export function useTaskManager({
       }
     }
     
+    const procObj = processes.find(p => p.id === taskProcessId);
     let taskAccess = getModuleAccess(currentMember, roles, taskProcessId ? `tasks_${taskProcessId}` : 'tasks');
-    if (taskProcessId === 'proc-mkt' || (taskProcessId && taskProcessId.includes('mkt'))) {
+    if (taskProcessId === 'proc-mkt' || (taskProcessId && taskProcessId.includes('mkt')) || (procObj && (procObj.name || '').toLowerCase().includes('marketing'))) {
       const mktAccess = getModuleAccess(currentMember, roles, 'marketing');
       if (mktAccess !== 'ninguno') taskAccess = mktAccess;
-    } else if (taskProcessId === 'proc-acred' || taskProcessId === 'acreditacion' || (taskProcessId && taskProcessId.includes('acred'))) {
+    } else if (taskProcessId === 'proc-acred' || taskProcessId === 'acreditacion' || (taskProcessId && taskProcessId.includes('acred')) || (procObj && (procObj.name || '').toLowerCase().includes('acreditacion'))) {
       const acredAccess = getModuleAccess(currentMember, roles, 'acreditacion');
       if (acredAccess !== 'ninguno') taskAccess = acredAccess;
     }
@@ -845,8 +862,9 @@ export function useTaskManager({
       }
     }
 
+    const procObj = processes.find(p => p.id === taskProcessId);
     let taskAccess = getModuleAccess(currentMember, roles, taskProcessId ? `tasks_${taskProcessId}` : 'tasks');
-    if (taskProcessId === 'proc-mkt') {
+    if (taskProcessId === 'proc-mkt' || (taskProcessId && taskProcessId.includes('mkt')) || (procObj && (procObj.name || '').toLowerCase().includes('marketing'))) {
       taskAccess = getModuleAccess(currentMember, roles, 'marketing');
     }
 
@@ -869,8 +887,9 @@ export function useTaskManager({
       }
     }
     
+    const procObj = processes.find(p => p.id === taskProcessId);
     let taskAccess = getModuleAccess(currentMember, roles, taskProcessId ? `tasks_${taskProcessId}` : 'tasks');
-    if (taskProcessId === 'proc-mkt') {
+    if (taskProcessId === 'proc-mkt' || (taskProcessId && taskProcessId.includes('mkt')) || (procObj && (procObj.name || '').toLowerCase().includes('marketing'))) {
       taskAccess = getModuleAccess(currentMember, roles, 'marketing');
     }
 
@@ -921,10 +940,11 @@ export function useTaskManager({
   ));
   
   let effectiveTaskAccess = getModuleAccess(currentMember, roles, currentProcessId ? `tasks_${currentProcessId}` : 'tasks');
-  if (currentProcessId === 'proc-mkt' || (currentProcessId && currentProcessId.includes('mkt'))) {
+  const currentProcObj = processes.find(p => p.id === currentProcessId);
+  if (currentProcessId === 'proc-mkt' || (currentProcessId && currentProcessId.includes('mkt')) || (currentProcObj && (currentProcObj.name || '').toLowerCase().includes('marketing'))) {
     const mktAccess = getModuleAccess(currentMember, roles, 'marketing');
     if (mktAccess !== 'ninguno') effectiveTaskAccess = mktAccess;
-  } else if (currentProcessId === 'proc-acred' || currentProcessId === 'acreditacion' || (currentProcessId && currentProcessId.includes('acred'))) {
+  } else if (currentProcessId === 'proc-acred' || currentProcessId === 'acreditacion' || (currentProcessId && currentProcessId.includes('acred')) || (currentProcObj && (currentProcObj.name || '').toLowerCase().includes('acreditacion'))) {
     const acredAccess = getModuleAccess(currentMember, roles, 'acreditacion');
     if (acredAccess !== 'ninguno') effectiveTaskAccess = acredAccess;
   }

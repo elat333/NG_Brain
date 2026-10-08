@@ -1,27 +1,58 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Shield, 
-  Lock, 
-  CheckCircle2, 
   Search, 
   Send, 
-  KeyRound, 
   Save, 
   X, 
   Building2, 
+  CheckSquare,
+  FolderKanban,
+  Calendar,
+  Download,
+  UploadCloud,
+  Sparkles,
   ChevronDown,
   Filter,
   Check,
   User,
-  Info,
-  Sparkles,
-  Layers
+  Kanban,
+  Layers,
+  TrendingUp,
+  Landmark,
+  Receipt,
+  Target,
+  Scale,
+  Settings,
+  Megaphone,
+  BookOpen,
+  Image,
+  FileSpreadsheet,
+  BarChart2,
+  Bookmark,
+  GraduationCap,
+  Users,
+  Award,
+  ShieldCheck,
+  ShieldAlert,
+  HardHat,
+  FileCheck,
+  DollarSign,
+  Contact,
+  Boxes,
+  Package,
+  Wrench,
+  Bot,
+  Sliders,
+  CheckCircle2,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TeamMember, Process, Role } from '../../types';
 import { getModuleAccess, ModuleAccessLevel } from '../../lib/permissions';
 import { db, doc, updateDoc, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { commentService } from '../../services/commentService';
+import { MODULE_SUBMODULES_REGISTRY, SubModuleItem } from '../../lib/submodulePermissionsRegistry';
 
 export interface ModulePermissionsTabProps {
   moduleId: string;
@@ -30,54 +61,64 @@ export interface ModulePermissionsTabProps {
   members: TeamMember[];
   processes?: Process[];
   roles?: Role[];
+  customSubmodules?: SubModuleItem[];
   onSaveMemberPermissions?: (memberId: string, updatedModuleAccess: Record<string, ModuleAccessLevel>) => Promise<void>;
 }
 
 const ACCESS_LEVELS: { id: ModuleAccessLevel; label: string; shortLabel: string; desc: string; activeBg: string }[] = [
-  { 
-    id: 'ninguno', 
-    label: 'Ninguno', 
-    shortLabel: 'Ninguno', 
-    desc: 'Sin acceso. El módulo no aparece visible en la barra de navegación.', 
-    activeBg: 'bg-red-500 text-white shadow-sm' 
-  },
-  { 
-    id: 'lector', 
-    label: 'Lector', 
-    shortLabel: 'Lector', 
-    desc: 'Acceso en modo solo lectura. Puede consultar información y reportes sin modificar registros.', 
-    activeBg: 'bg-amber-500 text-white shadow-sm' 
-  },
-  { 
-    id: 'colaborador', 
-    label: 'Colaborador', 
-    shortLabel: 'Colab.', 
-    desc: 'Operación activa. Puede crear, editar registros y participar en los flujos diarios del área.', 
-    activeBg: 'bg-blue-600 text-white shadow-sm' 
-  },
-  { 
-    id: 'lider', 
-    label: 'Líder', 
-    shortLabel: 'Líder', 
-    desc: 'Supervisión del módulo. Puede gestionar el equipo del área, ver permisos y solicitar ajustes.', 
-    activeBg: 'bg-purple-600 text-white shadow-sm' 
-  },
-  { 
-    id: 'administrador', 
-    label: 'Administrador', 
-    shortLabel: 'Admin.', 
-    desc: 'Control y configuración total. Capacidad para modificar permisos y parámetros generales.', 
-    activeBg: 'bg-emerald-600 text-white shadow-sm' 
-  }
+  { id: 'ninguno', label: 'Ninguno', shortLabel: 'Ninguno', desc: 'Sin acceso a este elemento', activeBg: 'bg-red-500 text-white shadow-sm' },
+  { id: 'lector', label: 'Lector', shortLabel: 'Lector', desc: 'Solo consulta y lectura', activeBg: 'bg-amber-500 text-white shadow-sm' },
+  { id: 'colaborador', label: 'Colaborador', shortLabel: 'Colab.', desc: 'Operación activa y edición de registros', activeBg: 'bg-blue-600 text-white shadow-sm' },
+  { id: 'lider', label: 'Líder', shortLabel: 'Líder', desc: 'Gestión y asignación en el área', activeBg: 'bg-purple-600 text-white shadow-sm' },
+  { id: 'administrador', label: 'Administrador', shortLabel: 'Admin.', desc: 'Control y configuración total', activeBg: 'bg-emerald-600 text-white shadow-sm' }
 ];
+
+// Helper para renderizar iconos dinámicos
+const renderSubmoduleIcon = (iconName: string, size = 18) => {
+  switch (iconName) {
+    case 'CheckSquare': return <CheckSquare size={size} />;
+    case 'FolderKanban': return <FolderKanban size={size} />;
+    case 'Calendar': return <Calendar size={size} />;
+    case 'Download': return <Download size={size} />;
+    case 'UploadCloud': return <UploadCloud size={size} />;
+    case 'TrendingUp': return <TrendingUp size={size} />;
+    case 'Landmark': return <Landmark size={size} />;
+    case 'Building2': return <Building2 size={size} />;
+    case 'Receipt': return <Receipt size={size} />;
+    case 'FileCheck': return <FileCheck size={size} />;
+    case 'Target': return <Target size={size} />;
+    case 'Scale': return <Scale size={size} />;
+    case 'Layers': return <Layers size={size} />;
+    case 'BookOpen': return <BookOpen size={size} />;
+    case 'Settings': return <Settings size={size} />;
+    case 'Megaphone': return <Megaphone size={size} />;
+    case 'Image': return <Image size={size} />;
+    case 'Contact': return <Contact size={size} />;
+    case 'FileSpreadsheet': return <FileSpreadsheet size={size} />;
+    case 'BarChart2': return <BarChart2 size={size} />;
+    case 'Bookmark': return <Bookmark size={size} />;
+    case 'GraduationCap': return <GraduationCap size={size} />;
+    case 'Users': return <Users size={size} />;
+    case 'Award': return <Award size={size} />;
+    case 'ShieldAlert': return <ShieldAlert size={size} />;
+    case 'HardHat': return <HardHat size={size} />;
+    case 'ShieldCheck': return <ShieldCheck size={size} />;
+    case 'DollarSign': return <DollarSign size={size} />;
+    case 'Boxes': return <Boxes size={size} />;
+    case 'Package': return <Package size={size} />;
+    case 'Bot': return <Bot size={size} />;
+    default: return <Shield size={size} />;
+  }
+};
 
 export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
   moduleId,
   moduleName,
   currentMember,
-  members,
+  members = [],
   processes = [],
   roles = [],
+  customSubmodules,
   onSaveMemberPermissions
 }) => {
   const [search, setSearch] = useState('');
@@ -96,21 +137,42 @@ export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Borrador de cambios: memberId -> ModuleAccessLevel
-  const [pendingChanges, setPendingChanges] = useState<Record<string, ModuleAccessLevel>>({});
+  // Submódulos a renderizar para este módulo
+  const submodules: SubModuleItem[] = useMemo(() => {
+    if (customSubmodules && customSubmodules.length > 0) return customSubmodules;
+    const fromRegistry = MODULE_SUBMODULES_REGISTRY[moduleId];
+    if (fromRegistry && fromRegistry.length > 0) return fromRegistry;
+
+    // Submódulo por defecto si no está explícito en el registro
+    return [
+      {
+        id: moduleId,
+        name: `Acceso Principal: ${moduleName}`,
+        desc: `Privilegios operativos y de visualización en el módulo de ${moduleName}.`,
+        iconName: 'Shield',
+        color: 'text-indigo-600',
+        bg: 'bg-indigo-50 border-indigo-200'
+      }
+    ];
+  }, [customSubmodules, moduleId, moduleName]);
+
+  // Borrador de cambios: memberId -> { [submoduleKey]: ModuleAccessLevel }
+  const [pendingChanges, setPendingChanges] = useState<Record<string, Record<string, ModuleAccessLevel>>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
-  // Modal para solicitud formal del líder
+  // Modal de solicitud para el líder
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [reqComponent, setReqComponent] = useState<string>(moduleId);
+  const [reqComponentName, setReqComponentName] = useState<string>(moduleName);
   const [reqLevel, setReqLevel] = useState<ModuleAccessLevel>('colaborador');
   const [reqJustification, setReqJustification] = useState<string>('');
   const [isSendingRequest, setIsSendingRequest] = useState(false);
   const [requestSuccessMsg, setRequestSuccessMsg] = useState<string | null>(null);
 
   const isAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
-  const currentAccess = getModuleAccess(currentMember, roles, moduleId);
-  const isLeader = currentAccess === 'lider' || currentAccess === 'administrador';
+  const userModuleAccess = getModuleAccess(currentMember, roles, moduleId);
+  const isLeader = userModuleAccess === 'lider' || userModuleAccess === 'administrador';
 
   // Filtrado de miembros
   const filteredMembers = useMemo(() => {
@@ -135,47 +197,62 @@ export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
   }, [members, filteredMembers, selectedMemberId]);
 
   // Manejar cambio de nivel para el miembro seleccionado
-  const handleLevelChange = (memberId: string, level: ModuleAccessLevel) => {
+  const handleLevelChange = (memberId: string, subKey: string, level: ModuleAccessLevel) => {
     if (!isAdmin) return;
     setPendingChanges(prev => ({
       ...prev,
-      [memberId]: level
+      [memberId]: {
+        ...(prev[memberId] || {}),
+        [subKey]: level
+      }
     }));
   };
 
-  // Nivel efectivo del usuario en este módulo
-  const getMemberEffectiveLevel = (member: TeamMember): ModuleAccessLevel => {
-    if (pendingChanges[member.id] !== undefined) {
-      return pendingChanges[member.id];
+  // Obtener valor actual o pendiente para un submódulo
+  const getMemberEffectiveLevel = (member: TeamMember, subKey: string): ModuleAccessLevel => {
+    if (pendingChanges[member.id] && pendingChanges[member.id][subKey] !== undefined) {
+      return pendingChanges[member.id][subKey];
+    }
+    return getModuleAccess(member, roles, subKey);
+  };
+
+  // Nivel principal del módulo
+  const getMemberMainModuleLevel = (member: TeamMember): ModuleAccessLevel => {
+    if (pendingChanges[member.id] && pendingChanges[member.id][moduleId] !== undefined) {
+      return pendingChanges[member.id][moduleId];
     }
     return getModuleAccess(member, roles, moduleId);
   };
 
+  // Determinar si el integrante seleccionado tiene cambios pendientes
+  const hasMemberUnsavedChanges = useMemo(() => {
+    if (!selectedMember) return false;
+    const memberPending = pendingChanges[selectedMember.id];
+    return Boolean(memberPending && Object.keys(memberPending).length > 0);
+  }, [pendingChanges, selectedMember]);
+
   // Guardar cambios en Firestore
   const handleSaveMember = async (member: TeamMember) => {
-    const newLevel = pendingChanges[member.id];
-    if (!newLevel) return;
+    const memberChanges = pendingChanges[member.id];
+    if (!memberChanges || Object.keys(memberChanges).length === 0) return;
 
     setIsSaving(true);
     setSaveSuccessMsg(null);
     try {
-      const currentModuleAccess = { ...(member.moduleAccess || {}) };
-      const updatedModuleAccess = {
-        ...currentModuleAccess,
-        [moduleId]: newLevel
-      };
+      const currentAccess = { ...(member.moduleAccess || {}) };
+      const updatedAccess = { ...currentAccess, ...memberChanges };
 
       if (onSaveMemberPermissions) {
-        await onSaveMemberPermissions(member.id, updatedModuleAccess);
+        await onSaveMemberPermissions(member.id, updatedAccess);
       } else {
         const memberRef = doc(db, 'members', member.id);
         await updateDoc(memberRef, {
-          moduleAccess: updatedModuleAccess,
+          moduleAccess: updatedAccess,
           updatedAt: new Date().toISOString()
         });
       }
 
-      member.moduleAccess = updatedModuleAccess;
+      member.moduleAccess = updatedAccess;
 
       setPendingChanges(prev => {
         const next = { ...prev };
@@ -183,11 +260,11 @@ export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
         return next;
       });
 
-      setSaveSuccessMsg(`¡Permisos de ${moduleName} actualizados exitosamente para ${member.name}!`);
+      setSaveSuccessMsg(`¡Permisos de ${moduleName} para ${member.name} actualizados exitosamente!`);
       setTimeout(() => setSaveSuccessMsg(null), 3500);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `Guardar permisos de ${member.name}`);
-      alert('Error al guardar los permisos. Verifica la consola.');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, 'members');
+      alert(`Error al guardar los permisos de ${moduleName}. Verifica la consola.`);
     } finally {
       setIsSaving(false);
     }
@@ -205,8 +282,8 @@ export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
         requesterName: currentMember.name,
         targetMemberId: selectedMember.id,
         targetMemberName: selectedMember.name,
-        moduleId: moduleId,
-        moduleName: moduleName,
+        moduleId: reqComponent,
+        moduleName: `${moduleName}: ${reqComponentName}`,
         requestedLevel: reqLevel,
         justification: reqJustification.trim()
       });
@@ -223,15 +300,24 @@ export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
     }
   };
 
+  const openRequestModal = (compKey: string, compName: string, defaultLvl: ModuleAccessLevel = 'colaborador') => {
+    if (!selectedMember) return;
+    setReqComponent(compKey);
+    setReqComponentName(compName);
+    setReqLevel(defaultLvl);
+    setReqJustification('');
+    setIsRequestModalOpen(true);
+  };
+
   const getMemberProcessName = (procId?: string) => {
     if (!procId) return 'Sin proceso';
     const found = processes.find(p => p.id === procId);
     return found ? found.name : procId;
   };
 
-  const currentLevelForSelected = selectedMember ? getMemberEffectiveLevel(selectedMember) : 'ninguno';
-  const hasMemberUnsavedChanges = selectedMember && pendingChanges[selectedMember.id] !== undefined;
-  const selectedLevelConfig = ACCESS_LEVELS.find(l => l.id === currentLevelForSelected);
+  const selectedMemberEffectiveAccess = selectedMember 
+    ? getMemberMainModuleLevel(selectedMember) 
+    : 'ninguno';
 
   return (
     <div className="space-y-6">
@@ -286,8 +372,8 @@ export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
                   ) : (
                     filteredMembers.map(m => {
                       const isSelected = selectedMember?.id === m.id;
-                      const hasPending = pendingChanges[m.id] !== undefined;
-                      const currentLevel = getMemberEffectiveLevel(m);
+                      const hasPending = Boolean(pendingChanges[m.id] && Object.keys(pendingChanges[m.id]).length > 0);
+                      const currentLevel = getMemberMainModuleLevel(m);
 
                       return (
                         <button
@@ -362,7 +448,7 @@ export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-black text-gray-900 truncate">{selectedMember.name}</span>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase">
-                      {currentLevelForSelected}
+                      {selectedMemberEffectiveAccess}
                     </span>
                   </div>
                   <p className="text-[10px] text-gray-500 truncate">{selectedMember.role || 'Sin cargo'}</p>
@@ -386,10 +472,7 @@ export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
                   </button>
                 ) : isLeader ? (
                   <button
-                    onClick={() => {
-                      setReqLevel(currentLevelForSelected === 'ninguno' ? 'colaborador' : currentLevelForSelected);
-                      setIsRequestModalOpen(true);
-                    }}
+                    onClick={() => openRequestModal(moduleId, moduleName)}
                     className="px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/25 flex items-center gap-1.5 transition-all cursor-pointer"
                   >
                     <Send size={13} />
@@ -431,81 +514,164 @@ export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
       {/* CUERPO PRINCIPAL: Formato Tabular Horizontal a Ancho Completo */}
       {selectedMember ? (
         <div className="space-y-6">
-          {/* Fila Principal de Nivel del Módulo */}
+          {/* SECCIÓN 1: Submódulos del Módulo */}
           <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
-                  <Shield size={18} />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black uppercase tracking-wider text-gray-900">
-                    Nivel de Acceso en {moduleName}
-                  </h4>
-                  <p className="text-[11px] text-gray-500">
-                    Define los privilegios específicos de este integrante en el módulo de {moduleName}
-                  </p>
-                </div>
-              </div>
-
-              {isLeader && !isAdmin && (
-                <button
-                  onClick={() => {
-                    setReqLevel(currentLevelForSelected === 'ninguno' ? 'colaborador' : currentLevelForSelected);
-                    setIsRequestModalOpen(true);
-                  }}
-                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 flex items-center gap-1 transition-colors"
-                >
-                  <Send size={11} />
-                  Solicitar
-                </button>
-              )}
+            <div className="pb-3 border-b border-gray-100">
+              <h4 className="text-xs font-black uppercase tracking-wider text-gray-900 flex items-center gap-2">
+                <Shield size={15} className="text-indigo-600" />
+                Submódulos y Menús de {moduleName} ({submodules.length})
+              </h4>
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                Privilegios específicos para cada sección, tablero y funcionalidad interna de {moduleName}
+              </p>
             </div>
 
-            {/* Selector de 5 Niveles en Línea Horizontal */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-              {ACCESS_LEVELS.map(lvl => {
-                const isActive = currentLevelForSelected === lvl.id;
+            <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden bg-white">
+              {submodules.map(submod => {
+                const currentVal = getMemberEffectiveLevel(selectedMember, submod.id);
 
                 return (
-                  <button
-                    key={lvl.id}
-                    disabled={!isAdmin}
-                    onClick={() => handleLevelChange(selectedMember.id, lvl.id)}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold text-center transition-all border ${
-                      isActive
-                        ? lvl.activeBg
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                    } ${!isAdmin ? 'cursor-default' : 'cursor-pointer'}`}
+                  <div
+                    key={submod.id}
+                    className="p-4 hover:bg-gray-50/80 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
                   >
-                    {lvl.label}
-                  </button>
+                    {/* Lado Izquierdo: Icono + Título + Descripción */}
+                    <div className="flex items-center gap-3 min-w-0 md:max-w-md">
+                      <div className={`p-2 rounded-xl border shrink-0 ${submod.bg} ${submod.color}`}>
+                        {renderSubmoduleIcon(submod.iconName)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-gray-900 truncate">{submod.name}</span>
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600">
+                            {currentVal}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 line-clamp-1 leading-relaxed">
+                          {submod.desc}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Lado Derecho: 5 Botones de Nivel en Línea Horizontal + Botón Solicitar */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="grid grid-cols-5 gap-1 bg-gray-100/70 p-1 rounded-xl">
+                        {ACCESS_LEVELS.map(lvl => {
+                          const isActive = currentVal === lvl.id;
+                          return (
+                            <button
+                              key={lvl.id}
+                              disabled={!isAdmin}
+                              onClick={() => handleLevelChange(selectedMember.id, submod.id, lvl.id)}
+                              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-center transition-all ${
+                                isActive
+                                  ? `${lvl.activeBg} font-black`
+                                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
+                              } ${!isAdmin ? 'cursor-default' : 'cursor-pointer'}`}
+                              title={lvl.desc}
+                            >
+                              {lvl.shortLabel}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {isLeader && !isAdmin && (
+                        <button
+                          onClick={() => openRequestModal(submod.id, submod.name, currentVal)}
+                          className="px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 flex items-center gap-1 transition-colors shrink-0"
+                          title="Solicitar cambio al administrador"
+                        >
+                          <Send size={11} />
+                          <span>Solicitar</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Tarjeta de Alcance y Capacidades Operativas */}
-          <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-xs space-y-3">
-            <div className="flex items-center gap-2 text-indigo-600 font-black text-xs uppercase tracking-wider">
-              <Info size={15} />
-              <span>Alcance del Nivel: {selectedLevelConfig?.label}</span>
-            </div>
-            <p className="text-xs text-gray-600 font-medium leading-relaxed">
-              {selectedLevelConfig?.desc}
-            </p>
+          {/* SECCIÓN 2: Permisos por Proceso Departamental */}
+          {processes.length > 0 && (
+            <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-xs space-y-4">
+              <div className="pb-3 border-b border-gray-100">
+                <h4 className="text-xs font-black uppercase tracking-wider text-gray-900 flex items-center gap-2">
+                  <Building2 size={15} className="text-indigo-600" />
+                  Permisos de {moduleName} por Proceso Departamental ({processes.length})
+                </h4>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Controla la visualización y participación de este integrante en los flujos departamentales de {moduleName}
+                </p>
+              </div>
 
-            <div className="pt-3 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
-              <div className="flex items-center gap-2 text-gray-600">
-                <span className={`w-2 h-2 rounded-full ${currentLevelForSelected === 'ninguno' ? 'bg-red-400' : 'bg-emerald-500'}`} />
-                <span>Visibilidad en barra lateral: <strong>{currentLevelForSelected === 'ninguno' ? 'Oculto' : 'Visible'}</strong></span>
-              </div>
-              <div className="flex items-center gap-2 text-gray-600">
-                <span className={`w-2 h-2 rounded-full ${currentLevelForSelected === 'lider' || currentLevelForSelected === 'administrador' ? 'bg-emerald-500' : 'bg-gray-300'}`} />
-                <span>Acceso a pestaña de Permisos: <strong>{currentLevelForSelected === 'lider' || currentLevelForSelected === 'administrador' ? 'Habilitado' : 'Bloqueado'}</strong></span>
+              <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden bg-white">
+                {processes.map(proc => {
+                  const procKey = `${moduleId}_proc_${proc.id}`;
+                  const currentVal = getMemberEffectiveLevel(selectedMember, procKey);
+
+                  return (
+                    <div
+                      key={proc.id}
+                      className="p-4 hover:bg-gray-50/80 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 md:max-w-md">
+                        <div className="p-2 rounded-xl border shrink-0 bg-indigo-50 border-indigo-200 text-indigo-600">
+                          <Building2 size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-gray-900 truncate">{proc.name}</span>
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600">
+                              {currentVal}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-500 line-clamp-1 leading-relaxed">
+                            {proc.description || `Área departamental de ${proc.name}`}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="grid grid-cols-5 gap-1 bg-gray-100/70 p-1 rounded-xl">
+                          {ACCESS_LEVELS.map(lvl => {
+                            const isActive = currentVal === lvl.id;
+                            return (
+                              <button
+                                key={lvl.id}
+                                disabled={!isAdmin}
+                                onClick={() => handleLevelChange(selectedMember.id, procKey, lvl.id)}
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-center transition-all ${
+                                  isActive
+                                    ? `${lvl.activeBg} font-black`
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
+                                } ${!isAdmin ? 'cursor-default' : 'cursor-pointer'}`}
+                                title={lvl.desc}
+                              >
+                                {lvl.shortLabel}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {isLeader && !isAdmin && (
+                          <button
+                            onClick={() => openRequestModal(procKey, `${moduleName} en ${proc.name}`, currentVal)}
+                            className="px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 flex items-center gap-1 transition-colors shrink-0"
+                            title="Solicitar cambio al administrador"
+                          >
+                            <Send size={11} />
+                            <span>Solicitar</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
+          )}
         </div>
       ) : (
         <div className="bg-white border border-gray-100 rounded-3xl p-12 text-center text-xs text-gray-400">
@@ -541,7 +707,7 @@ export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
                   <strong>Integrante:</strong> {selectedMember?.name}
                 </p>
                 <p>
-                  <strong>Módulo:</strong> {moduleName}
+                  <strong>Elemento:</strong> {reqComponentName}
                 </p>
               </div>
 
@@ -568,7 +734,7 @@ export const ModulePermissionsTab: React.FC<ModulePermissionsTabProps> = ({
                   <textarea
                     rows={3}
                     required
-                    placeholder={`Explica por qué este integrante necesita este nivel en ${moduleName}...`}
+                    placeholder={`Explica por qué este integrante necesita este nivel en ${reqComponentName}...`}
                     value={reqJustification}
                     onChange={(e) => setReqJustification(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"

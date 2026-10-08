@@ -22,7 +22,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db, sanitizeForFirestore } from '../../lib/firebase';
 import { Trainer, TeamMember, Company, Process, Role, PersonCategory, TrainingPlan, TrainingSpace } from '../../types';
 import { MemberEditorView } from '../common/MemberEditorView';
-import { TrainerDetailModal } from './TrainerDetailModal';
+import { Trainer360View } from './Trainer360View';
 import { SearchableSelect } from '../common/SearchableSelect';
 
 interface TrainersViewProps {
@@ -217,6 +217,31 @@ export const TrainersView: React.FC<TrainersViewProps> = ({
       setIsSavingMember(false);
     }
   };
+
+  if (viewingTrainer) {
+    const trainerMember = getMemberInfo(viewingTrainer.directoryId);
+    return (
+      <Trainer360View
+        trainer={viewingTrainer}
+        member={trainerMember}
+        company={getCompanyForMember(trainerMember)}
+        process={getProcessForMember(trainerMember)}
+        plans={plans}
+        spaces={spaces}
+        allMembers={members}
+        onBack={() => setViewingTrainer(null)}
+        onSave={async (updated) => {
+          await onSaveTrainer(updated);
+          setViewingTrainer({ ...viewingTrainer, ...updated } as Trainer);
+        }}
+        onDelete={async (id) => {
+          await onDeleteTrainer(id);
+          setViewingTrainer(null);
+        }}
+        isReadOnly={isReadOnly}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -556,24 +581,7 @@ export const TrainersView: React.FC<TrainersViewProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Modal Ficha Integral del Capacitador */}
-      <AnimatePresence>
-        {viewingTrainer && (
-          <TrainerDetailModal
-            trainer={viewingTrainer}
-            member={getMemberInfo(viewingTrainer.directoryId)}
-            company={getCompanyForMember(getMemberInfo(viewingTrainer.directoryId))}
-            process={getProcessForMember(getMemberInfo(viewingTrainer.directoryId))}
-            plans={plans}
-            spaces={spaces}
-            onClose={() => setViewingTrainer(null)}
-            onEdit={(tr) => {
-              setViewingTrainer(null);
-              handleOpenModal(tr);
-            }}
-          />
-        )}
-      </AnimatePresence>
+
 
       {/* Modal para Crear Persona en Directorio (Oficial con MemberEditorView) */}
       <AnimatePresence>

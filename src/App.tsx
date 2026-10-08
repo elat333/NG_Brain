@@ -79,6 +79,8 @@ export default function App() {
     setProductosSubTab,
     inventarioSubTab,
     setInventarioSubTab,
+    finanzasSubTab,
+    setFinanzasSubTab,
     qhseSubTab,
     setQhseSubTab,
     selectedProcessId,
@@ -498,6 +500,7 @@ export default function App() {
     handleInventarioSubTabClick,
     handleQhseSubTabClick,
     handleImportacionesSubTabClick,
+    handleFinanzasSubTabClick,
     handleTasksSubTabClick,
     handleMemberClick,
     handleCancelPendingExit,
@@ -525,6 +528,8 @@ export default function App() {
     setProductosSubTab,
     inventarioSubTab,
     setInventarioSubTab,
+    finanzasSubTab,
+    setFinanzasSubTab,
     qhseSubTab,
     setQhseSubTab,
     importacionesSubTab,
@@ -670,6 +675,8 @@ export default function App() {
         setDirectorySubTab={handleDirectorySubTabClick}
         importacionesSubTab={importacionesSubTab}
         setImportacionesSubTab={handleImportacionesSubTabClick}
+        finanzasSubTab={finanzasSubTab}
+        setFinanzasSubTab={handleFinanzasSubTabClick}
         commentsSubTab={commentsSubTab}
         setCommentsSubTab={setCommentsSubTab}
         settingsSubTab={settingsSubTab}
@@ -816,6 +823,8 @@ export default function App() {
               setQhseSubTab={setQhseSubTab}
               importacionesSubTab={importacionesSubTab}
               setImportacionesSubTab={setImportacionesSubTab}
+              finanzasSubTab={finanzasSubTab}
+              setFinanzasSubTab={setFinanzasSubTab}
               marketingSubTab={marketingSubTab}
               setMarketingSubTab={setMarketingSubTab}
               directorySubTab={directorySubTab}

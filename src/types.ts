@@ -836,6 +836,195 @@ export interface SalesQuote {
   createdAt: string;
 }
 
+// --- Tryton ERP Financial & Banking Core Types ---
+export type FiscalTaxType = 'iva_15' | 'iva_0' | 'exento' | 'no_objeto';
+export type FiscalInvoiceType = 
+  | 'factura_emitida'     // Venta / Ingreso con Factura emitida al cliente
+  | 'factura_recibida'    // Compra / Gasto con Factura recibida del proveedor/docente
+  | 'nota_venta_rimpe'    // Comprobante de negocio popular / RIMPE
+  | 'recibo_honorarios'   // Recibo o comprobante interno
+  | 'sin_comprobante';    // Gasto menor sin factura
+
+export type FinancialStage = 'planificado' | 'comprometido' | 'ejecutado_validado' | 'anulado';
+export type PaymentMethod = 'transferencia' | 'tarjeta' | 'efectivo' | 'cheque' | 'retencion' | 'otro';
+
+// Tryton: bank (Directorio de Entidades Bancarias & Códigos SWIFT/BIC)
+export interface BankEntity {
+  id: string;
+  name: string;                         // ej. "Banco Pichincha C.A.", "Banco Guayaquil", "Produbanco"
+  code: string;                         // ej. "BPICH", "BGYE", "PROD"
+  bicSwift?: string;                    // ej. "PICHECEQ", "GUAYECEG"
+  country?: string;                     // ej. "Ecuador"
+  website?: string;
+  phone?: string;
+  notes?: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+// Tryton: account.account (Plan General Contable / Árbol de Cuentas)
+export type AccountCategoryType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+
+export interface AccountChartNode {
+  id: string;
+  code: string;                         // ej. "1", "1.1", "1.1.01", "1.1.01.001"
+  name: string;                         // ej. "Activo", "Activo Corriente", "Bancos y Cajas", "Banco Pichincha Cta Cte"
+  type: AccountCategoryType;
+  parentCode?: string;                  // Código de la cuenta padre
+  level: number;                        // 1, 2, 3, 4
+  balance?: number;                     // Saldo contable acumulado
+  isReconcilable?: boolean;             // Permite conciliación directa
+  isActive: boolean;
+  notes?: string;
+}
+
+// Tryton: account.journal (Diarios Contables)
+export type JournalType = 'bank' | 'cash' | 'sale' | 'purchase' | 'general' | 'situation';
+
+export interface AccountJournal {
+  id: string;
+  code: string;                         // ej. "BNK1", "CAJA", "VENTAS", "COMPRAS", "GEN"
+  name: string;                         // ej. "Diario Banco Pichincha", "Diario Caja Chica Quito"
+  type: JournalType;
+  defaultDebitAccountId?: string;       // Cuenta contable asociada por defecto
+  defaultCreditAccountId?: string;
+  sequence?: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+// Tryton: account.fiscalyear & account.period (Años y Periodos Fiscales)
+export interface FiscalPeriod {
+  id: string;
+  fiscalYearId: string;
+  name: string;                         // ej. "Enero 2026", "Febrero 2026"
+  code: string;                         // ej. "2026-01"
+  startDate: string;                    // YYYY-MM-DD
+  endDate: string;                      // YYYY-MM-DD
+  state: 'abierto' | 'cerrado' | 'bloqueado';
+}
+
+export interface FiscalYear {
+  id: string;
+  name: string;                         // ej. "Ejercicio Fiscal 2026"
+  code: string;                         // ej. "FY2026"
+  startDate: string;                    // 2026-01-01
+  endDate: string;                      // 2026-12-31
+  state: 'abierto' | 'cerrado' | 'bloqueado';
+  periods?: FiscalPeriod[];
+  createdAt: string;
+}
+
+// Tryton: account.tax (Configuración de Impuestos y Retenciones SRI)
+export interface FiscalTaxConfig {
+  id: string;
+  code: string;                         // ej. "IVA-15", "IVA-0", "RET-IR-1.75", "RET-IVA-30"
+  name: string;                         // ej. "IVA 15% General Ecuador", "Retención Impuesto a la Renta 1.75%"
+  type: 'iva' | 'retencion_renta' | 'retencion_iva';
+  rate: number;                         // 0.15, 0.00, 0.0175, 0.30
+  description?: string;
+  accountDebitId?: string;              // Cuenta contable compras / retención asumida
+  accountCreditId?: string;             // Cuenta contable ventas / retención efectuada
+  isActive: boolean;
+}
+
+// Tryton: account_statement (Extracto Bancario Oficial)
+export interface BankStatement {
+  id: string;
+  bankAccountId: string;
+  statementNumber?: string;             // No. de Extracto bancario
+  statementDate: string;                // Fecha de corte YYYY-MM-DD
+  startBalance: number;                 // Saldo inicial del extracto
+  endBalanceCalculated: number;         // Saldo según transacciones registradas
+  endBalanceReal: number;               // Saldo final oficial del estado de cuenta
+  difference: number;                   // Descuadre (endBalanceReal - endBalanceCalculated)
+  state: 'borrador' | 'validado' | 'conciliado';
+  linesCount: number;
+  notes?: string;
+  reconciledAt?: string;
+  reconciledByMemberId?: string;
+  createdAt: string;
+}
+
+// Tryton: bank & bank.account
+export interface BankAccount {
+  id: string;
+  bankName: string;                     // ej. "Banco Pichincha", "Produbanco", "Caja Chica Matriz"
+  accountNumber: string;                // ej. "2100123456"
+  accountType: 'corriente' | 'ahorros' | 'caja_chica' | 'billetera_digital';
+  currency: 'USD' | 'EUR';
+  holderName: string;                   // Razón Social / Titular
+  holderTaxId?: string;                 // RUC del titular
+  initialBalance: number;               // Saldo inicial de apertura
+  currentBalance: number;               // Saldo actual calculado
+  isCompanyAccount: boolean;            // true si es de la empresa, false si es de un tercero
+  ownerDirectoryId?: string;            // Vinculado a Company.id o TeamMember.id (para docentes/proveedores)
+  status: 'activa' | 'inactiva' | 'bloqueada';
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// Tryton: account.statement.line (Libro de Banco / Movimiento de Tesorería)
+export interface BankTransaction {
+  id: string;
+  accountId: string;                    // ID de la BankAccount afectada
+  accountName: string;
+  type: 'ingreso' | 'egreso' | 'transferencia_interna';
+  date: string;                         // YYYY-MM-DD
+  amount: number;                       // Monto neto de la transacción
+  
+  // Detalle Fiscal Tryton
+  hasTax?: boolean;
+  taxType?: FiscalTaxType;
+  taxAmount?: number;
+  subtotal?: number;
+  
+  // Categorización y Eje Analítico
+  category: 
+    | 'cobro_capacitacion' 
+    | 'pago_honorarios_docente' 
+    | 'cobro_ventas_b2b' 
+    | 'pago_importacion' 
+    | 'gasto_logistica' 
+    | 'gasto_marketing' 
+    | 'pago_servicios' 
+    | 'transferencia_interna' 
+    | 'otro';
+    
+  concept: string;                      // Glosa / Descripción de la transacción
+  referenceNumber?: string;             // No. de transferencia, cheque o comprobante
+  voucherUrl?: string;                  // Comprobante PDF / Foto de la transferencia
+  
+  // Vinculación Operativa (Centros de Costo Tryton)
+  trainingPlanId?: string;              // Vinculado a un curso
+  projectId?: string;                   // Vinculado a un proyecto
+  importProformaId?: string;            // Vinculado a una importación
+  clientId?: string;                    // Vinculado a un cliente
+  supplierId?: string;                  // Vinculado a un proveedor
+  trainerId?: string;                   // Vinculado a un capacitador
+  
+  // Conciliación
+  isReconciled: boolean;
+  reconciledWithInvoiceNumber?: string;
+  reconciledAt?: string;
+  reconciledBy?: string;
+  
+  registeredByMemberId: string;
+  registeredByName?: string;
+  createdAt: string;
+}
+
+// Tryton: account.statement (Resumen de Tesorería)
+export interface TreasuryOverview {
+  totalLiquidity: number;               // Suma de todas las cuentas bancarias + cajas
+  monthlyInflows: number;               // Total ingresos del mes
+  monthlyOutflows: number;              // Total egresos del mes
+  netCashFlow: number;                  // Flujo neto mensual (Inflows - Outflows)
+  pendingReconciliationsCount: number;  // Transacciones pendientes de comprobante/factura
+}
+
+// Module: Capacitación & Talento Types
 export interface Trainer {
   id: string;
   type: 'interno' | 'externo';
@@ -848,7 +1037,18 @@ export interface Trainer {
   preferredModality?: 'presencial' | 'virtual' | 'hibrido';
   logisticsNotes?: string;          // Condiciones de viaje, viáticos, requerimientos
   relationshipNotes?: string;       // Notas sobre la relación institucional o acuerdos
+  rating?: number;                  // Calificación promedio (1-5)
+  certifications?: string[];        // Lista de títulos / certificados
+  cvUrl?: string;                   // Enlace al CV o hoja de vida
+  bankAccount?: {
+    bankName: string;
+    accountNumber: string;
+    accountType: 'ahorros' | 'corriente';
+    holderName: string;
+    holderTaxId: string;
+  };
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TrainingSpace {
@@ -863,24 +1063,91 @@ export interface TrainingSpace {
   createdAt?: string;
 }
 
+// Tryton: account.budget.line (Gasto Planificado vs Validado)
 export interface TrainingExpenseItem {
   id: string;
   description: string;
+  category?: 'honorarios' | 'logistica' | 'aulas' | 'marketing' | 'certificados' | 'materiales' | 'otro';
+  
+  // Fase: Planificado vs Real
+  isPlanned?: boolean;                  // true si es presupuesto planificado, false si es real
+  stage?: FinancialStage;               // 'planificado' | 'comprometido' | 'ejecutado_validado'
+  
   quantity: number;
-  unitPrice: number; // sin IVA
-  subtotal: number;  // quantity * unitPrice (sin IVA)
+  unitPrice: number;                    // sin IVA (Base Imponible)
+  subtotal: number;                     // quantity * unitPrice (sin IVA)
+  
+  // Fiscal Tryton (account.tax)
+  hasIva?: boolean;
+  taxType?: FiscalTaxType;              // 'iva_15' | 'iva_0' | 'exento'
+  taxRate?: number;                     // 0.15 para 15%
+  taxAmount?: number;                   // subtotal * taxRate
+  total?: number;                       // subtotal + taxAmount
+  
+  // Comprobante Fiscal Tryton (account.invoice)
+  invoiceType?: FiscalInvoiceType;      // 'factura_recibida' | 'nota_venta_rimpe' | 'sin_comprobante'
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  invoiceUrl?: string;
+  
+  // Validación de Auditoría
+  isValidated?: boolean;
+  validatedBy?: string;
+  validatedAt?: string;
+  
   notes?: string;
 }
 
+// Tryton: account.budget.line (Ingreso Planificado vs Validado)
 export interface TrainingIncomeItem {
   id: string;
-  concept: string; // e.g. "Inscripción 15 participantes", "Venta de Curso In-Company"
-  quantity: number; // Cantidad de cupos o participantes
-  unitPrice: number; // Precio unitario sin IVA
-  subtotal: number; // quantity * unitPrice (sin IVA)
-  paymentStatus?: 'cobrado' | 'pendiente';
+  concept: string;                      // e.g. "Inscripción 15 participantes", "Venta In-Company"
+  
+  // Fase: Planificado vs Real
+  isPlanned?: boolean;                  // true si es proyección, false si es cobro real
+  stage?: FinancialStage;               // 'planificado' | 'comprometido' | 'ejecutado_validado'
+  
+  quantity: number;                     // Cantidad de cupos o participantes
+  unitPrice: number;                    // Precio unitario sin IVA
+  subtotal: number;                     // quantity * unitPrice (sin IVA)
+  
+  // Fiscal Tryton (account.tax)
+  hasIva?: boolean;
+  taxType?: FiscalTaxType;              // 'iva_15' | 'iva_0' | 'exento'
+  taxRate?: number;                     // 0.15 para 15%
+  taxAmount?: number;                   // subtotal * taxRate
+  total?: number;                       // subtotal + taxAmount
+  
+  // Facturación y Cobro (account.invoice)
+  paymentStatus?: 'cobrado' | 'pendiente' | 'parcial';
+  invoiceType?: FiscalInvoiceType;      // 'factura_emitida' | 'nota_venta_rimpe' | 'sin_comprobante'
   invoiceOrReceiptNumber?: string;
+  invoiceUrl?: string;
   clientId?: string;
+  clientName?: string;
+  
+  // Validación de Tesorería
+  isValidated?: boolean;
+  validatedBy?: string;
+  validatedAt?: string;
+  
+  notes?: string;
+}
+
+export interface TrainingParticipant {
+  id: string;
+  name: string;
+  identification?: string;              // Cédula o RUC
+  email?: string;
+  phone?: string;
+  companyName?: string;
+  attendancePercent?: number;           // % de asistencia a clases
+  finalGrade?: number;                  // Calificación final (0-10 o 0-100)
+  status: 'inscrito' | 'en_curso' | 'aprobado' | 'reprobado' | 'retirado';
+  certificateIssued?: boolean;
+  certificateCode?: string;
+  paymentStatus?: 'pagado' | 'pendiente' | 'becado' | 'parcial';
+  amountPaid?: number;
   notes?: string;
 }
 
@@ -906,6 +1173,7 @@ export interface TrainingSession {
 export interface TrainingPlan {
   id: string;
   title: string;
+  code?: string;
   description?: string;
   sessions?: TrainingSession[];
   trainerId: string;
@@ -917,7 +1185,9 @@ export interface TrainingPlan {
   totalHours?: number;
   totalExecutedHours?: number;
   status: 'programada' | 'completada' | 'cancelada';
+  participants?: TrainingParticipant[];
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TrainingManagement {
@@ -935,7 +1205,13 @@ export interface TrainingManagement {
   totalHours: number; // Horas planificadas totales
   totalExecutedHours?: number; // Horas ejecutadas totales
 
-  // Costos y Gastos (sin IVA)
+  // Presupuesto Planificado (Tryton account.budget)
+  plannedTotalIncome?: number;
+  plannedTotalCost?: number;
+  plannedNetProfit?: number;
+  plannedProfitMargin?: number;
+
+  // Costos y Gastos Reales/Validados (sin IVA)
   totalTrainerCost?: number; // Total honorarios docentes sin IVA
   totalLogisticsCost?: number; // Total logística sin IVA
   totalSpaceCost?: number; // Total uso de aulas / Zoom sin IVA
@@ -943,11 +1219,16 @@ export interface TrainingManagement {
   totalCertificateCost?: number; // Total gastos en certificados y acreditaciones sin IVA
   totalCost: number; // Gran total de costos sin IVA
 
-  // Ingresos y Rentabilidad (sin IVA)
+  // Ingresos y Rentabilidad Real/Validada (sin IVA)
   incomes?: TrainingIncomeItem[];
   totalIncome?: number; // Gran total de ingresos sin IVA
   netProfit?: number; // Utilidad neta: totalIncome - totalCost
   profitMargin?: number; // Margen de rentabilidad %
+
+  // Desviación Presupuestaria (Tryton Variance)
+  incomeVariance?: number;
+  expenseVariance?: number;
+  profitVariance?: number;
 
   status: 'ejecutada' | 'pendiente';
   logisticsExpenses?: TrainingExpenseItem[];
@@ -955,6 +1236,7 @@ export interface TrainingManagement {
   marketingExpenses?: TrainingExpenseItem[];
   certificateExpenses?: TrainingExpenseItem[]; // Gastos en certificados y acreditaciones
   createdAt?: string;
+  updatedAt?: string;
 }
 
 // Module: Productos Types
@@ -1044,5 +1326,75 @@ export interface AcreditationCertification {
   updatedAt?: string;
 }
 
+// ==========================================
+// Module: QHSE - Inspección de Andamios
+// Formato Oficial: JLC-REG-SST-017
+// ==========================================
 
+export type ScaffoldItemStatus = 'BE' | 'EA' | 'ME' | 'NA'; // BE: Buen Estado, EA: Estado Aceptable, ME: Mal Estado, NA: No Aplica
 
+export interface ScaffoldInspectionItem {
+  id: string; // '01', '02', etc.
+  code: string; // '01', '02', etc.
+  description: string;
+  status: ScaffoldItemStatus;
+  observations?: string;
+}
+
+export interface ScaffoldFindingCommitment {
+  id: string;
+  finding: string; // Hallazgo / Compromiso
+  responsible: string; // Responsable
+  executionDate: string; // Fecha de Ejecución
+  status?: 'pendiente' | 'en_proceso' | 'completado';
+}
+
+export interface ScaffoldInspectionPhoto {
+  id: string;
+  url: string; // base64 / storage url
+  caption?: string;
+  createdAt: string;
+}
+
+export interface ScaffoldInspection {
+  id: string;
+  code: string; // ej: "INS-AND-2026-0001"
+  formatCode: string; // "JLC-REG-SST-017"
+  controlledCopy: boolean; // Copia controlada
+  version: string; // "1"
+  formatDate: string; // "20/07/2025"
+  
+  // Datos Generales
+  assemblySupervisor: string; // ENCARGADO DEL MONTAJE
+  client: string; // CLIENTE
+  projectId?: string; // ID proyecto vinculado
+  projectName: string; // PROYECTO
+  location: string; // UBICACIÓN
+  inspectionDate: string; // FECHA (YYYY-MM-DD)
+  inspectionTime?: string; // HORA
+
+  // Estado General de la Inspección
+  generalStatus: 'conforme' | 'con_observaciones' | 'no_conforme' | 'borrador';
+
+  // 23 Items de Inspección
+  items: ScaffoldInspectionItem[];
+
+  // Seguimiento de Hallazgos
+  findings: ScaffoldFindingCommitment[];
+
+  // Firmas y Responsables
+  activitySupervisorName: string; // Nombre y Firma del Supervisor de la Actividad
+  activitySupervisorSignatureUrl?: string; // Firma digital táctil
+  
+  scaffoldSupervisorName: string; // Nombre y Firma del Supervisor de Andamios
+  scaffoldSupervisorSignatureUrl?: string; // Firma digital táctil
+
+  // Registro Fotográfico desde Tablet / Móvil
+  photos: ScaffoldInspectionPhoto[];
+
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByMemberId?: string;
+  createdByName?: string;
+}

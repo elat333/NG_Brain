@@ -277,6 +277,39 @@ export const getModuleAccess = (
     return 'colaborador';
   }
 
+  // Handle finanzas module and submodules (Tryton ERP)
+  if (moduleId === 'finanzas') {
+    const generalAccess = member.moduleAccess ? member.moduleAccess['finanzas'] : undefined;
+    if (generalAccess !== undefined) {
+      return generalAccess;
+    }
+    if (member.moduleAccess) {
+      const keys = Object.keys(member.moduleAccess);
+      const specificLevels = keys
+        .filter(k => k.startsWith('finanzas_'))
+        .map(k => member.moduleAccess![k]);
+      
+      if (specificLevels.includes('administrador')) return 'administrador';
+      if (specificLevels.includes('lider')) return 'lider';
+      if (specificLevels.includes('colaborador')) return 'colaborador';
+      if (specificLevels.includes('lector')) return 'lector';
+    }
+    return 'colaborador';
+  }
+
+  // Handle finanzas_ specific submodules
+  if (moduleId.startsWith('finanzas_')) {
+    const subAccess = member.moduleAccess ? member.moduleAccess[moduleId] : undefined;
+    if (subAccess !== undefined) {
+      return subAccess;
+    }
+    const generalAccess = member.moduleAccess ? member.moduleAccess['finanzas'] : undefined;
+    if (generalAccess !== undefined) {
+      return generalAccess;
+    }
+    return 'colaborador';
+  }
+
   // Handle comments module (Módulo Universal de Comentarios)
   if (moduleId === 'comments' || moduleId.startsWith('comments_')) {
     if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {

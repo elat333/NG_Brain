@@ -128,7 +128,12 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
   const handleAddStoryFrom360 = async (storyData: Partial<Task>) => {
     if (selectedCampaign) {
       const campProjectId = await ensureCampaignProject(selectedCampaign);
-      const mktProc = processes.find(p => p.id === selectedCampaign.processId) || processes[0];
+      const defaultMktProc = processes.find(p => {
+        const name = (p.name || '').toLowerCase();
+        const id = (p.id || '').toLowerCase();
+        return name.includes('marketing') || name.includes('crecimiento') || name.includes('comercial') || id.includes('mkt') || id.includes('marketing');
+      }) || processes[0];
+      const mktProc = (selectedCampaign.processId ? processes.find(p => p.id === selectedCampaign.processId) : null) || defaultMktProc;
       const campCode = selectedCampaign.code || selectedCampaign.name || 'CMP';
       
       let finalTitle = (storyData.title || '').trim();
@@ -141,7 +146,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
         title: finalTitle,
         projectId: campProjectId,
         processId: mktProc?.id || 'proc-mkt',
-        storyDescription: `Historia vinculada para la campaña ${selectedCampaign.code}`
+        storyDescription: `Historia vinculada para la campaña ${selectedCampaign.code || selectedCampaign.name || ''}`
       });
     } else {
       await onAddTaskForCampaign(storyData);
@@ -172,6 +177,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
         }}
         onAddStoryForCampaign={handleAddStoryFrom360}
         onOpenStory={onOpenTask}
+        onOpenCreateTaskModal={onOpenCreateTaskModal}
         canEdit={!isReadOnly}
         canDelete={!isReadOnly}
       />

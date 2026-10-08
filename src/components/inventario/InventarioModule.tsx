@@ -1799,6 +1799,20 @@ export const InventarioModule: React.FC<InventarioModuleProps> = ({
         </div>
       )}
 
+      {/* SUBTAB 5: PERMISOS DE INVENTARIO */}
+      {activeSubTab === 'permissions' && (
+        <div className="space-y-4">
+          <ModulePermissionsTab
+            moduleId="inventario"
+            moduleName="Inventario & Bodegas"
+            currentMember={currentMember}
+            members={members}
+            processes={processes}
+            roles={roles}
+          />
+        </div>
+      )}
+
       {/* MODAL 1: NUEVA / EDITAR BODEGA */}
       {isWarehouseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">

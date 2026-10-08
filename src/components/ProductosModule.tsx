@@ -34,7 +34,7 @@ import {
 import { ProductItem, ProductCategory, TeamMember, Company, Process, Role } from '../types';
 import { db, doc, setDoc, updateDoc, deleteDoc, OperationType, handleFirestoreError } from '../lib/firebase';
 import { cleanFirestoreData } from './common/CompanyEditorView';
-import { ProductsPermissionsMatrix } from './products/ProductsPermissionsMatrix';
+import { ModulePermissionsTab } from './common/ModulePermissionsTab';
 import { Product360View } from './products/Product360View';
 
 export type ProductSubTab = 'todos' | 'certificacion' | 'capacitacion' | 'qhse' | 'epp' | 'equipos' | 'permissions';
@@ -205,7 +205,9 @@ export const ProductosModule: React.FC<ProductosModuleProps> = ({
   // Render Permissions Matrix if selected
   if (activeSubTab === 'permissions') {
     return (
-      <ProductsPermissionsMatrix
+      <ModulePermissionsTab
+        moduleId="productos"
+        moduleName="Catálogo de Productos & Soluciones"
         currentMember={currentMember}
         members={members}
         processes={processes}

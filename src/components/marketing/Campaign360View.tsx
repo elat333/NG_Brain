@@ -31,8 +31,12 @@ import {
   Check,
   ChevronRight,
   User,
-  Activity
+  Activity,
+  Link2,
+  Unlink
 } from 'lucide-react';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { MarketingCampaign, Task, Project, TeamMember, Process, MarketingLead } from '../../types';
 import { UniversalCommentsThread } from '../common/UniversalCommentsThread';
 import { SearchableSelect } from '../common/SearchableSelect';
@@ -51,6 +55,7 @@ interface Campaign360ViewProps {
   onDelete: (campaignId: string) => Promise<void>;
   onAddStoryForCampaign: (storyData: Partial<Task>) => Promise<void>;
   onOpenStory?: (story: Task) => void;
+  onOpenCreateTaskModal?: (initialOverrides?: Partial<Task>) => void;
   canEdit?: boolean;
   canDelete?: boolean;
 }
@@ -71,6 +76,7 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
   onDelete,
   onAddStoryForCampaign,
   onOpenStory,
+  onOpenCreateTaskModal,
   canEdit = true,
   canDelete = true
 }) => {
@@ -78,9 +84,15 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [createLinkedProject, setCreateLinkedProject] = useState(true);
 
+  const defaultMktProc = processes.find(p => {
+    const name = (p.name || '').toLowerCase();
+    const id = (p.id || '').toLowerCase();
+    return name.includes('marketing') || name.includes('crecimiento') || name.includes('comercial') || id.includes('mkt') || id.includes('marketing');
+  }) || processes[0];
+
   // Form state
   const [formData, setFormData] = useState<Partial<MarketingCampaign>>(() => {
-    if (campaign) return { ...campaign };
+    if (campaign) return { ...campaign, processId: campaign.processId || defaultMktProc?.id || 'proc-mkt' };
     return {
       id: `camp-${Date.now()}`,
       code: `CAMP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
@@ -88,6 +100,7 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
       description: '',
       objective: 'leads',
       status: 'planificacion',
+      processId: defaultMktProc?.id || 'proc-mkt',
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       budget: 1200,
@@ -233,6 +246,58 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
     } catch (e) {
       console.error(e);
       alert('Error al crear la historia');
+    }
+  };
+
+  const handleOpenNewStoryModal = () => {
+    const campCode = formData.code || formData.name || 'CMP';
+    const initialPrefix = campCode ? `${campCode}_` : '';
+    const resolvedProcessId = formData.processId || defaultMktProc?.id || 'proc-mkt';
+    if (onOpenCreateTaskModal) {
+      onOpenCreateTaskModal({
+        title: initialPrefix,
+        projectId: formData.projectId || '',
+        processId: resolvedProcessId,
+        memberId: formData.leaderMemberId || currentMember?.id || '',
+        storyDescription: `Historia vinculada para la campaña ${campCode} (${formData.name || ''})`
+      });
+    } else {
+      setIsAddingStory(!isAddingStory);
+    }
+  };
+
+  const handleCreateAndLinkProject = async () => {
+    try {
+      if (!formData.name?.trim()) {
+        alert('Por favor ingrese primero el nombre de la campaña.');
+        return;
+      }
+      const newProjId = `proj-mkt-${Date.now()}`;
+      const projectCode = formData.code ? `PRJ-${formData.code}` : `PRJ-MKT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+      const newProject: Project = {
+        id: newProjId,
+        code: projectCode,
+        name: formData.name,
+        processId: formData.processId || defaultMktProc?.id || 'proc-mkt',
+        status: 'activo',
+        budget: Number(formData.budget) || 0,
+        leaderId: formData.leaderMemberId || currentMember?.id || '',
+        description: `Proyecto de Scrum vinculado a la campaña ${formData.name}`,
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, 'projects', newProjId), newProject);
+      setFormData(prev => ({ ...prev, projectId: newProjId }));
+      alert(`¡Proyecto "${newProject.name}" creado y vinculado exitosamente a Scrum!`);
+    } catch (err: any) {
+      console.error('Error creating linked project:', err);
+      alert('Error al crear el proyecto en Scrum: ' + (err?.message || ''));
+    }
+  };
+
+  const handleUnlinkProject = () => {
+    if (window.confirm('¿Deseas desvincular el proyecto de Scrum de esta campaña?')) {
+      setFormData(prev => ({ ...prev, projectId: '' }));
     }
   };
 
@@ -562,6 +627,55 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
 
               <div>
                 <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">
+                  Proceso Departamental *
+                </label>
+                <select
+                  value={formData.processId || defaultMktProc?.id || ''}
+                  onChange={(e) => setFormData({ ...formData, processId: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-white border border-purple-200 rounded-xl font-bold text-purple-900 focus:outline-hidden focus:ring-2 focus:ring-purple-500/30"
+                >
+                  {processes.map(p => (
+                    <option key={`camp_proc_opt_${p.id}`} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 flex items-center justify-between">
+                  <span>Proyecto Scrum Vinculado</span>
+                  {linkedProject && <span className="text-blue-600 font-bold lowercase">({linkedProject.status})</span>}
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={formData.projectId || ''}
+                    onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="">(Sin Proyecto Vinculado)</option>
+                    {projects.map(p => (
+                      <option key={`camp_proj_gen_opt_${p.id}`} value={p.id}>
+                        {p.name} {p.code ? `[${p.code}]` : ''} ({p.status})
+                      </option>
+                    ))}
+                  </select>
+                  {!formData.projectId && !isCreating && (
+                    <button
+                      type="button"
+                      onClick={handleCreateAndLinkProject}
+                      className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1 cursor-pointer shadow-2xs"
+                      title="Crear y vincular proyecto en Scrum"
+                    >
+                      <Plus size={14} />
+                      <span className="hidden sm:inline">Crear</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">
                   Ubicación / Cobertura
                 </label>
                 <input
@@ -720,12 +834,103 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
               {canEdit && (
                 <button
                   type="button"
-                  onClick={() => setIsAddingStory(!isAddingStory)}
+                  onClick={handleOpenNewStoryModal}
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-purple-500/20 flex items-center gap-1.5 cursor-pointer"
                 >
                   <Plus size={15} />
                   <span>Nueva Historia</span>
                 </button>
+              )}
+            </div>
+
+            {/* SECCIÓN: VINCULACIÓN CON PROYECTO SCRUM */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-blue-50/80 via-indigo-50/60 to-purple-50/70 rounded-2xl border border-blue-200/90 shadow-2xs space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-xs">
+                    <FolderKanban size={20} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                        Proyecto Asociado en Scrum
+                      </h4>
+                      {linkedProject && (
+                        <span className={`px-2 py-0.5 text-[10px] font-black uppercase rounded-md border ${
+                          linkedProject.status === 'activo' || linkedProject.status === 'in_progress'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}>
+                          {linkedProject.status === 'activo' || linkedProject.status === 'in_progress' ? '● Activo' : linkedProject.status}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 font-medium mt-0.5">
+                      {linkedProject 
+                        ? `Enlazado al proyecto: "${linkedProject.name}" [${linkedProject.code || 'PRJ'}]`
+                        : 'Esta campaña no tiene un proyecto Scrum enlazado actualmente.'}
+                    </p>
+                  </div>
+                </div>
+
+                {linkedProject && canEdit && (
+                  <button
+                    type="button"
+                    onClick={handleUnlinkProject}
+                    className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title="Desvincular proyecto de esta campaña"
+                  >
+                    <Unlink size={13} />
+                    <span>Desvincular Proyecto</span>
+                  </button>
+                )}
+              </div>
+
+              {canEdit && (
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-3 border-t border-blue-100/90 items-end">
+                  <div className="sm:col-span-7">
+                    <label className="block text-[10px] font-black uppercase text-slate-600 mb-1">
+                      {linkedProject ? 'Cambiar a otro Proyecto Scrum existente' : 'Vincular a un Proyecto Scrum existente'}
+                    </label>
+                    <select
+                      value={formData.projectId || ''}
+                      onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-blue-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/30"
+                    >
+                      <option value="">(Sin Proyecto Vinculado)</option>
+                      {projects.map(p => (
+                        <option key={`mkt_linked_proj_${p.id}`} value={p.id}>
+                          {p.name} {p.code ? `[${p.code}]` : ''} ({p.status})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-5 flex items-end">
+                    {isCreating ? (
+                      <label className="flex items-center gap-2 px-3.5 py-2.5 bg-white border border-blue-200 rounded-xl text-xs font-bold text-blue-900 cursor-pointer w-full shadow-2xs">
+                        <input
+                          type="checkbox"
+                          checked={createLinkedProject}
+                          onChange={(e) => setCreateLinkedProject(e.target.checked)}
+                          className="rounded text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-[11px] leading-tight">Generar nuevo proyecto Scrum al guardar</span>
+                      </label>
+                    ) : (
+                      !formData.projectId && (
+                        <button
+                          type="button"
+                          onClick={handleCreateAndLinkProject}
+                          className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Sparkles size={14} />
+                          <span>⚡ Crear y Enlazar en Scrum</span>
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
               )}
             </div>
 

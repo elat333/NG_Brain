@@ -12,7 +12,7 @@ import {
   Company,
   Project
 } from '../../types';
-import { TrainingFullDetailView } from './TrainingFullDetailView';
+import { TrainingPlan360View } from './TrainingPlan360View';
 
 interface TrainingManagementViewProps {
   managements: TrainingManagement[];
@@ -106,7 +106,7 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
   if (selectedMgmt) {
     const activePlan = plans.find(p => p.id === selectedMgmt.planId) || null;
     return (
-      <TrainingFullDetailView
+      <TrainingPlan360View
         management={isCreatingNew ? selectedMgmt : selectedMgmt}
         plan={activePlan}
         plans={plans}
@@ -121,7 +121,6 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
         onDelete={handleDeleteDetail}
         onBack={handleCloseDetail}
         isReadOnly={isReadOnly}
-        originTabLabel="Gestión de Capacitaciones"
       />
     );
   }

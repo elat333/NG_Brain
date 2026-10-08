@@ -191,6 +191,13 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
     setSaveError(null);
     let linkedProjId = campaign.projectId;
 
+    const defaultMktProc = processes.find(p => {
+      const name = (p.name || '').toLowerCase();
+      const id = (p.id || '').toLowerCase();
+      return name.includes('marketing') || name.includes('crecimiento') || name.includes('comercial') || id.includes('mkt') || id.includes('marketing');
+    }) || processes[0];
+    const resolvedProcessId = campaign.processId || defaultMktProc?.id || 'proc-mkt';
+
     // Automatic synchronization with Projects
     if (createLinkedProject && (!linkedProjId || !projects.some(p => p.id === linkedProjId))) {
       try {
@@ -200,7 +207,7 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
           name: campaign.code || campaign.name,
           description: `Proyecto de campaña de Marketing: ${campaign.name}. Audiencia: ${campaign.targetAudience || 'General'}. Presupuesto: $${campaign.budget}`,
           status: campaign.status === 'activa' ? 'activo' : campaign.status === 'completada' ? 'completado' : 'pausado',
-          processId: campaign.processId || 'proc-mkt',
+          processId: resolvedProcessId,
           createdAt: new Date().toISOString()
         };
 
@@ -217,6 +224,7 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
 
     const campaignToSave = {
       ...campaign,
+      processId: resolvedProcessId
     };
     if (linkedProjId) {
       campaignToSave.projectId = linkedProjId;
@@ -255,6 +263,13 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
   // --- Story / Task Creation for Campaign ---
   const handleAddTaskForCampaign = async (taskData: Partial<Task>) => {
     Object.keys(taskData).forEach(key => { if ((taskData as any)[key] === undefined) delete (taskData as any)[key]; });
+    const defaultMktProc = processes.find(p => {
+      const name = (p.name || '').toLowerCase();
+      const id = (p.id || '').toLowerCase();
+      return name.includes('marketing') || name.includes('crecimiento') || name.includes('comercial') || id.includes('mkt') || id.includes('marketing');
+    }) || processes[0];
+    const resolvedProcessId = taskData.processId || defaultMktProc?.id || 'proc-mkt';
+
     const taskId = taskData.id || `story-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     const newTask: Task = {
       id: taskId,
@@ -264,7 +279,7 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
       priority: taskData.priority || 'media',
       dueDate: taskData.dueDate || new Date().toISOString().split('T')[0],
       memberId: taskData.memberId || currentMember?.id || 'mem-1',
-      processId: taskData.processId || 'proc-mkt',
+      processId: resolvedProcessId,
       projectId: taskData.projectId,
       storyDescription: taskData.storyDescription || '',
       acceptanceCriteria: taskData.acceptanceCriteria || 'Revisión y aprobación por líder de campaña',

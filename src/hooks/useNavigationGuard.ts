@@ -27,6 +27,8 @@ interface UseNavigationGuardProps {
   setQhseSubTab: (tab: any) => void;
   importacionesSubTab: string;
   setImportacionesSubTab: (tab: any) => void;
+  finanzasSubTab?: string;
+  setFinanzasSubTab?: (tab: any) => void;
   tasksSubTab: string;
   setTasksSubTab: (tab: any) => void;
   
@@ -113,6 +115,8 @@ export const useNavigationGuard = ({
   setQhseSubTab,
   importacionesSubTab,
   setImportacionesSubTab,
+  finanzasSubTab,
+  setFinanzasSubTab,
   tasksSubTab,
   setTasksSubTab,
   selectedMemberId,
@@ -323,6 +327,8 @@ export const useNavigationGuard = ({
       setQhseSubTab(action.targetSubTab);
     } else if (action.type === 'importaciones_subtab' && action.targetSubTab) {
       setImportacionesSubTab(action.targetSubTab);
+    } else if (action.type === 'finanzas_subtab' && action.targetSubTab) {
+      if (setFinanzasSubTab) setFinanzasSubTab(action.targetSubTab);
     } else if (action.type === 'tasks_subtab' && action.targetSubTab) {
       setTasksSubTab(action.targetSubTab);
     } else if (action.type === 'member' && action.targetMemberId) {
@@ -331,7 +337,7 @@ export const useNavigationGuard = ({
   }, [
     setActiveTab, setDirectorySubTab, setSettingsSubTab, getModuleAccess, currentMember, roles, members,
     setProcessSubTab, setManagementSubTab, setVentasSubTab, setCapacitacionSubTab,
-    setAcreditacionSubTab, setProductosSubTab, setQhseSubTab, setImportacionesSubTab, setTasksSubTab, setSelectedMemberId
+    setAcreditacionSubTab, setProductosSubTab, setQhseSubTab, setImportacionesSubTab, setFinanzasSubTab, setTasksSubTab, setSelectedMemberId
   ]);
 
   const navigateWithUnsavedCheck = useCallback((action: PendingExitAction) => {
@@ -442,6 +448,13 @@ export const useNavigationGuard = ({
   const handleImportacionesSubTabClick = useCallback((subTab: any) => {
     navigateWithUnsavedCheck({
       type: 'importaciones_subtab',
+      targetSubTab: subTab
+    });
+  }, [navigateWithUnsavedCheck]);
+
+  const handleFinanzasSubTabClick = useCallback((subTab: any) => {
+    navigateWithUnsavedCheck({
+      type: 'finanzas_subtab' as any,
       targetSubTab: subTab
     });
   }, [navigateWithUnsavedCheck]);
@@ -587,6 +600,7 @@ export const useNavigationGuard = ({
     handleInventarioSubTabClick,
     handleQhseSubTabClick,
     handleImportacionesSubTabClick,
+    handleFinanzasSubTabClick,
     handleTasksSubTabClick,
     handleMemberClick,
     handleCancelPendingExit,

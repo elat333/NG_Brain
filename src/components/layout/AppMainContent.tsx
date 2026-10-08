@@ -18,6 +18,7 @@ import { AcreditacionView } from '../acreditacion/AcreditacionView';
 import { ProductsView } from '../products/ProductsView';
 import { InventarioModule } from '../inventario/InventarioModule';
 import { QHSEView } from '../qhse/QHSEView';
+import { FinanzasModule } from '../FinanzasModule';
 import { SettingsContainerView } from '../settings/SettingsContainerView';
 import { DashboardView } from '../dashboard/DashboardView';
 import { ProjectsView } from '../projects/ProjectsView';
@@ -26,7 +27,7 @@ import { PlannerView } from '../planner/PlannerView';
 import { TranscriptView } from '../transcript/TranscriptView';
 import { CommentsModule } from '../comments/CommentsModule';
 import { StoryDetailView } from '../tasks/StoryDetailView';
-import { MainTabType, SettingsSubTabType, DirectorySubTabType, ProcessSubTabType, ManagementSubTabType, ImportacionesSubTabType, AcreditacionSubTabType, VentasSubTabType, InventarioSubTabType, CommentsSubTabType } from '../../hooks/useAppNavigation';
+import { MainTabType, SettingsSubTabType, DirectorySubTabType, ProcessSubTabType, ManagementSubTabType, ImportacionesSubTabType, AcreditacionSubTabType, VentasSubTabType, InventarioSubTabType, CommentsSubTabType, FinanzasSubTabType } from '../../hooks/useAppNavigation';
 import { MarketingSubTab } from '../MarketingModule';
 import { CapacitacionSubTab } from '../CapacitacionModule';
 import { ProductSubTab } from '../ProductosModule';
@@ -79,6 +80,8 @@ export interface AppMainContentProps {
   setQhseSubTab: (tab: QHSESubTab) => void;
   importacionesSubTab: ImportacionesSubTabType;
   setImportacionesSubTab: (tab: ImportacionesSubTabType) => void;
+  finanzasSubTab?: FinanzasSubTabType;
+  setFinanzasSubTab?: (tab: FinanzasSubTabType) => void;
   marketingSubTab: MarketingSubTab;
   setMarketingSubTab: (tab: MarketingSubTab) => void;
   directorySubTab: DirectorySubTabType;
@@ -233,6 +236,8 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
   setQhseSubTab,
   importacionesSubTab,
   setImportacionesSubTab,
+  finanzasSubTab = 'treasury',
+  setFinanzasSubTab,
   marketingSubTab,
   setMarketingSubTab,
   directorySubTab,
@@ -612,9 +617,23 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
           members={members}
           companies={companies}
           processes={processes}
+          projects={projects}
+          roles={roles}
           activeSubTab={qhseSubTab}
           onSubTabChange={(tab) => setQhseSubTab(tab)}
           accessLevel={getModuleAccess(currentMember, roles, 'qhse')}
+        />
+      )}
+
+      {activeTab === 'finanzas' && (
+        <FinanzasModule
+          currentMember={currentMember}
+          members={members}
+          companies={companies}
+          roles={roles}
+          processes={processes}
+          activeSubTab={finanzasSubTab}
+          onSubTabChange={(tab) => setFinanzasSubTab && setFinanzasSubTab(tab)}
         />
       )}
 

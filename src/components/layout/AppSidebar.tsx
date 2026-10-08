@@ -44,7 +44,11 @@ import {
   MessageSquare,
   FileCheck,
   Receipt,
-  Kanban
+  Kanban,
+  Landmark,
+  Wallet,
+  Scale,
+  Percent
 } from 'lucide-react';
 import { TeamMember, Role } from '../../types';
 import { isSubnavVisible } from '../../lib/permissions';
@@ -162,6 +166,9 @@ interface AppSidebarProps {
   importacionesSubTab: string;
   setImportacionesSubTab: (tab: any) => void;
   
+  finanzasSubTab?: string;
+  setFinanzasSubTab?: (tab: any) => void;
+  
   settingsSubTab: string;
   handleSettingsSubTabClick: (subTab: string) => void;
 }
@@ -208,6 +215,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   setProductosSubTab,
   inventarioSubTab = 'existencias',
   setInventarioSubTab,
+  finanzasSubTab = 'treasury',
+  setFinanzasSubTab,
   directorySubTab,
   setDirectorySubTab,
   importacionesSubTab,
@@ -852,6 +861,193 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             </React.Fragment>
           )}
 
+          {/* Finanzas, Tesorería & Bancos (Tryton ERP) */}
+          {getModuleAccess(currentMember, roles, 'finanzas') !== 'ninguno' && (
+            <React.Fragment key="sidebar_nav_group_finanzas">
+              <NavButton 
+                key="sidebar_nav_btn_finanzas"
+                active={activeTab === 'finanzas'} 
+                icon={<Landmark size={20} />} 
+                label="Finanzas & Bancos" 
+                onClick={() => toggleNavModule('finanzas', () => {
+                  handleTabClick('finanzas');
+                  if (setFinanzasSubTab) setFinanzasSubTab('treasury');
+                })} 
+              />
+              <AnimatePresence>
+                {expandedNavModule === 'finanzas' && (
+                  <motion.div 
+                    key="sidebar_subnav_finanzas"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="ml-8 mt-1 space-y-1 overflow-hidden"
+                  >
+                    {/* MENÚ 1: TESORERÍA */}
+                    {getModuleAccess(currentMember, roles, 'finanzas_treasury') !== 'ninguno' && (
+                      <SubNavButton 
+                        key="subnav_fin_treasury"
+                        active={finanzasSubTab === 'treasury'} 
+                        label="Dashboard de Liquidez" 
+                        icon={<BarChart2 size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('finanzas');
+                          handleTabClick('finanzas');
+                          if (setFinanzasSubTab) setFinanzasSubTab('treasury');
+                        }} 
+                      />
+                    )}
+
+                    {/* MENÚ 2: BANCOS & CAJAS */}
+                    {getModuleAccess(currentMember, roles, 'finanzas_accounts') !== 'ninguno' && (
+                      <>
+                        <SubNavButton 
+                          key="subnav_fin_accounts"
+                          active={finanzasSubTab === 'accounts'} 
+                          label="Cuentas Bancarias" 
+                          icon={<Wallet size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('finanzas');
+                            handleTabClick('finanzas');
+                            if (setFinanzasSubTab) setFinanzasSubTab('accounts');
+                          }} 
+                        />
+                        <SubNavButton 
+                          key="subnav_fin_bank_entities"
+                          active={finanzasSubTab === 'bank_entities'} 
+                          label="Directorio de Bancos" 
+                          icon={<Building2 size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('finanzas');
+                            handleTabClick('finanzas');
+                            if (setFinanzasSubTab) setFinanzasSubTab('bank_entities');
+                          }} 
+                        />
+                      </>
+                    )}
+
+                    {/* MENÚ 3: EXTRACTOS & DIARIO */}
+                    {getModuleAccess(currentMember, roles, 'finanzas_statements') !== 'ninguno' && (
+                      <>
+                        <SubNavButton 
+                          key="subnav_fin_statements"
+                          active={finanzasSubTab === 'statements'} 
+                          label="Libro de Movimientos" 
+                          icon={<Receipt size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('finanzas');
+                            handleTabClick('finanzas');
+                            if (setFinanzasSubTab) setFinanzasSubTab('statements');
+                          }} 
+                        />
+                        <SubNavButton 
+                          key="subnav_fin_bank_statements"
+                          active={finanzasSubTab === 'bank_statements'} 
+                          label="Extractos Bancarios" 
+                          icon={<FileCheck size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('finanzas');
+                            handleTabClick('finanzas');
+                            if (setFinanzasSubTab) setFinanzasSubTab('bank_statements');
+                          }} 
+                        />
+                      </>
+                    )}
+
+                    {/* MENÚ 4: PRESUPUESTOS */}
+                    {getModuleAccess(currentMember, roles, 'finanzas_budgets') !== 'ninguno' && (
+                      <SubNavButton 
+                        key="subnav_fin_budgets"
+                        active={finanzasSubTab === 'budgets'} 
+                        label="Control Presupuestario" 
+                        icon={<Target size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('finanzas');
+                          handleTabClick('finanzas');
+                          if (setFinanzasSubTab) setFinanzasSubTab('budgets');
+                        }} 
+                      />
+                    )}
+
+                    {/* MENÚ 5: CONCILIACIÓN */}
+                    {getModuleAccess(currentMember, roles, 'finanzas_reconciliation') !== 'ninguno' && (
+                      <SubNavButton 
+                        key="subnav_fin_reconciliation"
+                        active={finanzasSubTab === 'reconciliation'} 
+                        label="Conciliación Bancaria" 
+                        icon={<Scale size={14} />} 
+                        onClick={() => {
+                          setExpandedNavModule('finanzas');
+                          handleTabClick('finanzas');
+                          if (setFinanzasSubTab) setFinanzasSubTab('reconciliation');
+                        }} 
+                      />
+                    )}
+
+                    {/* MENÚ 6: CONFIGURACIÓN TRYTON */}
+                    {getModuleAccess(currentMember, roles, 'finanzas_config') !== 'ninguno' && (
+                      <>
+                        <SubNavButton 
+                          key="subnav_fin_config_chart"
+                          active={finanzasSubTab === 'config_chart'} 
+                          label="Plan de Cuentas" 
+                          icon={<Layers size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('finanzas');
+                            handleTabClick('finanzas');
+                            if (setFinanzasSubTab) setFinanzasSubTab('config_chart');
+                          }} 
+                        />
+                        <SubNavButton 
+                          key="subnav_fin_config_journals"
+                          active={finanzasSubTab === 'config_journals'} 
+                          label="Diarios Contables" 
+                          icon={<BookOpen size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('finanzas');
+                            handleTabClick('finanzas');
+                            if (setFinanzasSubTab) setFinanzasSubTab('config_journals');
+                          }} 
+                        />
+                        <SubNavButton 
+                          key="subnav_fin_config_taxes"
+                          active={finanzasSubTab === 'config_taxes'} 
+                          label="Impuestos & Retenciones" 
+                          icon={<Percent size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('finanzas');
+                            handleTabClick('finanzas');
+                            if (setFinanzasSubTab) setFinanzasSubTab('config_taxes');
+                          }} 
+                        />
+                      </>
+                    )}
+
+                    {/* MENÚ 7: SEGURIDAD & PERMISOS */}
+                    {(() => {
+                      const isUserAdmin = Boolean(currentMember?.isSystemAdmin || currentMember?.systemRoleId === 'role-admin');
+                      const canSeeFinPerms = isUserAdmin || getModuleAccess(currentMember, roles, 'finanzas') === 'lider';
+                      if (!canSeeFinPerms) return null;
+                      return (
+                        <SubNavButton 
+                          key="subnav_fin_permissions"
+                          active={finanzasSubTab === 'permissions'} 
+                          label="Permisos" 
+                          icon={<Shield size={14} />} 
+                          onClick={() => {
+                            setExpandedNavModule('finanzas');
+                            handleTabClick('finanzas');
+                            if (setFinanzasSubTab) setFinanzasSubTab('permissions');
+                          }} 
+                        />
+                      );
+                    })()}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </React.Fragment>
+          )}
+
           {/* 7. QHSE */}
           {getModuleAccess(currentMember, roles, 'qhse') !== 'ninguno' && (
             <React.Fragment key="sidebar_nav_group_qhse">
@@ -871,6 +1067,17 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     exit={{ height: 0, opacity: 0 }}
                     className="ml-8 mt-1 space-y-1 overflow-hidden"
                   >
+                    <SubNavButton 
+                      key="subnav_qhse_inspections"
+                      active={qhseSubTab === 'inspections'} 
+                      label="Registro de Inspección" 
+                      icon={<Layers size={14} />} 
+                      onClick={() => {
+                        setExpandedNavModule('qhse');
+                        handleTabClick('qhse');
+                        setQhseSubTab('inspections');
+                      }} 
+                    />
                     {isSubnavVisible(currentMember, 'links', 'qhse') && (
                       <SubNavButton 
                         key="subnav_qhse_links"

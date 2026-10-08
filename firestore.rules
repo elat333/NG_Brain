@@ -350,6 +350,10 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    match /qhse_scaffold_inspections/{id} {
+      allow read, write: if true;
+    }
+
     match /comments/{commentId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
