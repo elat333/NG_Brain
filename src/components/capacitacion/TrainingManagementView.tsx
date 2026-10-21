@@ -10,7 +10,9 @@ import {
   TrainingSpace, 
   TeamMember,
   Company,
-  Project
+  Project,
+  Task,
+  Process
 } from '../../types';
 import { TrainingPlan360View } from './TrainingPlan360View';
 
@@ -24,6 +26,12 @@ interface TrainingManagementViewProps {
   spaces?: TrainingSpace[];
   members?: TeamMember[];
   companies?: Company[];
+  processes?: Process[];
+  tasks?: Task[];
+  onOpenTask?: (task: Task) => void;
+  onAddTask?: (taskData: Partial<Task>) => Promise<void>;
+  onAddProject?: (projectData: Partial<Project>) => Promise<void>;
+  onOpenCreateTaskModal?: (initialOverrides?: Partial<Task>) => void;
   onSaveManagement: (management: Partial<TrainingManagement>, planData?: Partial<TrainingPlan>) => Promise<void>;
   onDeleteManagement: (id: string, planId?: string) => Promise<void>;
   isReadOnly?: boolean;
@@ -39,6 +47,12 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
   spaces = [],
   members = [],
   companies = [],
+  processes = [],
+  tasks = [],
+  onOpenTask,
+  onAddTask,
+  onAddProject,
+  onOpenCreateTaskModal,
   onSaveManagement, 
   onDeleteManagement,
   isReadOnly = false
@@ -117,6 +131,12 @@ export const TrainingManagementView: React.FC<TrainingManagementViewProps> = ({
         clients={clients}
         campaigns={campaigns}
         projects={projects}
+        processes={processes}
+        tasks={tasks}
+        onOpenTask={onOpenTask}
+        onAddTask={onAddTask}
+        onAddProject={onAddProject}
+        onOpenCreateTaskModal={onOpenCreateTaskModal}
         onSave={handleSaveDetail}
         onDelete={handleDeleteDetail}
         onBack={handleCloseDetail}

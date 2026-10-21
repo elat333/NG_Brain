@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, 
@@ -80,10 +80,70 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
-  const [selectedCampaign, setSelectedCampaign] = useState<MarketingCampaign | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<MarketingCampaign | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const campIdFromUrl = new URL(window.location.href).searchParams.get('campaign');
+        if (campIdFromUrl) {
+          return campaigns.find(c => c.id === campIdFromUrl) || null;
+        }
+      } catch (e) {
+        console.warn('Error reading campaign from URL:', e);
+      }
+    }
+    return null;
+  });
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
   const [activeCommentCampaign, setActiveCommentCampaign] = useState<MarketingCampaign | null>(null);
   const [campaignToDelete, setCampaignToDelete] = useState<MarketingCampaign | null>(null);
+
+  // Sync selected campaign if campaign ID exists in URL (e.g. returning from StoryDetailView)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const url = new URL(window.location.href);
+      const campIdFromUrl = url.searchParams.get('campaign');
+      if (campIdFromUrl && campaigns.length > 0) {
+        if (!selectedCampaign || selectedCampaign.id !== campIdFromUrl) {
+          const found = campaigns.find(c => c.id === campIdFromUrl);
+          if (found) {
+            setSelectedCampaign(found);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error syncing campaign from URL:', e);
+    }
+  }, [campaigns, selectedCampaign]);
+
+  const handleSelectCampaign = (camp: MarketingCampaign) => {
+    setSelectedCampaign(camp);
+    setIsCreatingCampaign(false);
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('campaign', camp.id);
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {
+        console.warn('Error saving campaign to URL:', e);
+      }
+    }
+  };
+
+  const handleCloseCampaign = () => {
+    setSelectedCampaign(null);
+    setIsCreatingCampaign(false);
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('campaign');
+        url.searchParams.delete('campTab');
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {
+        console.warn('Error clearing campaign from URL:', e);
+      }
+    }
+  };
 
   const isReadOnly = accessLevel === 'lector';
 
@@ -104,7 +164,12 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
       return campProjId;
     }
 
-    const existingProj = projects.find(p => p.name === camp.code || p.name.includes(camp.code));
+    const existingProj = projects.find(p => 
+      (camp.code && (p.code === camp.code || p.code === `PRJ-${camp.code}`)) ||
+      (camp.name && p.name.trim().toLowerCase() === camp.name.trim().toLowerCase()) ||
+      (camp.code && p.name.trim().toLowerCase() === camp.code.trim().toLowerCase()) ||
+      (camp.code && p.name.includes(camp.code))
+    );
     if (existingProj) {
       campProjId = existingProj.id;
       if (camp.projectId !== campProjId) {
@@ -121,8 +186,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
   const handleSaveCampaignFrom360 = async (camp: MarketingCampaign, createLinkedProject: boolean) => {
     const cleanFinal = deepCleanUndefined(camp);
     await onSaveCampaign(cleanFinal, createLinkedProject);
-    setSelectedCampaign(null);
-    setIsCreatingCampaign(false);
+    handleCloseCampaign();
   };
 
   const handleAddStoryFrom360 = async (storyData: Partial<Task>) => {
@@ -165,18 +229,26 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
         processes={processes}
         leads={leads}
         currentMember={currentMember}
-        onBack={() => {
-          setSelectedCampaign(null);
-          setIsCreatingCampaign(false);
-        }}
+        onBack={handleCloseCampaign}
         onSave={handleSaveCampaignFrom360}
         onDelete={async (id) => {
           await onDeleteCampaign(id);
-          setSelectedCampaign(null);
-          setIsCreatingCampaign(false);
+          handleCloseCampaign();
         }}
         onAddStoryForCampaign={handleAddStoryFrom360}
-        onOpenStory={onOpenTask}
+        onOpenStory={(story) => {
+          if (selectedCampaign && typeof window !== 'undefined') {
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.set('campaign', selectedCampaign.id);
+              url.searchParams.set('campTab', 'stories');
+              window.history.replaceState({}, '', url.toString());
+            } catch (e) {
+              console.warn('Error setting campaign params:', e);
+            }
+          }
+          if (onOpenTask) onOpenTask(story);
+        }}
         onOpenCreateTaskModal={onOpenCreateTaskModal}
         canEdit={!isReadOnly}
         canDelete={!isReadOnly}
@@ -266,7 +338,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
           return (
             <div
               key={`mkt_camp_card_${camp.id || cIdx}_${cIdx}`}
-              onClick={() => setSelectedCampaign(camp)}
+              onClick={() => handleSelectCampaign(camp)}
               className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs hover:shadow-xl hover:border-slate-200 transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden"
             >
               <div className="space-y-4">

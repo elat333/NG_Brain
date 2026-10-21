@@ -10,6 +10,7 @@ import { TaskCard } from './TaskCard';
 import { TasksPermissionsView } from './TasksPermissionsView';
 import TaskCalendarView from '../TaskCalendarView';
 import { TaskCommentsDashboard } from './dashboard/TaskCommentsDashboard';
+import { getMemberAvatarUrl } from '../common/AvatarCropModal';
 
 export interface TasksViewProps {
   tasks: Task[];
@@ -933,8 +934,8 @@ export const TasksView: React.FC<TasksViewProps> = ({
                       {member ? (
                         <div className="flex items-center gap-2">
                           <img 
-                            src={member.avatar || `https://picsum.photos/seed/${member.name.replace(/\s/g, '')}/54/54`}
-                            className="w-6.5 h-6.5 rounded-lg object-cover"
+                            src={getMemberAvatarUrl(member)}
+                            className="w-6.5 h-6.5 rounded-lg aspect-square object-cover"
                             alt={member.name}
                             referrerPolicy="no-referrer"
                           />
@@ -956,8 +957,8 @@ export const TasksView: React.FC<TasksViewProps> = ({
                             {taskAuxiliaries.slice(0, 3).map((aux, aIdx) => (
                               <img 
                                 key={`table_aux_${aux.id || aIdx}_${aIdx}`}
-                                src={aux.avatar || `https://picsum.photos/seed/${aux.name.replace(/\s/g, '')}/54/54`}
-                                className="w-7 h-7 rounded-lg object-cover ring-2 ring-white hover:z-10 hover:scale-105 transition-all"
+                                src={getMemberAvatarUrl(aux)}
+                                className="w-7 h-7 rounded-lg aspect-square object-cover ring-2 ring-white hover:z-10 hover:scale-105 transition-all"
                                 alt={aux.name}
                                 title={aux.name}
                                 referrerPolicy="no-referrer"
@@ -989,8 +990,8 @@ export const TasksView: React.FC<TasksViewProps> = ({
                         return rev ? (
                           <div className="flex items-center gap-2">
                             <img 
-                              src={rev.avatar || `https://picsum.photos/seed/${rev.name.replace(/\s/g, '')}/54/54`}
-                              className="w-6.5 h-6.5 rounded-lg object-cover ring-2 ring-emerald-500/10"
+                              src={getMemberAvatarUrl(rev)}
+                              className="w-6.5 h-6.5 rounded-lg aspect-square object-cover ring-2 ring-emerald-500/10"
                               alt={rev.name}
                               referrerPolicy="no-referrer"
                             />

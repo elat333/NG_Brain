@@ -34,11 +34,13 @@ import {
   ChevronRight,
   User,
   Sparkles,
-  Lock
+  Lock,
+  Camera
 } from 'lucide-react';
 import { TeamMember, Company, PartyRelation, PartyRelationType, Process, Role, SystemRole, PersonCategory } from '../../types';
 import { validateIdentification, validateRucEcuador, checkIdentificationDuplicate } from '../../lib/fiscalValidators';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { AvatarCropModal, getMemberAvatarUrl } from '../common/AvatarCropModal';
 
 export interface BreadcrumbItem {
   id: string;
@@ -85,6 +87,7 @@ export const Member360View: React.FC<Member360ViewProps> = ({
   const [activeTab, setActiveTab] = useState<'general' | 'fiscal' | 'relations' | 'training' | 'epp' | 'notes'>('general');
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
 
   // Form State
   const defaultMemberData = useMemo(() => ({
@@ -324,7 +327,15 @@ export const Member360View: React.FC<Member360ViewProps> = ({
   };
 
   const currentName = formData.name || member?.name || 'Nueva Persona';
-  const currentAvatar = formData.avatar || member?.avatar || `https://picsum.photos/seed/${currentName.replace(/\s/g, '')}/200/200`;
+  const rawAvatar = isEditing ? formData.avatar : member?.avatar;
+  const currentAvatar = getMemberAvatarUrl({ name: currentName, avatar: rawAvatar }, currentName);
+
+  const handleSaveCroppedAvatar = async (croppedDataUrl: string) => {
+    setFormData((prev: any) => ({ ...prev, avatar: croppedDataUrl }));
+    if (!isEditing && member) {
+      await onSaveMember({ avatar: croppedDataUrl });
+    }
+  };
 
   return (
     <motion.div
@@ -455,24 +466,31 @@ export const Member360View: React.FC<Member360ViewProps> = ({
       {/* Main Profile Header Card */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-xl relative overflow-hidden text-left">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-          <div className="relative group shrink-0">
-            <img
-              src={currentAvatar}
-              alt={currentName}
-              className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover shadow-md border-2 border-white ring-4 ring-gray-50"
-            />
-            {isEditing && (
-              <div className="mt-2 text-center">
-                <input
-                  type="text"
-                  placeholder="URL del Avatar..."
-                  value={formData.avatar}
-                  onChange={(e) => setFormData({ ...formData, avatar: e.target.value })}
-                  className="w-28 text-[10px] px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 truncate"
-                  title="Pega una URL de imagen para el avatar"
-                />
+          <div className="flex flex-col items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsCropModalOpen(true)}
+              className="relative group w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden shadow-md border-2 border-white ring-4 ring-gray-50 hover:ring-ng-lime transition-all cursor-pointer aspect-square"
+              title="Subir o recortar foto de perfil cuadrada (1:1)"
+            >
+              <img
+                src={currentAvatar}
+                alt={currentName}
+                className="w-full h-full object-cover aspect-square"
+              />
+              <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white">
+                <Camera size={20} className="text-ng-lime" />
+                <span className="text-[10px] font-black uppercase tracking-wider">Foto 1:1</span>
               </div>
-            )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsCropModalOpen(true)}
+              className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+            >
+              <Camera size={11} />
+              Cambiar Foto
+            </button>
           </div>
 
           <div className="space-y-3 flex-1 w-full">
@@ -1343,6 +1361,14 @@ export const Member360View: React.FC<Member360ViewProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AvatarCropModal
+        isOpen={isCropModalOpen}
+        onClose={() => setIsCropModalOpen(false)}
+        currentAvatar={rawAvatar}
+        userName={currentName}
+        onSave={handleSaveCroppedAvatar}
+      />
     </motion.div>
   );
 };

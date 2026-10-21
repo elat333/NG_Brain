@@ -32,6 +32,7 @@ import { ModulePermissionsTab } from '../common/ModulePermissionsTab';
 import { Member360View, BreadcrumbItem } from './Member360View';
 import { Company360View } from './Company360View';
 import { validateIdentification } from '../../lib/fiscalValidators';
+import { getMemberAvatarUrl } from '../common/AvatarCropModal';
 
 interface DirectoryViewProps {
   currentMember?: TeamMember | null;
@@ -608,8 +609,8 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                               title="Ver Ficha 360°"
                             >
                               <img
-                                src={member.avatar || `https://picsum.photos/seed/${member.name.replace(/\s/g, '')}/100/100`}
-                                className="w-9 h-9 rounded-xl object-cover shadow-sm shrink-0 ring-2 ring-transparent group-hover/name:ring-blue-400 transition-all"
+                                src={getMemberAvatarUrl(member)}
+                                className="w-9 h-9 rounded-xl object-cover aspect-square shadow-sm shrink-0 ring-2 ring-transparent group-hover/name:ring-blue-400 transition-all"
                                 alt=""
                               />
                               <div>

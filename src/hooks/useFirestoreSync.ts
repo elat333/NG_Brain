@@ -79,6 +79,9 @@ export function useFirestoreSync(user: FirebaseUser | null) {
       { name: 'products', setState: (data) => setProducts(data), initial: initialProducts },
     ];
 
+    const LEGACY_TEMPLATE_IDS = new Set(['mem-1', 'mem-2', 'mem-3']);
+    const LEGACY_TEMPLATE_NAMES = new Set(['elena rodriguez', 'lucas smith', 'sofia chen']);
+
     const unsubscribes = collections.map(col => {
       return onSnapshot(collection(db, col.name), (snapshot) => {
         if (!snapshot.empty) {
@@ -87,6 +90,21 @@ export function useFirestoreSync(user: FirebaseUser | null) {
           const data: any[] = [];
           snapshot.docs.forEach(docSnap => {
             const item = { id: docSnap.id, ...docSnap.data() } as any;
+            if (col.name === 'members') {
+              const normName = (item.name || '').toLowerCase().trim();
+              const normEmail = (item.email || '').toLowerCase().trim();
+              if (
+                LEGACY_TEMPLATE_IDS.has(item.id) ||
+                LEGACY_TEMPLATE_NAMES.has(normName) ||
+                normEmail.endsWith('@teampulse.ai')
+              ) {
+                deleteDoc(doc(db, 'members', item.id)).catch(() => {});
+                return;
+              }
+              if (typeof item.avatar === 'string' && item.avatar.includes('picsum.photos')) {
+                item.avatar = '';
+              }
+            }
             if (item.id && !seenIds.has(item.id)) {
               seenIds.add(item.id);
               data.push(item);

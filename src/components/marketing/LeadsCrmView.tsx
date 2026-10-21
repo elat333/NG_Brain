@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Users,
@@ -54,8 +54,39 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [campaignFilter, setCampaignFilter] = useState<string>('todos');
-  const [selectedLead, setSelectedLead] = useState<MarketingLead | null>(null);
+  const [selectedLead, setSelectedLead] = useState<MarketingLead | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const leadIdFromUrl = new URL(window.location.href).searchParams.get('lead');
+        if (leadIdFromUrl) {
+          return leads.find(l => l.id === leadIdFromUrl) || null;
+        }
+      } catch (e) {
+        console.warn('Error reading lead from URL:', e);
+      }
+    }
+    return null;
+  });
   const [isCreatingLead, setIsCreatingLead] = useState(false);
+
+  // Sync selected lead if lead ID exists in URL (e.g. returning from StoryDetailView)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const url = new URL(window.location.href);
+      const leadIdFromUrl = url.searchParams.get('lead');
+      if (leadIdFromUrl && leads.length > 0) {
+        if (!selectedLead || selectedLead.id !== leadIdFromUrl) {
+          const found = leads.find(l => l.id === leadIdFromUrl);
+          if (found) {
+            setSelectedLead(found);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error syncing lead from URL:', e);
+    }
+  }, [leads, selectedLead]);
 
   const isReadOnly = accessLevel === 'lector';
 
@@ -70,19 +101,41 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
   ];
 
   const handleOpenCreate = (prefillStage?: MarketingLead['stage']) => {
-    setSelectedLead(null);
+    handleCloseLead();
     setIsCreatingLead(true);
   };
 
   const handleOpenEdit = (lead: MarketingLead) => {
     setSelectedLead(lead);
     setIsCreatingLead(false);
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('lead', lead.id);
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {
+        console.warn('Error saving lead to URL:', e);
+      }
+    }
+  };
+
+  const handleCloseLead = () => {
+    setSelectedLead(null);
+    setIsCreatingLead(false);
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('lead');
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {
+        console.warn('Error clearing lead from URL:', e);
+      }
+    }
   };
 
   const handleSaveLeadFrom360 = async (lead: MarketingLead) => {
     await onSaveLead(lead);
-    setSelectedLead(null);
-    setIsCreatingLead(false);
+    handleCloseLead();
   };
 
   // If in Form View (Tryton Form Mode: Detail or Create)
@@ -95,18 +148,25 @@ export const LeadsCrmView: React.FC<LeadsCrmViewProps> = ({
         members={members}
         tasks={tasks}
         currentMember={currentMember}
-        onBack={() => {
-          setSelectedLead(null);
-          setIsCreatingLead(false);
-        }}
+        onBack={handleCloseLead}
         onSave={handleSaveLeadFrom360}
         onDelete={async (leadId) => {
           await onDeleteLead(leadId);
-          setSelectedLead(null);
-          setIsCreatingLead(false);
+          handleCloseLead();
         }}
         onAddStoryForLead={onAddStoryForLead}
-        onOpenStory={onOpenStory}
+        onOpenStory={(story) => {
+          if (selectedLead && typeof window !== 'undefined') {
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.set('lead', selectedLead.id);
+              window.history.replaceState({}, '', url.toString());
+            } catch (e) {
+              console.warn('Error setting lead in URL:', e);
+            }
+          }
+          if (onOpenStory) onOpenStory(story);
+        }}
         canEdit={!isReadOnly}
         canDelete={!isReadOnly}
       />

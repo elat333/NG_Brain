@@ -6,19 +6,20 @@ import {
   Industry, Role, ProcessLink, ProcessNote, ManagementNote, 
   ManagementStrategyData, ManagementAIGovernanceData, ProductItem 
 } from '../../types';
-import { ProcessDashboardView } from '../processes/ProcessDashboardView';
+import ProcessDashboard from '../ProcessDashboard';
 import { TasksView } from '../tasks/TasksView';
 import { ErrorBoundary } from '../common/ErrorBoundary';
-import { ManagementView } from '../management/ManagementView';
-import { ImportacionesView } from '../importaciones/ImportacionesView';
-import { MarketingView } from '../marketing/MarketingView';
-import { TrainingView } from '../training/TrainingView';
-import { SalesView } from '../sales/SalesView';
-import { AcreditacionView } from '../acreditacion/AcreditacionView';
-import { ProductsView } from '../products/ProductsView';
+import ManagementModule from '../ManagementModule';
+import { ImportacionesModule } from '../ImportacionesModule';
+import { MarketingModule, MarketingSubTab } from '../MarketingModule';
+import { CapacitacionModule, CapacitacionSubTab } from '../CapacitacionModule';
+import { VentasModule } from '../VentasModule';
+import { AcreditacionModule } from '../AcreditacionModule';
+import { ProductosModule, ProductSubTab } from '../ProductosModule';
 import { InventarioModule } from '../inventario/InventarioModule';
-import { QHSEView } from '../qhse/QHSEView';
+import { QHSEModule, QHSESubTab } from '../QHSEModule';
 import { FinanzasModule } from '../FinanzasModule';
+import { ModulePermissionsTab } from '../common/ModulePermissionsTab';
 import { SettingsContainerView } from '../settings/SettingsContainerView';
 import { DashboardView } from '../dashboard/DashboardView';
 import { ProjectsView } from '../projects/ProjectsView';
@@ -28,10 +29,7 @@ import { TranscriptView } from '../transcript/TranscriptView';
 import { CommentsModule } from '../comments/CommentsModule';
 import { StoryDetailView } from '../tasks/StoryDetailView';
 import { MainTabType, SettingsSubTabType, DirectorySubTabType, ProcessSubTabType, ManagementSubTabType, ImportacionesSubTabType, AcreditacionSubTabType, VentasSubTabType, InventarioSubTabType, CommentsSubTabType, FinanzasSubTabType } from '../../hooks/useAppNavigation';
-import { MarketingSubTab } from '../MarketingModule';
-import { CapacitacionSubTab } from '../CapacitacionModule';
-import { ProductSubTab } from '../ProductosModule';
-import { QHSESubTab } from '../QHSEModule';
+import { getModuleLabel } from '../../config/erpNavigationRegistry';
 import { TableFiltersState, TableSortState } from '../../hooks/useTaskFilters';
 
 export interface AppMainContentProps {
@@ -385,27 +383,20 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
 
   // Vista de Historia a Pantalla Completa (Full Page View dentro del ERP)
   if (editingTask && newTaskData) {
-    const tabLabels: Record<string, string> = {
-      dashboard: 'Dashboard',
-      gerencia: 'Gerencia',
-      process_dashboard: 'Procesos',
-      tasks: 'Historias Scrum',
-      planner: 'Planificador IA',
-      projects: 'Proyectos',
-      directory: 'Directorio',
-      transcript: 'Analizar Reunión',
-      marketing: 'Marketing',
-      ventas: 'Ventas',
-      capacitacion: 'Capacitación',
-      acreditacion: 'Acreditación',
-      productos: 'Productos',
-      inventario: 'Inventario',
-      qhse: 'QHSE',
-      importaciones: 'Importaciones',
-      comments: 'Comentarios',
-      settings: 'Configuración'
-    };
-    const originTabLabel = tabLabels[originTab || 'tasks'] || 'Módulo Anterior';
+    let originTabLabel = getModuleLabel(originTab || 'tasks');
+    if (originTab === 'tasks') originTabLabel = 'Historias Scrum';
+    if (originTab === 'marketing' && typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('campaign')) {
+          originTabLabel = 'Campaña';
+        } else if (urlParams.has('lead')) {
+          originTabLabel = 'Prospecto';
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
 
     return (
       <StoryDetailView
@@ -470,22 +461,7 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
               </div>
               <div className="text-slate-400 text-left">Módulo:</div>
               <div className="font-extrabold text-slate-700 capitalize text-left">
-                 {activeTab === 'dashboard' ? 'Dashboard' :
-                  activeTab === 'gerencia' ? 'Gerencia' :
-                  activeTab === 'tasks' ? 'Scrum' :
-                  activeTab === 'planner' ? 'Planificador IA' :
-                 activeTab === 'projects' ? 'Proyectos' :
-                 activeTab === 'directory' ? 'Directorio' :
-                 activeTab === 'transcript' ? 'Analizar Reunión' :
-                 activeTab === 'ventas' ? 'Ventas' :
-                 activeTab === 'marketing' ? 'Marketing' :
-                 activeTab === 'capacitacion' ? 'Capacitación' :
-                 activeTab === 'acreditacion' ? 'Acreditación' :
-                 activeTab === 'productos' ? 'Productos' :
-                 activeTab === 'inventario' ? 'Inventario' :
-                 activeTab === 'qhse' ? 'QHSE' :
-                 activeTab === 'importaciones' ? 'Importaciones' :
-                 'Configuración'}
+                {getModuleLabel(activeTab)}
               </div>
             </div>
           </div>
@@ -508,94 +484,149 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
       className={activeTab === 'dashboard' ? 'w-full h-full flex flex-col min-h-0' : 'w-full'}
     >
       {activeTab === 'gerencia' && (
-        <ManagementView
-          currentMember={currentMember}
-          members={members}
-          processes={processes}
-          roles={roles}
-          notes={managementNotes}
-          strategy={managementStrategy}
-          governance={managementGovernance}
-          onUpdateNotes={handleUpdateManagementNotes}
-          onUpdateStrategy={handleUpdateManagementStrategy}
-          onUpdateGovernance={handleUpdateManagementGovernance}
-          accessLevel={getModuleAccess(currentMember, roles, 'gerencia')}
-          activeSubTab={managementSubTab}
-          setActiveSubTab={setManagementSubTab}
-        />
+        <div className={`max-w-7xl mx-auto w-full ${managementSubTab === 'consultant' ? 'h-full flex flex-col' : ''}`}>
+          {managementSubTab === 'permissions' ? (
+            <ModulePermissionsTab
+              moduleId="gerencia"
+              moduleName="Gerencia & Dirección Estratégica"
+              currentMember={currentMember}
+              members={members}
+              processes={processes}
+              roles={roles}
+            />
+          ) : (
+            <ManagementModule
+              currentMember={currentMember}
+              members={members}
+              processes={processes}
+              notes={managementNotes}
+              strategy={managementStrategy!}
+              governance={managementGovernance!}
+              tasks={tasks}
+              onUpdateNotes={handleUpdateManagementNotes}
+              onUpdateStrategy={handleUpdateManagementStrategy}
+              onUpdateGovernance={handleUpdateManagementGovernance}
+              accessLevel={getModuleAccess(currentMember, roles, 'gerencia')}
+              activeSubTab={managementSubTab as any}
+              setActiveSubTab={setManagementSubTab as any}
+            />
+          )}
+        </div>
       )}
 
       {activeTab === 'process_dashboard' && (
-        <ProcessDashboardView
-          currentMember={currentMember}
-          processes={processes}
-          members={members}
-          tasks={tasks}
-          projects={projects}
-          roles={roles}
-          processLinks={processLinks}
-          processNotes={processNotes}
-          activeSubTab={processSubTab}
-          setActiveSubTab={setProcessSubTab}
-          selectedProcessId={selectedProcessId}
-          setSelectedProcessId={setSelectedProcessId}
-          showFicha={showFicha}
-          setShowFicha={setShowFicha}
-          onOpenTask={openEditTask}
-        />
+        <div className="max-w-7xl mx-auto w-full">
+          {processSubTab === 'permissions' ? (
+            <ModulePermissionsTab
+              moduleId="process_dashboard"
+              moduleName="Gestión por Procesos"
+              currentMember={currentMember}
+              members={members}
+              processes={processes}
+              roles={roles}
+            />
+          ) : (
+            <ProcessDashboard
+              currentMember={currentMember}
+              processes={processes}
+              members={members}
+              tasks={tasks}
+              projects={projects}
+              roles={roles}
+              processLinks={processLinks}
+              processNotes={processNotes}
+              activeSubTab={processSubTab}
+              setActiveSubTab={setProcessSubTab}
+              selectedProcessId={selectedProcessId}
+              setSelectedProcessId={setSelectedProcessId}
+              showFicha={showFicha}
+              setShowFicha={setShowFicha}
+              onOpenTask={openEditTask}
+            />
+          )}
+        </div>
       )}
 
       {activeTab === 'ventas' && (
-        <SalesView
-          currentMember={currentMember}
-          members={members}
-          companies={companies}
-          processes={processes}
-          activeSubTab={ventasSubTab}
-          onSubTabChange={(tab) => setVentasSubTab(tab)}
-          onCreateCompany={handleCreateCompanyForCRM}
-          onCreateMember={handleCreateMemberForCRM}
-        />
+        <div className="max-w-7xl mx-auto w-full">
+          <VentasModule
+            currentMember={currentMember || null}
+            members={members}
+            companies={companies}
+            processes={processes}
+            activeSubTab={ventasSubTab}
+            onSubTabChange={(tab) => setVentasSubTab(tab)}
+            onCreateCompany={handleCreateCompanyForCRM}
+            onCreateMember={handleCreateMemberForCRM}
+            tasks={tasks}
+            projects={projects}
+            products={products}
+            onOpenTask={openEditTask}
+            onAddTask={onAddTaskMarketing as any}
+          />
+        </div>
       )}
 
       {activeTab === 'capacitacion' && (
-        <TrainingView
-          currentMember={currentMember}
-          activeSubTab={capacitacionSubTab}
-          onSubTabChange={(tab) => setCapacitacionSubTab(tab)}
-          members={members}
-          companies={companies}
-          processes={processes}
-          roles={roles}
-          onCreateMember={handleCreateMemberForCRM}
-        />
+        <div className="max-w-7xl mx-auto w-full">
+          <CapacitacionModule
+            currentMember={currentMember}
+            activeSubTab={capacitacionSubTab}
+            onSubTabChange={(tab) => setCapacitacionSubTab(tab)}
+            members={members}
+            companies={companies}
+            processes={processes}
+            roles={roles}
+            onCreateMember={handleCreateMemberForCRM}
+            tasks={tasks}
+            projects={projects}
+            onOpenTask={openEditTask}
+            onAddTask={onAddTaskMarketing as any}
+            onAddProject={onAddProjectMarketing as any}
+            onOpenCreateTaskModal={(initialOverrides) => openAddTaskModal('backlog', initialOverrides)}
+          />
+        </div>
       )}
 
       {activeTab === 'acreditacion' && (
-        <AcreditacionView
-          currentMember={currentMember}
-          members={members}
-          companies={companies}
-          processes={processes}
-          roles={roles}
-          industries={industries}
-          activeSubTab={acreditacionSubTab}
-          onSubTabChange={(tab) => setAcreditacionSubTab(tab)}
-        />
+        <div className="max-w-7xl mx-auto w-full">
+          {acreditacionSubTab === 'permissions' ? (
+            <ModulePermissionsTab
+              moduleId="acreditacion"
+              moduleName="Acreditaciones & Organismos"
+              currentMember={currentMember}
+              members={members}
+              processes={processes}
+              roles={roles}
+            />
+          ) : (
+            <AcreditacionModule
+              currentMember={currentMember}
+              members={members}
+              companies={companies}
+              processes={processes}
+              industries={industries}
+              activeSubTab={acreditacionSubTab}
+              onSubTabChange={(tab) => setAcreditacionSubTab(tab)}
+            />
+          )}
+        </div>
       )}
 
       {activeTab === 'productos' && (
-        <ProductsView
-          currentMember={currentMember}
-          products={products}
-          companies={companies}
-          members={members}
-          processes={processes}
-          roles={roles}
-          activeSubTab={productosSubTab}
-          onSubTabChange={(tab) => setProductosSubTab(tab)}
-          accessLevel={getModuleAccess(currentMember, roles, 'productos')}
-        />
+        <div className="max-w-7xl mx-auto w-full">
+          <ProductosModule
+            currentMember={currentMember}
+            products={products}
+            companies={companies}
+            members={members}
+            processes={processes}
+            roles={roles}
+            activeSubTab={productosSubTab}
+            onSubTabChange={(tab) => setProductosSubTab(tab)}
+            accessLevel={getModuleAccess(currentMember, roles, 'productos')}
+          />
+        </div>
       )}
 
       {activeTab === 'inventario' && (
@@ -612,17 +643,19 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
       )}
 
       {activeTab === 'qhse' && (
-        <QHSEView
-          currentMember={currentMember}
-          members={members}
-          companies={companies}
-          processes={processes}
-          projects={projects}
-          roles={roles}
-          activeSubTab={qhseSubTab}
-          onSubTabChange={(tab) => setQhseSubTab(tab)}
-          accessLevel={getModuleAccess(currentMember, roles, 'qhse')}
-        />
+        <div className="max-w-7xl mx-auto w-full">
+          <QHSEModule
+            currentMember={currentMember}
+            members={members}
+            companies={companies}
+            processes={processes}
+            projects={projects}
+            roles={roles}
+            activeSubTab={qhseSubTab}
+            onSubTabChange={(tab) => setQhseSubTab(tab)}
+            accessLevel={getModuleAccess(currentMember, roles, 'qhse')}
+          />
+        </div>
       )}
 
       {activeTab === 'finanzas' && (
@@ -638,34 +671,46 @@ export const AppMainContent: React.FC<AppMainContentProps> = ({
       )}
 
       {activeTab === 'importaciones' && (
-        <ImportacionesView
-          companies={companies}
-          currentMember={currentMember}
-          members={members}
-          processes={processes}
-          roles={roles}
-          accessLevel={getModuleAccess(currentMember, roles, 'importaciones')}
-          activeSubTab={importacionesSubTab}
-          onSubTabChange={(tab) => setImportacionesSubTab(tab)}
-        />
+        <div className="max-w-7xl mx-auto w-full">
+          {importacionesSubTab === 'permissions' ? (
+            <ModulePermissionsTab
+              moduleId="importaciones"
+              moduleName="Comercio Exterior e Importaciones"
+              currentMember={currentMember}
+              members={members}
+              processes={processes}
+              roles={roles}
+            />
+          ) : (
+            <ImportacionesModule
+              companies={companies}
+              currentMember={currentMember}
+              accessLevel={getModuleAccess(currentMember, roles, 'importaciones')}
+              activeSubTab={importacionesSubTab}
+              onSubTabChange={(tab) => setImportacionesSubTab(tab)}
+            />
+          )}
+        </div>
       )}
 
       {activeTab === 'marketing' && (
-        <MarketingView
-          currentMember={currentMember}
-          members={members}
-          processes={processes}
-          tasks={tasks}
-          projects={projects}
-          companies={companies}
-          accessLevel={getModuleAccess(currentMember, roles, 'marketing')}
-          activeSubTab={marketingSubTab}
-          onSubTabChange={(tab) => setMarketingSubTab(tab)}
-          onAddTask={onAddTaskMarketing}
-          onAddProject={onAddProjectMarketing}
-          onOpenTask={openEditTask}
-          onOpenCreateTaskModal={(initialOverrides) => openAddTaskModal('backlog', initialOverrides)}
-        />
+        <div className="max-w-7xl mx-auto w-full">
+          <MarketingModule
+            currentMember={currentMember}
+            members={members}
+            processes={processes}
+            tasks={tasks}
+            projects={projects}
+            companies={companies}
+            accessLevel={getModuleAccess(currentMember, roles, 'marketing')}
+            activeSubTab={marketingSubTab}
+            onSubTabChange={(tab) => setMarketingSubTab(tab)}
+            onAddTask={async (d) => { await onAddTaskMarketing(d); }}
+            onAddProject={async (d) => { await onAddProjectMarketing(d); }}
+            onOpenTask={openEditTask}
+            onOpenCreateTaskModal={(initialOverrides) => openAddTaskModal('backlog', initialOverrides)}
+          />
+        </div>
       )}
 
       {activeTab === 'dashboard' && (

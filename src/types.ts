@@ -171,7 +171,7 @@ export interface TaskComment {
   mentionedMemberIds?: string[];
 }
 
-export type CommentEntityType = 'task' | 'link' | 'note' | 'campaign' | 'project';
+export type CommentEntityType = 'task' | 'link' | 'note' | 'campaign' | 'project' | 'deal' | 'quote_template' | 'training_plan';
 
 export interface UniversalComment {
   id: string;
@@ -215,6 +215,8 @@ export interface Task {
   revisorId?: string; // Encargado de la revisión (NUEVO)
   processId: string; // Enlazada a un proceso
   projectId?: string; // Enlazada a un proyecto (NUEVO)
+  dealId?: string; // Enlazada a una oportunidad de ventas (NUEVO)
+  trainingPlanId?: string; // Enlazada a un plan / gestión de capacitación (NUEVO)
   deliverables?: Deliverable[]; // Nueva sección de entregables
   plannedHours?: number; // Horas planificadas
   actualHours?: number; // Horas reales
@@ -815,25 +817,136 @@ export interface SalesClient {
   createdAt: string;
 }
 
+export interface SalesDealLine {
+  id: string;
+  productId?: string;        // Vínculo opcional al catálogo ProductItem
+  description: string;       // Descripción técnica del producto o servicio
+  quantity: number;          // Cantidad cotizada
+  unitPrice: number;         // Precio unitario
+  total: number;             // quantity * unitPrice
+}
+
+export interface SalesWorkLogEntry {
+  id: string;
+  date: string;               // ISO timestamp
+  memberId: string;
+  memberName: string;
+  memberRole?: string;
+  type: 'stage_change' | 'work_note' | 'quote_update' | 'edition';
+  action: string;             // ej: "Avanzó etapa: Contacto Inicial → Diagnóstico", "Registro de avance"
+  details?: string;           // Detalle de qué se hizo / acuerdo / revisión
+  fromStage?: string;
+  toStage?: string;
+}
+
 export interface SalesDeal {
   id: string;
   title: string;
-  clientId: string;
-  amount: number;
-  stage: 'contacto' | 'reunion' | 'propuesta' | 'negociacion' | 'ganado' | 'perdido';
-  expectedCloseDate: string;
-  responsibleId: string;
+  code?: string;             // ej: "OPN-2026-001" (Código formal Tryton)
+  clientId: string;          // Vínculo a SalesClient
+  amount: number;            // Monto total estimado o acumulado
+  probability?: number;      // Probabilidad de éxito (0 a 100%)
+  stage: 'contacto' | 'reunion' | 'propuesta' | 'negociacion' | 'seguimiento' | 'ganado' | 'perdido';
+  lostReason?: 'precio' | 'competencia' | 'presupuesto' | 'plazos' | 'tecnico' | 'desinteres' | 'otro';
+  lostNotes?: string;        // Detalle del motivo de pérdida
+  expectedCloseDate: string; // Fecha prevista de cierre
+  responsibleId: string;     // Asesor comercial responsable (TeamMember.id)
+  description?: string;      // Requerimientos o notas del cliente
+  
+  // Atribución de Marketing
+  campaignId?: string;       // Vínculo a marketing_campaigns
+  channel?: 'directo' | 'referido' | 'web' | 'meta_ads' | 'google_ads' | 'evento' | 'licitacion' | 'otro';
+  
+  // Contacto clave de la empresa cliente
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  contactRole?: string;
+  
+  // Términos comerciales Tryton
+  paymentTerms?: string;     // ej: "50% anticipo, 50% contra entrega"
+  deliveryTime?: string;     // ej: "15 días hábiles"
+  priority?: 'baja' | 'media' | 'alta' | 'urgente';
+  
+  // Scrum Integration
+  projectId?: string;        // Proyecto Scrum opcional para licitaciones o grandes cuentas
+  
+  // Partidas & Cotizaciones
+  lines?: SalesDealLine[];
+  quoteIds?: string[];
+  workLog?: SalesWorkLogEntry[];
+  
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface SalesQuote {
   id: string;
-  quoteNumber: string;
-  clientId: string;
-  amount: number;
+  quoteNumber: string;       // ej: "PF-2026-088"
+  title?: string;            // ej: "Monitoreo de Ruido Ocupacional - Schlumberger"
+  clientId: string;          // Cliente
+  dealId?: string;           // Oportunidad vinculada
+  amount: number;            // Importe total
   status: 'borrador' | 'enviada' | 'aprobada' | 'rechazada';
-  date: string;
+  date: string;              // Fecha de emisión
+  validUntil?: string;       // Vigencia de la oferta (ej: 30 días)
+  responsibleId?: string;    // Asesor que elaboró la cotización
+  templateId?: string;       // ID de la Proforma Modelo de la que partió
+
+  // 📂 Tríada Documental
+  googleDocsUrl?: string;    // Propuesta técnica redactada en Google Docs
+  excelSheetUrl?: string;    // Memoria de cálculo económico en Excel / Google Sheets
+  pdfUrl?: string;           // Documento formal PDF emitido
+
+  scopeSummary?: string;     // Resumen del alcance
+  paymentTerms?: string;     // Términos de pago
+  deliveryTime?: string;     // Plazo de entrega
+  notes?: string;
+  lines?: SalesDealLine[];   // Partidas cotizadas estilo Tryton Lines
+  workLog?: SalesWorkLogEntry[];
+
   createdAt: string;
+  updatedAt?: string;
+}
+
+export type SalesQuoteTemplateCategory =
+  | 'qhse'
+  | 'epp'
+  | 'capacitacion'
+  | 'equipos_medicion'
+  | 'proyectos'
+  | 'otros'
+  | 'mediciones'
+  | 'consultoria'
+  | 'general';
+
+export interface SalesQuoteTemplate {
+  id: string;
+  code: string;              // ej: "MOD-QHSE-2026-001"
+  name: string;              // ej: "Monitoreo & Mediciones de Higiene Ocupacional"
+  category: SalesQuoteTemplateCategory;
+  description: string;       // Resumen de qué incluye este servicio
+  baseAmount?: number;       // Monto de referencia sugerido
+  
+  // Enlaces Maestros de la Tríada
+  masterGoogleDocsUrl?: string; // Plantilla base en Google Docs
+  masterExcelSheetUrl?: string; // Calculadora de costos base en Sheets / Excel
+  masterPdfUrl?: string;        // PDF de muestra o brochure
+
+  defaultPaymentTerms?: string; // "50% anticipo, 50% contra entrega"
+  defaultDeliveryTime?: string; // "15 días hábiles"
+  suggestedLines?: {
+    id?: string;
+    productId?: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total?: number;
+  }[];
+  workLog?: SalesWorkLogEntry[];
+
+  createdAt: string;
+  updatedAt?: string;
 }
 
 // --- Tryton ERP Financial & Banking Core Types ---
@@ -1185,6 +1298,8 @@ export interface TrainingPlan {
   totalHours?: number;
   totalExecutedHours?: number;
   status: 'programada' | 'completada' | 'cancelada';
+  projectId?: string;
+  responsibleMemberId?: string;
   participants?: TrainingParticipant[];
   createdAt?: string;
   updatedAt?: string;
@@ -1200,6 +1315,7 @@ export interface TrainingManagement {
   originType?: 'marketing_campaign' | 'project' | 'direct_client' | 'internal_initiative' | 'other';
   marketingCampaignId?: string; // Optional: if linked to a campaign
   projectId?: string; // Optional: if linked to a company Project
+  responsibleMemberId?: string; // Responsable del proyecto / capacitación
   originDetails?: string; // Optional description/notes about the origin
   
   totalHours: number; // Horas planificadas totales

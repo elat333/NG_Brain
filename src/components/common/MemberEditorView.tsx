@@ -18,11 +18,13 @@ import {
   Building,
   CheckCircle2,
   AlertTriangle,
-  GraduationCap
+  GraduationCap,
+  Camera
 } from 'lucide-react';
 import { Process, Company, Role, TeamMember } from '../../types';
 import { SearchableSelect } from './SearchableSelect';
 import { validateIdentification, checkIdentificationDuplicate } from '../../lib/fiscalValidators';
+import { AvatarCropModal, getMemberAvatarUrl, isCustomAvatar } from './AvatarCropModal';
 
 interface MemberEditorViewProps {
   editingMember: TeamMember | null;
@@ -50,6 +52,7 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
   const [activeTab, setActiveTab] = useState<'general' | 'role' | 'companies' | 'profile'>('general');
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [companyRoleInput, setCompanyRoleInput] = useState('');
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
 
   // Real-time Fiscal Identification and Duplicate Validation
   const idValidation = useMemo(() => {
@@ -127,21 +130,51 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
     }
   };
 
+  const currentAvatarValue = newMemberData.avatar ?? editingMember?.avatar ?? '';
+  const hasUploadedPhoto = isCustomAvatar(currentAvatarValue);
+
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-[2rem] border border-gray-100 shadow-xl overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100 bg-slate-50/50">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-ng-lime text-ng-black flex items-center justify-center font-black text-lg shadow-md shadow-ng-lime/20">
-            {newMemberData.name ? newMemberData.name.charAt(0).toUpperCase() : <User size={22} />}
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsCropModalOpen(true)}
+            className="relative group w-16 h-16 rounded-2xl overflow-hidden bg-ng-lime text-ng-black flex items-center justify-center font-black text-lg shadow-md shadow-ng-lime/20 cursor-pointer aspect-square shrink-0 border-2 border-white ring-2 ring-gray-100 hover:ring-ng-lime transition-all"
+            title="Subir o recortar foto de perfil cuadrada (1:1)"
+          >
+            {hasUploadedPhoto ? (
+              <img
+                src={getMemberAvatarUrl({ name: newMemberData.name, avatar: currentAvatarValue })}
+                alt={newMemberData.name || 'Foto'}
+                className="w-full h-full object-cover aspect-square"
+              />
+            ) : (
+              newMemberData.name ? newMemberData.name.charAt(0).toUpperCase() : <User size={24} />
+            )}
+            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 text-white">
+              <Camera size={16} className="text-ng-lime" />
+              <span className="text-[8px] font-black uppercase tracking-wider">Foto 1:1</span>
+            </div>
+          </button>
           <div>
             <h2 className="text-xl font-black text-gray-900">
               {editingMember ? `Editar: ${editingMember.name}` : 'Añadir Nuevo Integrante / Contacto'}
             </h2>
-            <p className="text-xs text-gray-500 font-medium">
-              Completa o modifica la información personal, profesional y corporativa.
-            </p>
+            <div className="flex items-center gap-3 mt-0.5">
+              <p className="text-xs text-gray-500 font-medium">
+                Completa o modifica la información personal, profesional y corporativa.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsCropModalOpen(true)}
+                className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+              >
+                <Camera size={12} />
+                {hasUploadedPhoto ? 'Cambiar foto cuadrada' : 'Subir foto cuadrada (1:1)'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -644,6 +677,14 @@ export const MemberEditorView: React.FC<MemberEditorViewProps> = ({
           {editingMember ? 'Guardar Cambios' : 'Registrar Persona'}
         </button>
       </div>
+
+      <AvatarCropModal
+        isOpen={isCropModalOpen}
+        onClose={() => setIsCropModalOpen(false)}
+        currentAvatar={currentAvatarValue}
+        userName={newMemberData.name || 'Nueva Persona'}
+        onSave={(croppedDataUrl) => setNewMemberData({ ...newMemberData, avatar: croppedDataUrl })}
+      />
     </form>
   );
 };

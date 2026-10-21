@@ -2,6 +2,45 @@ import { TeamMember, Role, Task } from '../types';
 
 export type ModuleAccessLevel = 'ninguno' | 'lector' | 'colaborador' | 'lider' | 'administrador';
 
+const ACCESS_HIERARCHY: ModuleAccessLevel[] = [
+  'administrador',
+  'lider',
+  'colaborador',
+  'lector',
+];
+
+const resolveHighestChildAccess = (
+  moduleAccess: Record<string, ModuleAccessLevel>,
+  prefix: string
+): ModuleAccessLevel | null => {
+  const specificLevels = Object.keys(moduleAccess)
+    .filter((k) => k.startsWith(prefix))
+    .map((k) => moduleAccess[k]);
+
+  for (const level of ACCESS_HIERARCHY) {
+    if (specificLevels.includes(level)) return level;
+  }
+  return null;
+};
+
+/**
+ * Standard ERP modules whose submodules follow the `<moduleId>_<subKey>` convention
+ * and default to `'colaborador'` when not explicitly restricted.
+ */
+const STANDARD_ERP_MODULES = [
+  'capacitacion',
+  'productos',
+  'finanzas',
+  'marketing',
+  'ventas',
+  'inventario',
+  'importaciones',
+  'acreditacion',
+  'qhse',
+  'gerencia',
+  'directory',
+] as const;
+
 /**
  * Evaluates the effective access level of a team member for a specific module or sub-process
  */
@@ -12,157 +51,138 @@ export const getModuleAccess = (
   isDatabaseEmpty: boolean = false
 ): ModuleAccessLevel => {
   if (!member) {
-    // If the database is completely empty, default to administrador to allow the first user to bootstrap.
-    // Otherwise, default to ninguno to prevent unauthorized access and flashes.
     return isDatabaseEmpty ? 'administrador' : 'ninguno';
   }
-  
+
   if (member.isSystemAdmin || member.systemRoleId === 'role-admin') {
     return 'administrador';
   }
 
-  // Handle dashboard module (Accessible by default for all team members upon platform startup)
+  const accessMap = member.moduleAccess;
+
+  // 1. Dashboard module (Accessible by default for all team members)
   if (moduleId === 'dashboard') {
-    if (member.moduleAccess && member.moduleAccess['dashboard'] && member.moduleAccess['dashboard'] !== 'ninguno') {
-      return member.moduleAccess['dashboard'];
+    if (accessMap?.dashboard && accessMap.dashboard !== 'ninguno') {
+      return accessMap.dashboard;
     }
     return 'colaborador';
   }
 
-  // Handle process_dashboard (Gestión XD) module special case
+  // 2. Process Dashboard (Gestión por Procesos) module & process-specific keys
   if (moduleId === 'process_dashboard') {
-    const generalAccess = member.moduleAccess ? member.moduleAccess['process_dashboard'] : undefined;
+    const generalAccess = accessMap?.process_dashboard;
     if (generalAccess !== undefined && generalAccess !== 'ninguno') {
       return generalAccess;
     }
-    if (member.moduleAccess) {
-      const keys = Object.keys(member.moduleAccess);
-      const specificLevels = keys
-        .filter(k => k.startsWith('process_dashboard_'))
-        .map(k => member.moduleAccess![k]);
-      
-      if (specificLevels.includes('administrador')) return 'administrador';
-      if (specificLevels.includes('lider')) return 'lider';
-      if (specificLevels.includes('colaborador')) return 'colaborador';
-      if (specificLevels.includes('lector')) return 'lector';
+    if (accessMap) {
+      const highest = resolveHighestChildAccess(accessMap, 'process_dashboard_');
+      if (highest) return highest;
     }
     if (generalAccess !== undefined) return generalAccess;
     return 'lector';
   }
 
-  // Handle process_dashboard_ process-specific module ID
   if (moduleId.startsWith('process_dashboard_')) {
-    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
-      return member.moduleAccess[moduleId];
+    if (accessMap && accessMap[moduleId] !== undefined) {
+      return accessMap[moduleId];
     }
-    const generalAccess = member.moduleAccess ? member.moduleAccess['process_dashboard'] : undefined;
-    if (generalAccess !== undefined) {
-      return generalAccess;
+    if (accessMap?.process_dashboard !== undefined) {
+      return accessMap.process_dashboard;
     }
     return 'lector';
   }
 
-  // Handle tasks module special case
+  // 3. Tasks (Scrum) module & process-specific keys
   if (moduleId === 'tasks') {
-    const generalAccess = member.moduleAccess ? member.moduleAccess['tasks'] : undefined;
+    const generalAccess = accessMap?.tasks;
     if (generalAccess !== undefined && generalAccess !== 'ninguno') {
       return generalAccess;
     }
-    if (member.moduleAccess) {
-      const keys = Object.keys(member.moduleAccess);
-      const specificLevels = keys
-        .filter(k => k.startsWith('tasks_') || k === 'marketing' || k === 'acreditacion')
-        .map(k => member.moduleAccess![k]);
-      
-      if (specificLevels.includes('administrador')) return 'administrador';
-      if (specificLevels.includes('lider')) return 'lider';
-      if (specificLevels.includes('colaborador')) return 'colaborador';
-      if (specificLevels.includes('lector')) return 'lector';
+    if (accessMap) {
+      const specificLevels = Object.keys(accessMap)
+        .filter((k) => k.startsWith('tasks_') || k === 'marketing' || k === 'acreditacion')
+        .map((k) => accessMap[k]);
+
+      for (const level of ACCESS_HIERARCHY) {
+        if (specificLevels.includes(level)) return level;
+      }
     }
     if (generalAccess !== undefined) return generalAccess;
   }
 
-  // Handle tasks import / export submodules
   if (moduleId === 'tasks_import' || moduleId === 'tasks_export') {
-    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
-      return member.moduleAccess[moduleId];
+    if (accessMap && accessMap[moduleId] !== undefined) {
+      return accessMap[moduleId];
     }
-    const generalTasksAccess = member.moduleAccess ? member.moduleAccess['tasks'] : undefined;
-    if (generalTasksAccess !== undefined) {
-      return generalTasksAccess;
+    if (accessMap?.tasks !== undefined) {
+      return accessMap.tasks;
     }
     return 'colaborador';
   }
 
-  // Handle tasks_ process-specific module ID
   if (moduleId.startsWith('tasks_')) {
     const procId = moduleId.replace('tasks_', '');
 
-    // 1. Direct specific permission key
-    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
-      return member.moduleAccess[moduleId];
+    if (accessMap && accessMap[moduleId] !== undefined) {
+      return accessMap[moduleId];
     }
 
-    // 2. Specific module link for marketing
-    if ((procId === 'proc-mkt' || procId.includes('mkt') || procId.includes('marketing')) && member.moduleAccess && member.moduleAccess['marketing'] !== undefined) {
-      return member.moduleAccess['marketing'];
+    if (
+      (procId === 'proc-mkt' || procId.includes('mkt') || procId.includes('marketing')) &&
+      accessMap?.marketing !== undefined
+    ) {
+      return accessMap.marketing;
     }
 
-    // 3. Specific module link for acreditacion (e.g. proc-acred or acreditacion process)
-    const isAcredProcess = procId === 'proc-acred' || procId === 'acreditacion' || procId.includes('acred');
-    if (isAcredProcess && member.moduleAccess) {
-      if (member.moduleAccess['acreditacion'] !== undefined) {
-        return member.moduleAccess['acreditacion'];
-      }
-      if (member.moduleAccess['tasks_proc-acred'] !== undefined) {
-        return member.moduleAccess['tasks_proc-acred'];
-      }
+    const isAcredProcess =
+      procId === 'proc-acred' || procId === 'acreditacion' || procId.includes('acred');
+    if (isAcredProcess && accessMap) {
+      if (accessMap.acreditacion !== undefined) return accessMap.acreditacion;
+      if (accessMap['tasks_proc-acred'] !== undefined) return accessMap['tasks_proc-acred'];
     }
 
-    // 4. If the member is assigned to this process
-    const isMemberInProcess = member.processId === procId || (isAcredProcess && (member.processId === 'proc-acred' || member.processId === 'acreditacion' || (typeof member.processId === 'string' && member.processId.includes('acred'))));
+    const isMemberInProcess =
+      member.processId === procId ||
+      (isAcredProcess &&
+        (member.processId === 'proc-acred' ||
+          member.processId === 'acreditacion' ||
+          (typeof member.processId === 'string' && member.processId.includes('acred'))));
+
     if (isMemberInProcess) {
-      if (member.systemRoleId === 'role-lider' || (typeof member.role === 'string' && member.role.toLowerCase().includes('lider'))) {
+      if (
+        member.systemRoleId === 'role-lider' ||
+        (typeof member.role === 'string' && member.role.toLowerCase().includes('lider'))
+      ) {
         return 'lider';
       }
-      // If the member belongs to the process, default to colaborador
       return 'colaborador';
     }
 
-    // 5. Default isolation: If the member does not belong to this process and has no explicit permission for it,
-    // they do NOT inherit generalTasksAccess because that would leak stories of all other departments.
-    // Instead, return 'ninguno'. This ensures they only see tasks in this process if they are assigned as primary or auxiliary.
     return 'ninguno';
   }
 
-  // Handle projects module special case
+  // 4. Projects module & process-specific keys
   if (moduleId === 'projects') {
-    const generalAccess = member.moduleAccess ? member.moduleAccess['projects'] : undefined;
-    if (generalAccess !== undefined) {
-      return generalAccess;
+    if (accessMap?.projects !== undefined) {
+      return accessMap.projects;
     }
-    if (member.moduleAccess) {
-      const keys = Object.keys(member.moduleAccess);
-      const specificLevels = keys
-        .filter(k => k.startsWith('projects_'))
-        .map(k => member.moduleAccess![k]);
-      
-      if (specificLevels.includes('administrador')) return 'administrador';
-      if (specificLevels.includes('lider')) return 'lider';
-      if (specificLevels.includes('colaborador')) return 'colaborador';
-      if (specificLevels.includes('lector')) return 'lector';
+    if (accessMap) {
+      const highest = resolveHighestChildAccess(accessMap, 'projects_');
+      if (highest) return highest;
     }
     return 'colaborador';
   }
 
-  // Handle projects_ process-specific module ID
   if (moduleId.startsWith('projects_')) {
-    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
-      return member.moduleAccess[moduleId];
+    if (accessMap && accessMap[moduleId] !== undefined) {
+      return accessMap[moduleId];
     }
     const procId = moduleId.replace('projects_', '');
     if (member.processId === procId) {
-      if (member.systemRoleId === 'role-lider' || (typeof member.role === 'string' && member.role.toLowerCase().includes('lider'))) {
+      if (
+        member.systemRoleId === 'role-lider' ||
+        (typeof member.role === 'string' && member.role.toLowerCase().includes('lider'))
+      ) {
         return 'lider';
       }
       return 'colaborador';
@@ -170,192 +190,53 @@ export const getModuleAccess = (
     return 'ninguno';
   }
 
-  // Handle importaciones module
-  if (moduleId === 'importaciones') {
-    if (member.moduleAccess && member.moduleAccess['importaciones'] !== undefined) {
-      return member.moduleAccess['importaciones'];
+  // 5. Unified handler for Standard ERP Modules and their `<module>_<submodule>` keys
+  for (const erpMod of STANDARD_ERP_MODULES) {
+    if (moduleId === erpMod) {
+      const generalAccess = accessMap?.[erpMod];
+      if (generalAccess !== undefined && generalAccess !== 'ninguno') {
+        return generalAccess;
+      }
+      if (accessMap) {
+        const highest = resolveHighestChildAccess(accessMap, `${erpMod}_`);
+        if (highest) return highest;
+      }
+      if (generalAccess !== undefined) return generalAccess;
+      return 'colaborador';
     }
-    return 'colaborador';
+
+    if (moduleId.startsWith(`${erpMod}_`)) {
+      if (accessMap && accessMap[moduleId] !== undefined) {
+        return accessMap[moduleId];
+      }
+      if (accessMap?.[erpMod] !== undefined) {
+        return accessMap[erpMod];
+      }
+      return 'colaborador';
+    }
   }
 
-  // Handle marketing module
-  if (moduleId === 'marketing') {
-    if (member.moduleAccess && member.moduleAccess['marketing'] !== undefined) {
-      return member.moduleAccess['marketing'];
+  // 6. Universal collaboration modules (comments, notes, links)
+  for (const collabKey of ['comments', 'notes', 'links'] as const) {
+    if (moduleId === collabKey || moduleId.startsWith(`${collabKey}_`)) {
+      if (accessMap && accessMap[moduleId] !== undefined) {
+        return accessMap[moduleId];
+      }
+      if (accessMap?.[collabKey] !== undefined) {
+        return accessMap[collabKey];
+      }
+      return 'colaborador';
     }
-    return 'colaborador';
   }
 
-  // Handle acreditacion module
-  if (moduleId === 'acreditacion') {
-    if (member.moduleAccess && member.moduleAccess['acreditacion'] !== undefined) {
-      return member.moduleAccess['acreditacion'];
+  // 7. Explicit custom key fallback
+  if (accessMap) {
+    if (accessMap[moduleId] !== undefined) {
+      return accessMap[moduleId];
     }
-    return 'colaborador';
-  }
-
-  // Handle capacitacion module
-  if (moduleId === 'capacitacion') {
-    const generalAccess = member.moduleAccess ? member.moduleAccess['capacitacion'] : undefined;
-    if (generalAccess !== undefined && generalAccess !== 'ninguno') {
-      return generalAccess;
-    }
-    if (member.moduleAccess) {
-      const keys = Object.keys(member.moduleAccess);
-      const specificLevels = keys
-        .filter(k => k.startsWith('capacitacion_'))
-        .map(k => member.moduleAccess![k]);
-      
-      if (specificLevels.includes('administrador')) return 'administrador';
-      if (specificLevels.includes('lider')) return 'lider';
-      if (specificLevels.includes('colaborador')) return 'colaborador';
-      if (specificLevels.includes('lector')) return 'lector';
-    }
-    if (generalAccess !== undefined) return generalAccess;
-    return 'colaborador';
-  }
-
-  // Handle capacitacion_ specific submodules
-  if (moduleId.startsWith('capacitacion_')) {
-    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
-      return member.moduleAccess[moduleId];
-    }
-    const generalAccess = member.moduleAccess ? member.moduleAccess['capacitacion'] : undefined;
-    if (generalAccess !== undefined) {
-      return generalAccess;
-    }
-    return 'colaborador';
-  }
-
-  // Handle qhse module
-  if (moduleId === 'qhse') {
-    if (member.moduleAccess && member.moduleAccess['qhse'] !== undefined) {
-      return member.moduleAccess['qhse'];
-    }
-    return 'colaborador';
-  }
-
-  // Handle productos module
-  if (moduleId === 'productos') {
-    const generalAccess = member.moduleAccess ? member.moduleAccess['productos'] : undefined;
-    if (generalAccess !== undefined) {
-      return generalAccess;
-    }
-    if (member.moduleAccess) {
-      const keys = Object.keys(member.moduleAccess);
-      const specificLevels = keys
-        .filter(k => k.startsWith('productos_'))
-        .map(k => member.moduleAccess![k]);
-      
-      if (specificLevels.includes('administrador')) return 'administrador';
-      if (specificLevels.includes('lider')) return 'lider';
-      if (specificLevels.includes('colaborador')) return 'colaborador';
-      if (specificLevels.includes('lector')) return 'lector';
-    }
-    return 'colaborador';
-  }
-
-  // Handle productos_ specific submodule
-  if (moduleId.startsWith('productos_')) {
-    const subAccess = member.moduleAccess ? member.moduleAccess[moduleId] : undefined;
-    if (subAccess !== undefined) {
-      return subAccess;
-    }
-    const generalAccess = member.moduleAccess ? member.moduleAccess['productos'] : undefined;
-    if (generalAccess !== undefined) {
-      return generalAccess;
-    }
-    return 'colaborador';
-  }
-
-  // Handle inventario module
-  if (moduleId === 'inventario') {
-    const generalAccess = member.moduleAccess ? member.moduleAccess['inventario'] : undefined;
-    if (generalAccess !== undefined) {
-      return generalAccess;
-    }
-    return 'colaborador';
-  }
-
-  // Handle finanzas module and submodules (Tryton ERP)
-  if (moduleId === 'finanzas') {
-    const generalAccess = member.moduleAccess ? member.moduleAccess['finanzas'] : undefined;
-    if (generalAccess !== undefined) {
-      return generalAccess;
-    }
-    if (member.moduleAccess) {
-      const keys = Object.keys(member.moduleAccess);
-      const specificLevels = keys
-        .filter(k => k.startsWith('finanzas_'))
-        .map(k => member.moduleAccess![k]);
-      
-      if (specificLevels.includes('administrador')) return 'administrador';
-      if (specificLevels.includes('lider')) return 'lider';
-      if (specificLevels.includes('colaborador')) return 'colaborador';
-      if (specificLevels.includes('lector')) return 'lector';
-    }
-    return 'colaborador';
-  }
-
-  // Handle finanzas_ specific submodules
-  if (moduleId.startsWith('finanzas_')) {
-    const subAccess = member.moduleAccess ? member.moduleAccess[moduleId] : undefined;
-    if (subAccess !== undefined) {
-      return subAccess;
-    }
-    const generalAccess = member.moduleAccess ? member.moduleAccess['finanzas'] : undefined;
-    if (generalAccess !== undefined) {
-      return generalAccess;
-    }
-    return 'colaborador';
-  }
-
-  // Handle comments module (Módulo Universal de Comentarios)
-  if (moduleId === 'comments' || moduleId.startsWith('comments_')) {
-    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
-      return member.moduleAccess[moduleId];
-    }
-    const generalCommentsAccess = member.moduleAccess ? member.moduleAccess['comments'] : undefined;
-    if (generalCommentsAccess !== undefined) {
-      return generalCommentsAccess;
-    }
-    // Por defecto todos los miembros activos pueden colaborar en comentarios
-    return 'colaborador';
-  }
-
-  // Handle notes module / sub-keys (Notas de Colaboración)
-  if (moduleId === 'notes' || moduleId.startsWith('notes_')) {
-    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
-      return member.moduleAccess[moduleId];
-    }
-    const generalNotesAccess = member.moduleAccess ? member.moduleAccess['notes'] : undefined;
-    if (generalNotesAccess !== undefined) {
-      return generalNotesAccess;
-    }
-    return 'colaborador';
-  }
-
-  // Handle links module / sub-keys (Enlaces de Colaboración)
-  if (moduleId === 'links' || moduleId.startsWith('links_')) {
-    if (member.moduleAccess && member.moduleAccess[moduleId] !== undefined) {
-      return member.moduleAccess[moduleId];
-    }
-    const generalLinksAccess = member.moduleAccess ? member.moduleAccess['links'] : undefined;
-    if (generalLinksAccess !== undefined) {
-      return generalLinksAccess;
-    }
-    return 'colaborador';
-  }
-  
-  // If the member has an explicit moduleAccess object, that object is the absolute source of truth
-  if (member.moduleAccess) {
-    if (member.moduleAccess[moduleId] !== undefined) {
-      return member.moduleAccess[moduleId];
-    }
-    // Any module not explicitly permitted in a custom structure defaults to none
     return 'ninguno';
   }
-  
+
   return 'ninguno';
 };
 
@@ -374,35 +255,29 @@ export const isTaskVisibleForMember = (
     return true;
   }
 
-  // Get specific access for this task's process (using fallback to general 'tasks' if unassigned or not set)
   const moduleIdForTask = task.processId ? `tasks_${task.processId}` : 'tasks';
   const access = getModuleAccess(currentMember, roles, moduleIdForTask);
 
-  // If they have no access ('ninguno'), they can only see the task if they are directly assigned or auxiliary
+  const isPrimaryAssignee = Boolean(currentMember.id && task.memberId === currentMember.id);
+  const isAuxiliaryAssignee = Boolean(
+    (currentMember.id && task.auxiliaryId === currentMember.id) ||
+      (Array.isArray(task.auxiliaryIds) &&
+        currentMember.id &&
+        task.auxiliaryIds.includes(currentMember.id))
+  );
+
   if (access === 'ninguno') {
-    const isPrimaryAssignee = Boolean(currentMember.id && task.memberId === currentMember.id);
-    const isAuxiliaryAssignee = Boolean(
-      (currentMember.id && task.auxiliaryId === currentMember.id) ||
-      (Array.isArray(task.auxiliaryIds) && currentMember.id && task.auxiliaryIds.includes(currentMember.id))
-    );
     return isPrimaryAssignee || isAuxiliaryAssignee;
   }
 
-  // If they are a collaborator
   if (access === 'colaborador') {
-    const isPrimaryAssignee = Boolean(currentMember.id && task.memberId === currentMember.id);
-    const isAuxiliaryAssignee = Boolean(
-      (currentMember.id && task.auxiliaryId === currentMember.id) ||
-      (Array.isArray(task.auxiliaryIds) && currentMember.id && task.auxiliaryIds.includes(currentMember.id))
-    );
-    const isBacklogUnassignedOfMyProcess = 
-      task.status === 'backlog' && 
-      task.processId === currentMember.processId && 
+    const isBacklogUnassignedOfMyProcess =
+      task.status === 'backlog' &&
+      task.processId === currentMember.processId &&
       (!task.memberId || task.memberId === '');
     return isPrimaryAssignee || isAuxiliaryAssignee || isBacklogUnassignedOfMyProcess;
   }
 
-  // Lector, Lider, Administrador can see all tasks of this process
   return true;
 };
 
@@ -416,15 +291,19 @@ export const isSubnavVisible = (
 ): boolean => {
   if (!member) return true;
   if (member.isSystemAdmin || member.systemRoleId === 'role-admin') return true;
-  
+
   const key = `vis_${type}_${moduleKey}`;
   const val = member.moduleAccess ? member.moduleAccess[key] : undefined;
-  
-  // If explicitly hidden or set to 'ninguno' / 'hidden'
-  if (val === 'ninguno' || (val as any) === 'hidden' || (val as any) === false || (val as any) === 'false') {
+
+  if (
+    val === 'ninguno' ||
+    (val as any) === 'hidden' ||
+    (val as any) === false ||
+    (val as any) === 'false'
+  ) {
     return false;
   }
-  
+
   return true;
 };
 
@@ -435,20 +314,16 @@ export const isTaskBlocked = (
   taskId: string,
   allTasks: Task[]
 ): { isBlocked: boolean; blockers: Task[] } => {
-  const task = allTasks.find(t => t.id === taskId);
+  const task = allTasks.find((t) => t.id === taskId);
   const blockerIds = task?.blockedByTaskIds || (task as any)?.blockedBy || [];
   if (!task || blockerIds.length === 0) {
     return { isBlocked: false, blockers: [] };
   }
 
-  const blockers = allTasks.filter(
-    t => blockerIds.includes(t.id) && t.status !== 'done'
-  );
+  const blockers = allTasks.filter((t) => blockerIds.includes(t.id) && t.status !== 'done');
 
   return {
     isBlocked: blockers.length > 0,
-    blockers
+    blockers,
   };
 };
-
-

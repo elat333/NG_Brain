@@ -201,22 +201,39 @@ export const MarketingModule: React.FC<MarketingModuleProps> = ({
     // Automatic synchronization with Projects
     if (createLinkedProject && (!linkedProjId || !projects.some(p => p.id === linkedProjId))) {
       try {
-        const newProjId = `proj-camp-${Date.now()}`;
-        const newProjectData: Project = {
-          id: newProjId,
-          name: campaign.code || campaign.name,
-          description: `Proyecto de campaña de Marketing: ${campaign.name}. Audiencia: ${campaign.targetAudience || 'General'}. Presupuesto: $${campaign.budget}`,
-          status: campaign.status === 'activa' ? 'activo' : campaign.status === 'completada' ? 'completado' : 'pausado',
-          processId: resolvedProcessId,
-          createdAt: new Date().toISOString()
-        };
+        // Check if a project with the same name or code already exists
+        const existingProj = projects.find(p => 
+          (campaign.code && (p.code === campaign.code || p.code === `PRJ-${campaign.code}`)) ||
+          (campaign.name && p.name.trim().toLowerCase() === campaign.name.trim().toLowerCase()) ||
+          (campaign.code && p.name.trim().toLowerCase() === campaign.code.trim().toLowerCase())
+        );
 
-        if (onAddProject) {
-          await onAddProject(newProjectData);
+        if (existingProj) {
+          linkedProjId = existingProj.id;
+          if (existingProj.status === 'pausado') {
+            await setDoc(doc(db, 'projects', existingProj.id), { ...existingProj, status: 'activo' }, { merge: true });
+          }
         } else {
-          await setDoc(doc(db, 'projects', newProjId), newProjectData);
+          const newProjId = `proj-camp-${Date.now()}`;
+          const newProjectData: Project = {
+            id: newProjId,
+            code: campaign.code ? `PRJ-${campaign.code}` : `PRJ-MKT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+            name: campaign.name || campaign.code || 'Proyecto Campaña',
+            description: `Proyecto de campaña de Marketing: ${campaign.name}. Audiencia: ${campaign.targetAudience || 'General'}. Presupuesto: $${campaign.budget || 0}`,
+            status: 'activo',
+            processId: resolvedProcessId,
+            leaderId: campaign.leaderMemberId || currentMember?.id || '',
+            budget: Number(campaign.budget) || 0,
+            createdAt: new Date().toISOString()
+          };
+
+          if (onAddProject) {
+            await onAddProject(newProjectData);
+          } else {
+            await setDoc(doc(db, 'projects', newProjId), newProjectData);
+          }
+          linkedProjId = newProjId;
         }
-        linkedProjId = newProjId;
       } catch (err) {
         console.error('Error creating linked project:', err);
       }

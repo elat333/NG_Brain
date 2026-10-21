@@ -35,7 +35,7 @@ import {
   Link2,
   Unlink
 } from 'lucide-react';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { MarketingCampaign, Task, Project, TeamMember, Process, MarketingLead } from '../../types';
 import { UniversalCommentsThread } from '../common/UniversalCommentsThread';
@@ -80,7 +80,33 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
   canEdit = true,
   canDelete = true
 }) => {
-  const [activeTab, setActiveTab] = useState<Campaign360Tab>('general');
+  const [activeTab, setActiveTab] = useState<Campaign360Tab>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const urlTab = new URL(window.location.href).searchParams.get('campTab') as Campaign360Tab;
+        if (urlTab && ['general', 'finances', 'stories', 'leads', 'comments'].includes(urlTab)) {
+          return urlTab;
+        }
+      } catch (e) {
+        console.warn('Error reading campTab from URL:', e);
+      }
+    }
+    return 'general';
+  });
+
+  const handleTabChange = (tab: Campaign360Tab) => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('campTab', tab);
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {
+        console.warn('Error saving campTab to URL:', e);
+      }
+    }
+  };
+
   const [isSaving, setIsSaving] = useState(false);
   const [createLinkedProject, setCreateLinkedProject] = useState(true);
 
@@ -272,6 +298,23 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
         alert('Por favor ingrese primero el nombre de la campaña.');
         return;
       }
+
+      // Reutilizar proyecto si ya existe uno con el mismo nombre o código
+      const existingProj = projects.find(p => 
+        (formData.code && (p.code === formData.code || p.code === `PRJ-${formData.code}`)) ||
+        (formData.name && p.name.trim().toLowerCase() === formData.name.trim().toLowerCase()) ||
+        (formData.code && p.name.trim().toLowerCase() === formData.code.trim().toLowerCase())
+      );
+
+      if (existingProj) {
+        setFormData(prev => ({ ...prev, projectId: existingProj.id }));
+        if (existingProj.status === 'pausado') {
+          await setDoc(doc(db, 'projects', existingProj.id), { ...existingProj, status: 'activo' }, { merge: true });
+        }
+        alert(`¡Se vinculó la campaña al proyecto existente "${existingProj.name}"!`);
+        return;
+      }
+
       const newProjId = `proj-mkt-${Date.now()}`;
       const projectCode = formData.code ? `PRJ-${formData.code}` : `PRJ-MKT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
       const newProject: Project = {
@@ -303,6 +346,50 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
 
   // Associated calculations
   const linkedProject = projects.find(p => p.id === formData.projectId);
+
+  // Detección de proyectos duplicados con el mismo nombre de la campaña o proyecto vinculado
+  const duplicateProjects = React.useMemo(() => {
+    const targetName = (formData.name || linkedProject?.name || '').trim().toLowerCase();
+    if (!targetName) return [];
+    return projects.filter(p => p.name.trim().toLowerCase() === targetName);
+  }, [projects, formData.name, linkedProject]);
+
+  const handleMergeDuplicateProjects = async () => {
+    if (duplicateProjects.length <= 1) return;
+    const confirmMerge = window.confirm(
+      `Se detectaron ${duplicateProjects.length} proyectos con el nombre "${duplicateProjects[0].name}".\n\n` +
+      `¿Deseas unificarlos en un único proyecto activo y eliminar el duplicado sobrante? Las historias se preservarán.`
+    );
+    if (!confirmMerge) return;
+
+    try {
+      // Elegir el proyecto principal (el que ya esté vinculado a la campaña o el primero)
+      const primaryProject = duplicateProjects.find(p => p.id === formData.projectId) || duplicateProjects[0];
+      const duplicatesToDelete = duplicateProjects.filter(p => p.id !== primaryProject.id);
+
+      // 1. Asegurar estado 'activo' en el principal
+      await setDoc(doc(db, 'projects', primaryProject.id), {
+        ...primaryProject,
+        status: 'activo'
+      }, { merge: true });
+
+      // 2. Reasignar historias que estuvieran apuntando a los duplicados
+      for (const dup of duplicatesToDelete) {
+        const tasksToMigrate = tasks.filter(t => t.projectId === dup.id);
+        for (const t of tasksToMigrate) {
+          await setDoc(doc(db, 'tasks', t.id), { projectId: primaryProject.id }, { merge: true });
+        }
+        // 3. Eliminar el proyecto duplicado redundante
+        await deleteDoc(doc(db, 'projects', dup.id));
+      }
+
+      setFormData(prev => ({ ...prev, projectId: primaryProject.id }));
+      alert(`¡Proyectos unificados con éxito! Se mantuvo "${primaryProject.name}" como único proyecto activo en Scrum.`);
+    } catch (err: any) {
+      console.error('Error unifying projects:', err);
+      alert('Error al unificar proyectos: ' + (err?.message || ''));
+    }
+  };
   const campaignStories = tasks.filter(t => t.projectId && t.projectId === formData.projectId);
   const campaignLeads = leads.filter(l => l.campaignId === formData.id);
   const totalBudget = Number(formData.budget) || 0;
@@ -451,7 +538,7 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2 border-t border-slate-100 overflow-x-auto">
           <button
             type="button"
-            onClick={() => setActiveTab('general')}
+            onClick={() => handleTabChange('general')}
             className={`py-3 px-4 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'general'
                 ? 'border-blue-600 text-blue-600'
@@ -464,7 +551,7 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveTab('finances')}
+            onClick={() => handleTabChange('finances')}
             className={`py-3 px-4 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'finances'
                 ? 'border-blue-600 text-blue-600'
@@ -477,7 +564,7 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveTab('stories')}
+            onClick={() => handleTabChange('stories')}
             className={`py-3 px-4 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'stories'
                 ? 'border-blue-600 text-blue-600'
@@ -490,7 +577,7 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveTab('leads')}
+            onClick={() => handleTabChange('leads')}
             className={`py-3 px-4 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'leads'
                 ? 'border-blue-600 text-blue-600'
@@ -504,7 +591,7 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
           {!isCreating && (
             <button
               type="button"
-              onClick={() => setActiveTab('comments')}
+              onClick={() => handleTabChange('comments')}
               className={`py-3 px-4 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeTab === 'comments'
                   ? 'border-blue-600 text-blue-600'
@@ -656,7 +743,7 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
                     <option value="">(Sin Proyecto Vinculado)</option>
                     {projects.map(p => (
                       <option key={`camp_proj_gen_opt_${p.id}`} value={p.id}>
-                        {p.name} {p.code ? `[${p.code}]` : ''} ({p.status})
+                        {p.name} {p.code ? `[${p.code}]` : ''} ({p.status === 'activo' || p.status === 'in_progress' ? 'Activo' : p.status === 'completado' || p.status === 'done' ? 'Completado' : 'Pausado'})
                       </option>
                     ))}
                   </select>
@@ -886,11 +973,31 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
                 )}
               </div>
 
+              {/* ALERTA Y ACCIÓN DE PROYECTOS DUPLICADOS */}
+              {duplicateProjects.length > 1 && canEdit && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 shadow-2xs">
+                  <div className="flex items-center gap-2.5 text-xs font-bold">
+                    <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+                    <span>
+                      Se detectaron <strong>{duplicateProjects.length} proyectos</strong> con el nombre &quot;{duplicateProjects[0].name}&quot; en Scrum.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleMergeDuplicateProjects}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-black transition-all shadow-xs shrink-0 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Sparkles size={13} />
+                    <span>Unificar y Limpiar Duplicados</span>
+                  </button>
+                </div>
+              )}
+
               {canEdit && (
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-3 border-t border-blue-100/90 items-end">
                   <div className="sm:col-span-7">
                     <label className="block text-[10px] font-black uppercase text-slate-600 mb-1">
-                      {linkedProject ? 'Cambiar a otro Proyecto Scrum existente' : 'Vincular a un Proyecto Scrum existente'}
+                      {linkedProject ? 'Proyecto Scrum Vinculado (o seleccionar otro)' : 'Vincular a un Proyecto Scrum existente'}
                     </label>
                     <select
                       value={formData.projectId || ''}
@@ -900,7 +1007,7 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
                       <option value="">(Sin Proyecto Vinculado)</option>
                       {projects.map(p => (
                         <option key={`mkt_linked_proj_${p.id}`} value={p.id}>
-                          {p.name} {p.code ? `[${p.code}]` : ''} ({p.status})
+                          {p.name} {p.code ? `[${p.code}]` : ''} ({p.status === 'activo' || p.status === 'in_progress' ? 'Activo' : p.status === 'completado' || p.status === 'done' ? 'Completado' : 'Pausado'})
                         </option>
                       ))}
                     </select>
@@ -1062,7 +1169,19 @@ export const Campaign360View: React.FC<Campaign360ViewProps> = ({
                 return (
                   <div
                     key={`story_row_${story.id}`}
-                    onClick={() => onOpenStory && onOpenStory(story)}
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        try {
+                          const url = new URL(window.location.href);
+                          if (formData.id) url.searchParams.set('campaign', formData.id);
+                          url.searchParams.set('campTab', 'stories');
+                          window.history.replaceState({}, '', url.toString());
+                        } catch (e) {
+                          console.warn('Error setting campaign params:', e);
+                        }
+                      }
+                      if (onOpenStory) onOpenStory(story);
+                    }}
                     className="p-4 bg-slate-50 hover:bg-blue-50/60 rounded-2xl border border-slate-200/80 transition-all flex items-center justify-between gap-4 cursor-pointer group"
                   >
                     <div className="flex items-center gap-3 min-w-0">

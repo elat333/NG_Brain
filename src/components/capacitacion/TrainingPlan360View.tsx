@@ -28,7 +28,12 @@ import {
   ShieldCheck,
   Percent,
   CreditCard,
-  FileText
+  FileText,
+  BookOpen,
+  FolderKanban,
+  Unlink,
+  AlertTriangle,
+  Check
 } from 'lucide-react';
 import {
   TrainingManagement,
@@ -45,7 +50,9 @@ import {
   MarketingCampaign,
   Project,
   FiscalTaxType,
-  FiscalInvoiceType
+  FiscalInvoiceType,
+  Task,
+  Process
 } from '../../types';
 import { SearchableSelect } from '../common/SearchableSelect';
 
@@ -60,6 +67,12 @@ interface TrainingPlan360ViewProps {
   clients: SalesClient[];
   campaigns: MarketingCampaign[];
   projects?: Project[];
+  processes?: Process[];
+  tasks?: Task[];
+  onOpenTask?: (task: Task) => void;
+  onAddTask?: (taskData: Partial<Task>) => Promise<void>;
+  onAddProject?: (projectData: Partial<Project>) => Promise<void>;
+  onOpenCreateTaskModal?: (initialOverrides?: Partial<Task>) => void;
   onSave: (mgmt: Partial<TrainingManagement>, planData?: Partial<TrainingPlan>) => Promise<void>;
   onDelete?: (mgmtId: string, planId?: string) => Promise<void>;
   onBack: () => void;
@@ -77,6 +90,12 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
   clients,
   campaigns,
   projects = [],
+  processes = [],
+  tasks = [],
+  onOpenTask,
+  onAddTask,
+  onAddProject,
+  onOpenCreateTaskModal,
   onSave,
   onDelete,
   onBack,
@@ -89,6 +108,7 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
   const [code, setCode] = useState(management?.code || `CAP-${new Date().getFullYear()}-001`);
   const [title, setTitle] = useState(plan?.title || '');
   const [description, setDescription] = useState(plan?.description || '');
+  const [responsibleMemberId, setResponsibleMemberId] = useState(management?.responsibleMemberId || plan?.responsibleMemberId || '');
   const [status, setStatus] = useState<'pendiente' | 'ejecutada'>(management?.status || 'pendiente');
   const [planStatus, setPlanStatus] = useState<'programada' | 'completada' | 'cancelada'>(plan?.status || 'programada');
 
@@ -98,6 +118,120 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
   const [campaignId, setCampaignId] = useState(management?.marketingCampaignId || '');
   const [projectId, setProjectId] = useState(management?.projectId || '');
   const [originDetails, setOriginDetails] = useState(management?.originDetails || '');
+
+  // IDs for Training & Plan
+  const trainingId = management?.id || plan?.id || '';
+  const effectivePlanId = plan?.id || management?.planId || '';
+
+  // Scrum Stories Filtering
+  const trainingStories = useMemo(() => {
+    return tasks.filter(t => {
+      if (t.trainingPlanId && (t.trainingPlanId === trainingId || t.trainingPlanId === effectivePlanId)) {
+        return true;
+      }
+      if (projectId && t.projectId === projectId && t.trainingPlanId) {
+        return t.trainingPlanId === trainingId || t.trainingPlanId === effectivePlanId;
+      }
+      return false;
+    });
+  }, [tasks, trainingId, effectivePlanId, projectId]);
+
+  const completedStoriesCount = useMemo(() => {
+    return trainingStories.filter(s => s.status === 'done').length;
+  }, [trainingStories]);
+
+  // Linked Project from Scrum
+  const linkedProject = useMemo(() => {
+    if (!projectId) return null;
+    return projects.find(p => p.id === projectId) || null;
+  }, [projects, projectId]);
+
+  const handleCreateAndLinkProject = async () => {
+    if (!onAddProject) return;
+    const projectName = title || plan?.title || `Capacitación ${code}`;
+    const projectCode = `PRJ-${code.replace(/^CAP-/, '')}`;
+    const newProjId = `prj-${Date.now()}`;
+    const newProjectData: Partial<Project> = {
+      id: newProjId,
+      name: projectName,
+      code: projectCode,
+      description: `Proyecto de Scrum para seguimiento y entregables de la capacitación ${code} - ${projectName}`,
+      status: 'activo',
+      startDate: date,
+      endDate: endDate || undefined,
+      priority: 'media'
+    };
+    await onAddProject(newProjectData);
+    setProjectId(newProjId);
+  };
+
+  const handleUnlinkProject = () => {
+    setProjectId('');
+  };
+
+  // State for adding a new Story
+  const [isAddingStory, setIsAddingStory] = useState(false);
+  const [storyForm, setStoryForm] = useState({
+    title: '',
+    description: '',
+    memberId: members[0]?.id || '',
+    priority: 'media' as 'baja' | 'media' | 'alta' | 'meteoric_crash',
+    dueDate: ''
+  });
+
+  const handleOpenNewStoryModal = () => {
+    const initialPrefix = code ? `${code}_` : '';
+    const capProcess = processes.find(p => {
+      const name = (p.name || '').toLowerCase();
+      const id = (p.id || '').toLowerCase();
+      return name.includes('capacitac') || name.includes('formac') || id.includes('cap');
+    }) || processes[0];
+
+    if (onOpenCreateTaskModal) {
+      onOpenCreateTaskModal({
+        title: initialPrefix,
+        projectId: projectId || undefined,
+        processId: capProcess?.id || undefined,
+        trainingPlanId: effectivePlanId || trainingId,
+        memberId: responsibleMemberId || undefined,
+        storyDescription: `Historia vinculada para la capacitación ${code} (${title || 'Capacitación'})`
+      });
+    } else {
+      setIsAddingStory(prev => !prev);
+    }
+  };
+
+  const handleCreateStorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!storyForm.title.trim() || !onAddTask) return;
+
+    const capProcess = processes.find(p => p.name.toLowerCase().includes('capacitac')) || processes[0];
+
+    const newTask: Partial<Task> = {
+      id: `story-${Date.now()}`,
+      title: storyForm.title.trim(),
+      description: storyForm.description.trim(),
+      status: 'todo',
+      memberId: storyForm.memberId || undefined,
+      processId: capProcess?.id || 'capacitacion',
+      projectId: projectId || undefined,
+      trainingPlanId: effectivePlanId || trainingId,
+      priority: storyForm.priority,
+      dueDate: storyForm.dueDate || undefined,
+      plannedHours: 4,
+      createdAt: new Date().toISOString()
+    };
+
+    await onAddTask(newTask);
+    setIsAddingStory(false);
+    setStoryForm({
+      title: '',
+      description: '',
+      memberId: members[0]?.id || '',
+      priority: 'media',
+      dueDate: ''
+    });
+  };
 
   // Main Trainer & Space
   const [mainTrainerId, setMainTrainerId] = useState(plan?.trainerId || (trainers[0]?.id || ''));
@@ -279,6 +413,12 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
     return mem ? mem.name : 'Cliente Persona';
   };
 
+  const getMemberName = (mId?: string) => {
+    if (!mId) return null;
+    const mem = members.find(m => m.id === mId);
+    return mem ? mem.name : null;
+  };
+
   // Add Item Handlers
   const handleAddSession = () => {
     const newSession: TrainingSession = {
@@ -355,6 +495,8 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
       const planData: Partial<TrainingPlan> = {
         title,
         description,
+        code,
+        responsibleMemberId: responsibleMemberId || undefined,
         trainerId: mainTrainerId,
         spaceId: mainSpaceId,
         date,
@@ -364,12 +506,14 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
         totalHours: totalPlannedHours,
         totalExecutedHours,
         status: planStatus,
+        projectId: projectId || undefined,
         sessions,
         participants
       };
 
       const mgmtData: Partial<TrainingManagement> = {
         code,
+        responsibleMemberId: responsibleMemberId || undefined,
         status,
         originType: originType as any,
         clientId: clientId || undefined,
@@ -408,37 +552,57 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-50/70 text-slate-900 pb-20">
-      {/* Top Action Header */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+      {/* Top Action & Navigation Header (Sticky Locked at Top) */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
+        {/* Row 1: Back, Code + Name, Save button */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={onBack}
-              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all flex items-center gap-2 text-sm font-semibold"
+              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold shrink-0 cursor-pointer"
             >
-              <ArrowLeft size={18} />
-              <span className="hidden sm:inline">Volver a Capacitaciones</span>
+              <ArrowLeft size={16} />
+              <span className="hidden sm:inline">Volver</span>
             </button>
-            <div className="h-5 w-px bg-slate-200" />
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200">
+            <div className="h-5 w-px bg-slate-200 shrink-0" />
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200 shrink-0">
                 Plan 360° Tryton
               </span>
-              <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                {code}
-              </span>
+              <div 
+                className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 px-2 py-0.5 rounded-lg shrink-0 transition-all"
+                title="Código de Capacitación (haz clic para editar)"
+              >
+                <span className="text-[10px] font-black text-slate-400 uppercase select-none">CÓD:</span>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={e => setCode(e.target.value)}
+                  placeholder="CAP-2026-001"
+                  className="font-mono text-xs font-bold text-slate-800 bg-transparent outline-none w-28 uppercase"
+                />
+              </div>
+              <span className="text-slate-300 font-bold select-none shrink-0">–</span>
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="Título de la capacitación..."
+                title="Título de la Capacitación (haz clic para editar)"
+                className="text-sm font-extrabold text-slate-900 bg-transparent hover:bg-slate-50 focus:bg-white border-b border-transparent hover:border-slate-300 focus:border-indigo-500 rounded px-2 py-0.5 outline-none min-w-[180px] sm:w-[320px] md:w-[460px] transition-all"
+              />
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 shrink-0">
             {!isReadOnly && (
               <>
                 <button
                   onClick={handleSaveAll}
                   disabled={isSaving}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-sm hover:shadow-emerald-500/20 flex items-center gap-2 transition-all disabled:opacity-50"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm hover:shadow-emerald-500/20 flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  <Save size={16} />
+                  <Save size={15} />
                   <span>{isSaving ? 'Guardando...' : 'Guardar Plan'}</span>
                 </button>
                 {management?.id && onDelete && (
@@ -448,179 +612,184 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
                         onDelete(management.id, management.planId);
                       }
                     }}
-                    className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                    className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
                     title="Eliminar capacitación"
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={16} />
                   </button>
                 )}
               </>
             )}
           </div>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
-        {/* Hero Card */}
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 sm:p-8">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-            <div className="space-y-2 flex-1">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <input
-                  type="text"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="Título del Plan de Formación..."
-                  className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none w-full sm:w-auto min-w-[300px]"
-                />
-                <select
-                  value={planStatus}
-                  onChange={e => setPlanStatus(e.target.value as any)}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg border outline-none ${
-                    planStatus === 'completada' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
-                  }`}
-                >
-                  <option value="programada">Programada</option>
-                  <option value="completada">Completada</option>
-                  <option value="cancelada">Cancelada</option>
-                </select>
-              </div>
-
-              <div className="flex items-center gap-4 text-xs font-medium text-slate-500 flex-wrap">
-                <span className="flex items-center gap-1.5">
-                  <Calendar size={14} className="text-indigo-600" />
-                  <strong>{date}</strong> {endDate && `al ${endDate}`}
-                </span>
-                <span>•</span>
-                <span className="flex items-center gap-1.5">
-                  <Users size={14} className="text-emerald-600" />
-                  Instructor: <strong className="text-slate-800">{getTrainerName(mainTrainerId)}</strong>
-                </span>
-                <span>•</span>
-                <span className="flex items-center gap-1.5">
-                  <MapPin size={14} className="text-amber-600" />
-                  {getSpaceName(mainSpaceId)}
-                </span>
-                {clientId && (
-                  <>
-                    <span>•</span>
-                    <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">
-                      {getClientName(clientId)}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Smart KPI Buttons (Tryton Pattern) */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 text-center min-w-[110px]">
-                <div className="flex items-center justify-center text-indigo-600 mb-1">
-                  <Users size={18} />
-                </div>
-                <div className="text-lg font-black text-slate-900">{participants.length}</div>
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Alumnos</div>
-              </div>
-
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 text-center min-w-[110px]">
-                <div className="flex items-center justify-center text-emerald-600 mb-1">
-                  <Clock size={18} />
-                </div>
-                <div className="text-lg font-black text-slate-900">{totalExecutedHours}h</div>
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Horas</div>
-              </div>
-
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 text-center min-w-[110px]">
-                <div className="flex items-center justify-center text-blue-600 mb-1">
-                  <DollarSign size={18} />
-                </div>
-                <div className="text-lg font-black text-emerald-600">${financialAnalysis.realProfit.toLocaleString()}</div>
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Utilidad Neta</div>
-              </div>
-
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 text-center min-w-[110px]">
-                <div className="flex items-center justify-center text-purple-600 mb-1">
-                  <Percent size={18} />
-                </div>
-                <div className="text-lg font-black text-slate-900">{financialAnalysis.realMarginPercent.toFixed(1)}%</div>
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Margen Real</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Navigation Tabs */}
-          <div className="flex items-center gap-2 border-b border-slate-100 mt-8 overflow-x-auto scrollbar-none">
+        {/* Row 2: Sticky Navigation Tabs (Locked at top during scroll) */}
+        <div className="border-t border-slate-100/90 bg-white/80">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-none">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`pb-3 px-3 text-sm font-bold transition-all border-b-2 flex items-center gap-2 shrink-0 ${
+              className={`py-2.5 px-3 text-xs font-extrabold transition-all border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'overview'
                   ? 'border-emerald-600 text-emerald-600'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <FileText size={16} />
-              <span>Estructura & Objetivos</span>
+              <FileText size={14} />
+              <span>1. Estructura & Objetivos</span>
             </button>
 
             <button
               onClick={() => setActiveTab('sessions')}
-              className={`pb-3 px-3 text-sm font-bold transition-all border-b-2 flex items-center gap-2 shrink-0 ${
+              className={`py-2.5 px-3 text-xs font-extrabold transition-all border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'sessions'
                   ? 'border-emerald-600 text-emerald-600'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Calendar size={16} />
-              <span>Cronograma & Sesiones ({sessions.length})</span>
+              <Calendar size={14} />
+              <span>2. Cronograma ({sessions.length})</span>
             </button>
 
             <button
               onClick={() => setActiveTab('participants')}
-              className={`pb-3 px-3 text-sm font-bold transition-all border-b-2 flex items-center gap-2 shrink-0 ${
+              className={`py-2.5 px-3 text-xs font-extrabold transition-all border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'participants'
                   ? 'border-emerald-600 text-emerald-600'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Users size={16} />
-              <span>Participantes ({participants.length})</span>
+              <Users size={14} />
+              <span>3. Participantes ({participants.length})</span>
             </button>
 
             <button
               onClick={() => setActiveTab('finances')}
-              className={`pb-3 px-3 text-sm font-bold transition-all border-b-2 flex items-center gap-2 shrink-0 ${
+              className={`py-2.5 px-3 text-xs font-extrabold transition-all border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'finances'
                   ? 'border-emerald-600 text-emerald-600'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <DollarSign size={16} />
-              <span>Finanzas Tryton (Plan vs Real)</span>
+              <DollarSign size={14} />
+              <span>4. Finanzas Tryton</span>
             </button>
 
             <button
               onClick={() => setActiveTab('stories')}
-              className={`pb-3 px-3 text-sm font-bold transition-all border-b-2 flex items-center gap-2 shrink-0 ${
+              className={`py-2.5 px-3 text-xs font-extrabold transition-all border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'stories'
                   ? 'border-emerald-600 text-emerald-600'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Layers size={16} />
-              <span>Historias de Aprendizaje</span>
+              <FolderKanban size={14} />
+              <span>5. Historias Scrum ({trainingStories.length})</span>
             </button>
 
             <button
               onClick={() => setActiveTab('notes')}
-              className={`pb-3 px-3 text-sm font-bold transition-all border-b-2 flex items-center gap-2 shrink-0 ${
+              className={`py-2.5 px-3 text-xs font-extrabold transition-all border-b-2 flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'notes'
                   ? 'border-emerald-600 text-emerald-600'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <MessageSquare size={16} />
-              <span>Comentarios & Auditoría</span>
+              <MessageSquare size={14} />
+              <span>6. Muro & Observaciones</span>
             </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 space-y-5">
+        {/* Compact Summary Bar with Metadata & KPIs */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs px-4 sm:px-5 py-3 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 text-xs font-medium text-slate-600 flex-wrap">
+            <select
+              value={planStatus}
+              onChange={e => setPlanStatus(e.target.value as any)}
+              className={`px-2.5 py-1 text-xs font-bold rounded-lg border outline-none ${
+                planStatus === 'completada' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+              }`}
+            >
+              <option value="programada">● Programada</option>
+              <option value="completada">● Completada</option>
+              <option value="cancelada">● Cancelada</option>
+            </select>
+
+            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+            {responsibleMemberId ? (
+              <span className="flex items-center gap-1.5">
+                <UserCheck size={14} className="text-indigo-600" />
+                Responsable: <strong className="text-slate-800">{getMemberName(responsibleMemberId)}</strong>
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-amber-600 font-medium">
+                <UserCheck size={14} />
+                <span>Sin responsable asignado</span>
+              </span>
+            )}
+
+            {linkedProject && (
+              <>
+                <span>•</span>
+                <span className="flex items-center gap-1.5 text-slate-700">
+                  <FolderKanban size={13} className="text-indigo-500" />
+                  Proyecto: <strong className="text-slate-900">{linkedProject.name}</strong>
+                </span>
+              </>
+            )}
+
+            {clientId && (
+              <>
+                <span>•</span>
+                <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">
+                  {getClientName(clientId)}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Slim Smart KPI Chips */}
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto shrink-0">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50/80 border border-indigo-100 rounded-xl text-xs">
+              <Users size={14} className="text-indigo-600 shrink-0" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Alumnos:</span>
+              <span className="font-black text-indigo-950">{participants.length}</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50/80 border border-emerald-100 rounded-xl text-xs">
+              <Clock size={14} className="text-emerald-600 shrink-0" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Horas:</span>
+              <span className="font-black text-emerald-950">{totalExecutedHours}h</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50/80 border border-blue-100 rounded-xl text-xs">
+              <DollarSign size={14} className="text-blue-600 shrink-0" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Utilidad:</span>
+              <span className="font-black text-emerald-600">${financialAnalysis.realProfit.toLocaleString()}</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50/80 border border-purple-100 rounded-xl text-xs">
+              <Percent size={14} className="text-purple-600 shrink-0" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Margen:</span>
+              <span className="font-black text-purple-950">{financialAnalysis.realMarginPercent.toFixed(1)}%</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50/80 border border-amber-100 rounded-xl text-xs">
+              <FolderKanban size={14} className="text-amber-600 shrink-0" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Historias:</span>
+              <span className="font-black text-amber-950">{completedStoriesCount}/{trainingStories.length}</span>
+            </div>
+
+            {linkedProject && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-xs">
+                <FolderKanban size={14} className="text-slate-600 shrink-0" />
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Proyecto:</span>
+                <span className="font-bold text-slate-800 truncate max-w-[140px]">{linkedProject.name}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -648,97 +817,48 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
                 </div>
               </div>
 
-              {/* General Schedule & Instructors */}
+              {/* Identification & Responsible */}
               <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 space-y-4">
                 <h3 className="text-base font-bold text-slate-900 pb-3 border-b border-slate-100 flex items-center gap-2">
-                  <Calendar size={18} className="text-indigo-600" />
-                  <span>Configuración General de Fechas y Docente</span>
+                  <UserCheck size={18} className="text-indigo-600" />
+                  <span>Identificación & Responsable del Proyecto</span>
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Capacitador Principal
-                    </label>
-                    <select
-                      value={mainTrainerId}
-                      onChange={e => setMainTrainerId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-medium text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                    >
-                      {trainers.map(tr => {
-                        const m = members.find(mem => mem.id === tr.directoryId);
-                        return (
-                          <option key={tr.id} value={tr.id}>
-                            {m?.name || 'Capacitador'} ({tr.type}) - ${tr.hourlyRate || 0}/h
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Espacio Principal (Aula / Virtual)
-                    </label>
-                    <select
-                      value={mainSpaceId}
-                      onChange={e => setMainSpaceId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-medium text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                    >
-                      {spaces.map(sp => (
-                        <option key={sp.id} value={sp.id}>
-                          {sp.name} ({sp.type === 'virtual' ? 'Virtual' : 'Presencial'})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Fecha Inicio
+                      Código de la Capacitación
                     </label>
                     <input
-                      type="date"
-                      value={date}
-                      onChange={e => setDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 font-medium text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                      type="text"
+                      value={code}
+                      onChange={e => setCode(e.target.value)}
+                      placeholder="ej. CAP-2026-001"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 font-mono font-bold text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none uppercase bg-slate-50/50"
                     />
+                    <p className="text-[11px] text-slate-400 mt-1">Identificador único contable / operativo del curso (editable).</p>
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Fecha Fin (Opcional)
+                      Responsable del Proyecto / Capacitación
                     </label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={e => setEndDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 font-medium text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    <SearchableSelect
+                      value={responsibleMemberId || ''}
+                      onChange={val => setResponsibleMemberId(val)}
+                      placeholder="Seleccione al responsable..."
+                      searchPlaceholder="Buscar por nombre o cargo..."
+                      isClearable
+                      options={members.map(mem => ({
+                        value: mem.id,
+                        label: mem.name,
+                        sublabel: mem.role || undefined,
+                        avatarUrl: mem.avatar,
+                        badge: mem.department
+                      }))}
+                      buttonClassName="py-2.5 px-3.5 bg-white border-slate-200 text-sm font-medium rounded-xl"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Hora Inicio
-                    </label>
-                    <input
-                      type="time"
-                      value={startTime}
-                      onChange={e => setStartTime(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 font-medium text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Hora Fin
-                    </label>
-                    <input
-                      type="time"
-                      value={endTime}
-                      onChange={e => setEndTime(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 font-medium text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                    />
+                    <p className="text-[11px] text-slate-400 mt-1">Líder interno de Novagreen asignado al proyecto.</p>
                   </div>
                 </div>
               </div>
@@ -774,17 +894,23 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                         Cliente / Empresa
                       </label>
-                      <select
-                        value={clientId}
-                        onChange={e => setClientId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-medium text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                      >
-                        <option value="">Seleccione un cliente...</option>
-                        {clients.map(c => {
+                      <SearchableSelect
+                        value={clientId || ''}
+                        onChange={val => setClientId(val)}
+                        placeholder="Seleccione un cliente..."
+                        searchPlaceholder="Buscar por nombre, razón social o RUC..."
+                        isClearable
+                        options={clients.map(c => {
                           const name = getClientName(c.id);
-                          return <option key={c.id} value={c.id}>{name || c.id}</option>;
+                          return {
+                            value: c.id,
+                            label: name || c.id,
+                            sublabel: c.commercialName ? `Comercial: ${c.commercialName}` : (c.taxId ? `RUC: ${c.taxId}` : undefined),
+                            badge: c.city || (c.clientType === 'B2B' ? 'Empresa' : 'Persona')
+                          };
                         })}
-                      </select>
+                        buttonClassName="py-2.5 px-3.5 bg-white border-slate-200 text-sm font-medium rounded-xl"
+                      />
                     </div>
                   )}
 
@@ -793,16 +919,20 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                         Campaña de Marketing
                       </label>
-                      <select
-                        value={campaignId}
-                        onChange={e => setCampaignId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-medium text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                      >
-                        <option value="">Seleccione una campaña...</option>
-                        {campaigns.map(camp => (
-                          <option key={camp.id} value={camp.id}>{camp.name} ({camp.code})</option>
-                        ))}
-                      </select>
+                      <SearchableSelect
+                        value={campaignId || ''}
+                        onChange={val => setCampaignId(val)}
+                        placeholder="Seleccione una campaña..."
+                        searchPlaceholder="Buscar por nombre de campaña..."
+                        isClearable
+                        options={campaigns.map(camp => ({
+                          value: camp.id,
+                          label: camp.name,
+                          sublabel: camp.code ? `Código: ${camp.code}` : undefined,
+                          badge: camp.status
+                        }))}
+                        buttonClassName="py-2.5 px-3.5 bg-white border-slate-200 text-sm font-medium rounded-xl"
+                      />
                     </div>
                   )}
 
@@ -811,16 +941,20 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                         Proyecto
                       </label>
-                      <select
-                        value={projectId}
-                        onChange={e => setProjectId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-medium text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                      >
-                        <option value="">Seleccione un proyecto...</option>
-                        {projects.map(prj => (
-                          <option key={prj.id} value={prj.id}>{prj.name}</option>
-                        ))}
-                      </select>
+                      <SearchableSelect
+                        value={projectId || ''}
+                        onChange={val => setProjectId(val)}
+                        placeholder="Seleccione un proyecto..."
+                        searchPlaceholder="Buscar por nombre o código..."
+                        isClearable
+                        options={projects.map(prj => ({
+                          value: prj.id,
+                          label: prj.name,
+                          sublabel: prj.code ? `Código: ${prj.code}` : undefined,
+                          badge: prj.status
+                        }))}
+                        buttonClassName="py-2.5 px-3.5 bg-white border-slate-200 text-sm font-medium rounded-xl"
+                      />
                     </div>
                   )}
 
@@ -836,6 +970,68 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 outline-none resize-none"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Linked Scrum Project Card */}
+              <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <FolderKanban size={18} className="text-blue-600" />
+                    <span>Proyecto Asociado en Scrum</span>
+                  </h3>
+                  {linkedProject && (
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase rounded-md border border-emerald-200">
+                      {linkedProject.status === 'activo' || linkedProject.status === 'in_progress' ? '● Activo' : linkedProject.status}
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Proyecto Scrum Vinculado
+                    </label>
+                    <SearchableSelect
+                      value={projectId || ''}
+                      onChange={val => setProjectId(val)}
+                      placeholder="(Sin proyecto Scrum vinculado)"
+                      searchPlaceholder="Buscar por nombre de proyecto o código..."
+                      isClearable
+                      options={projects.map(prj => ({
+                        value: prj.id,
+                        label: prj.name,
+                        sublabel: prj.code ? `[${prj.code}]` : undefined,
+                        badge: prj.status
+                      }))}
+                      buttonClassName="py-2.5 px-3.5 bg-white border-slate-200 text-sm font-medium rounded-xl"
+                    />
+                  </div>
+
+                  {!projectId ? (
+                    <button
+                      type="button"
+                      onClick={handleCreateAndLinkProject}
+                      className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Sparkles size={14} />
+                      <span>⚡ Crear y Enlazar en Scrum</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <p className="text-xs text-slate-600 truncate">
+                        Enlazado a <strong className="text-slate-800">{linkedProject?.name}</strong>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleUnlinkProject}
+                        className="text-xs text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                      >
+                        <Unlink size={13} />
+                        <span>Desvincular</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -930,38 +1126,49 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Docente</label>
-                        <select
-                          value={sess.trainerId}
-                          onChange={e => {
+                        <SearchableSelect
+                          value={sess.trainerId || ''}
+                          onChange={val => {
                             const copy = [...sessions];
-                            copy[idx].trainerId = e.target.value;
+                            copy[idx].trainerId = val;
                             setSessions(copy);
                           }}
-                          className="w-full px-2 py-1.5 rounded-xl border border-slate-200 text-xs font-medium bg-white"
-                        >
-                          {trainers.map(tr => {
+                          placeholder="Seleccionar docente..."
+                          searchPlaceholder="Buscar docente..."
+                          options={trainers.map(tr => {
                             const m = members.find(mem => mem.id === tr.directoryId);
-                            return <option key={tr.id} value={tr.id}>{m?.name || 'Docente'}</option>;
+                            return {
+                              value: tr.id,
+                              label: m?.name || 'Docente',
+                              sublabel: `${tr.type === 'interno' ? 'Interno' : 'Externo'}${tr.specialties ? ` • ${tr.specialties}` : ''}`,
+                              avatarUrl: m?.avatar,
+                              badge: tr.hourlyRate ? `$${tr.hourlyRate}/h` : undefined
+                            };
                           })}
-                        </select>
+                          buttonClassName="py-1.5 px-2 bg-white border-slate-200 text-xs font-semibold rounded-xl"
+                        />
                       </div>
 
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex-1">
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Aula</label>
-                          <select
-                            value={sess.spaceId}
-                            onChange={e => {
+                          <SearchableSelect
+                            value={sess.spaceId || ''}
+                            onChange={val => {
                               const copy = [...sessions];
-                              copy[idx].spaceId = e.target.value;
+                              copy[idx].spaceId = val;
                               setSessions(copy);
                             }}
-                            className="w-full px-2 py-1.5 rounded-xl border border-slate-200 text-xs font-medium bg-white"
-                          >
-                            {spaces.map(sp => (
-                              <option key={sp.id} value={sp.id}>{sp.name}</option>
-                            ))}
-                          </select>
+                            placeholder="Seleccionar aula..."
+                            searchPlaceholder="Buscar aula o espacio..."
+                            options={spaces.map(sp => ({
+                              value: sp.id,
+                              label: sp.name,
+                              sublabel: `${sp.type === 'virtual' ? 'Virtual' : 'Presencial'}${sp.location ? ` • ${sp.location}` : ''}`,
+                              badge: sp.capacity ? `${sp.capacity} cupos` : undefined
+                            }))}
+                            buttonClassName="py-1.5 px-2 bg-white border-slate-200 text-xs font-semibold rounded-xl"
+                          />
                         </div>
                         <button
                           onClick={() => setSessions(sessions.filter((_, sidx) => sidx !== idx))}
@@ -1546,23 +1753,326 @@ export const TrainingPlan360View: React.FC<TrainingPlan360ViewProps> = ({
           </div>
         )}
 
-        {/* Tab 5: Stories */}
+        {/* Tab 5: Stories (Scrum Universal System) */}
         {activeTab === 'stories' && (
           <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 sm:p-8 space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 flex-wrap gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Historias de Aprendizaje & Tareas Prácticas</h3>
-                <p className="text-sm text-slate-500">Entregables, proyectos de evaluación y actividades asignadas</p>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+                  <FolderKanban className="text-emerald-600" size={22} />
+                  <span>Historias Scrum & Entregables de Capacitación ({trainingStories.length})</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Historias y actividades del módulo de Scrum para seguimiento pedagógico, evaluación y soporte
+                </p>
               </div>
+
+              {!isReadOnly && (onOpenCreateTaskModal || onAddTask) && (
+                <button
+                  type="button"
+                  onClick={handleOpenNewStoryModal}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm hover:shadow-emerald-500/20 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus size={15} />
+                  <span>{isAddingStory && !onOpenCreateTaskModal ? 'Cerrar Formulario' : 'Nueva Historia Scrum'}</span>
+                </button>
+              )}
             </div>
 
-            <div className="text-center py-12 text-slate-400">
-              <Layers size={40} className="mx-auto mb-2 opacity-30 text-emerald-600" />
-              <p className="text-sm font-bold text-slate-700">Sin historias asignadas a este plan</p>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Crea historias prácticas para que los participantes suban sus evidencias de aprendizaje.
-              </p>
+            {/* Scrum Project Association Card */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-50/70 via-teal-50/50 to-indigo-50/60 rounded-2xl border border-emerald-200/90 shadow-2xs space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-xs">
+                    <FolderKanban size={20} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                        Proyecto Asociado en Scrum
+                      </h4>
+                      {linkedProject && (
+                        <span className={`px-2 py-0.5 text-[10px] font-black uppercase rounded-md border ${
+                          linkedProject.status === 'activo' || linkedProject.status === 'in_progress'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}>
+                          {linkedProject.status === 'activo' || linkedProject.status === 'in_progress' ? '● Activo' : linkedProject.status}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 font-medium mt-0.5">
+                      {linkedProject 
+                        ? `Enlazado al proyecto: "${linkedProject.name}" [${linkedProject.code || 'PRJ'}]`
+                        : 'Esta capacitación no tiene un proyecto Scrum enlazado actualmente.'}
+                    </p>
+                  </div>
+                </div>
+
+                {linkedProject && !isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={handleUnlinkProject}
+                    className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title="Desvincular proyecto de esta capacitación"
+                  >
+                    <Unlink size={13} />
+                    <span>Desvincular Proyecto</span>
+                  </button>
+                )}
+              </div>
+
+              {!isReadOnly && (
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-3 border-t border-emerald-100/90 items-end">
+                  <div className="sm:col-span-7">
+                    <label className="block text-[10px] font-black uppercase text-slate-600 mb-1">
+                      {linkedProject ? 'Proyecto Scrum Vinculado (o cambiar)' : 'Vincular a un Proyecto Scrum existente'}
+                    </label>
+                    <SearchableSelect
+                      value={projectId || ''}
+                      onChange={(val) => setProjectId(val)}
+                      placeholder="(Sin Proyecto Vinculado)"
+                      searchPlaceholder="Buscar proyecto Scrum..."
+                      isClearable
+                      options={projects.map(p => ({
+                        value: p.id,
+                        label: p.name,
+                        sublabel: p.code ? `[${p.code}]` : undefined,
+                        badge: p.status === 'activo' || p.status === 'in_progress' ? 'Activo' : p.status === 'completado' || p.status === 'done' ? 'Completado' : 'Pausado'
+                      }))}
+                      buttonClassName="py-2.5 px-3.5 bg-white border border-emerald-200 rounded-xl text-xs font-bold text-slate-800"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-5 flex items-end">
+                    {!projectId && (
+                      <button
+                        type="button"
+                        onClick={handleCreateAndLinkProject}
+                        className="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Sparkles size={14} />
+                        <span>⚡ Crear y Enlazar en Scrum</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Quick Add Story Form */}
+            <AnimatePresence>
+              {isAddingStory && (
+                <motion.form
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  onSubmit={handleCreateStorySubmit}
+                  className="p-5 bg-emerald-50/60 rounded-2xl border border-emerald-200 space-y-4 overflow-hidden"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase text-emerald-950 tracking-wider flex items-center gap-2">
+                      <Plus size={14} className="text-emerald-600" />
+                      Nueva Historia Scrum para Capacitación
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingStory(false)}
+                      className="text-xs text-slate-500 hover:text-slate-800 font-bold cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Título de la Historia *</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Preparar material didáctico del Módulo 2 o Taller práctico de campo"
+                        value={storyForm.title}
+                        onChange={(e) => setStoryForm({ ...storyForm, title: e.target.value })}
+                        required
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Responsable / Facilitador</label>
+                      <SearchableSelect
+                        value={storyForm.memberId || ''}
+                        onChange={(val) => setStoryForm({ ...storyForm, memberId: val })}
+                        placeholder="Sin Asignar"
+                        searchPlaceholder="Buscar miembro por nombre o cargo..."
+                        isClearable
+                        options={members.map(m => ({
+                          value: m.id,
+                          label: m.name,
+                          sublabel: m.role || undefined,
+                          avatarUrl: m.avatar,
+                          badge: m.department
+                        }))}
+                        buttonClassName="py-2 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
+                      />
+                    </div>
+
+                    <div className="md:col-span-3">
+                      <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
+                        Descripción, Actividades y Criterios de Aceptación
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Detalles de la entrega requerida, temas a evaluar o preparación logística..."
+                        value={storyForm.description}
+                        onChange={(e) => setStoryForm({ ...storyForm, description: e.target.value })}
+                        className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30 resize-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Prioridad</label>
+                      <select
+                        value={storyForm.priority}
+                        onChange={(e) => setStoryForm({ ...storyForm, priority: e.target.value as any })}
+                        className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30"
+                      >
+                        <option value="baja">Baja</option>
+                        <option value="media">Media</option>
+                        <option value="alta">Alta</option>
+                        <option value="meteoric_crash">Meteórica 🔥</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Fecha Límite</label>
+                      <input
+                        type="date"
+                        value={storyForm.dueDate}
+                        onChange={(e) => setStoryForm({ ...storyForm, dueDate: e.target.value })}
+                        className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30"
+                      />
+                    </div>
+
+                    <div className="flex items-end">
+                      <button
+                        type="submit"
+                        disabled={!storyForm.title.trim()}
+                        className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm cursor-pointer"
+                      >
+                        Guardar Historia en Scrum
+                      </button>
+                    </div>
+                  </div>
+                </motion.form>
+              )}
+            </AnimatePresence>
+
+            {/* List of Scrum Stories */}
+            {trainingStories.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                <Layers size={40} className="mx-auto mb-2 opacity-30 text-emerald-600" />
+                <p className="text-sm font-bold text-slate-700">Sin historias asignadas a este plan</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Crea historias del módulo de Scrum para gestionar entregables, tareas docentes o actividades de participantes.
+                </p>
+                {!isReadOnly && onAddTask && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingStory(true)}
+                    className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus size={14} />
+                    <span>Crear Primera Historia</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {trainingStories.map((story) => {
+                  const responsibleMember = members.find(m => m.id === story.memberId);
+                  return (
+                    <div
+                      key={story.id}
+                      onClick={() => onOpenTask && onOpenTask(story)}
+                      className="p-4 bg-slate-50/70 hover:bg-white border border-slate-200/80 hover:border-emerald-300 rounded-2xl transition-all shadow-2xs hover:shadow-md cursor-pointer group flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                    >
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                          story.status === 'done'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : story.status === 'in_progress'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          <CheckCircle2 size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-200/70 px-1.5 py-0.5 rounded">
+                              {story.id.substring(0, 10)}
+                            </span>
+                            <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
+                              {story.title}
+                            </h4>
+                          </div>
+                          {story.description && (
+                            <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">{story.description}</p>
+                          )}
+                          <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-2 flex-wrap">
+                            {responsibleMember && (
+                              <span className="flex items-center gap-1 font-semibold text-slate-700">
+                                <Users size={12} className="text-indigo-600" />
+                                {responsibleMember.name}
+                              </span>
+                            )}
+                            {story.dueDate && (
+                              <span className="flex items-center gap-1 font-medium text-slate-500">
+                                <Calendar size={12} className="text-amber-600" />
+                                Vence: {story.dueDate}
+                              </span>
+                            )}
+                            {story.deliverables && story.deliverables.length > 0 && (
+                              <span className="flex items-center gap-1 font-medium text-purple-600">
+                                <CheckCircle2 size={12} />
+                                {story.deliverables.filter(d => d.status === 'approved').length}/{story.deliverables.length} entregables
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+                        {/* Priority badge */}
+                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md border ${
+                          story.priority === 'alta' || story.priority === 'meteoric_crash'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : story.priority === 'media'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}>
+                          {story.priority}
+                        </span>
+
+                        {/* Status badge */}
+                        <span className={`px-2.5 py-1 text-xs font-black uppercase rounded-lg border ${
+                          story.status === 'done'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : story.status === 'in_progress'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : story.status === 'review'
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}>
+                          {story.status === 'done' ? 'Completado' : story.status === 'in_progress' ? 'En Progreso' : story.status === 'review' ? 'En Revisión' : 'Por Hacer'}
+                        </span>
+
+                        <ExternalLink size={14} className="text-slate-400 group-hover:text-emerald-600 transition-colors ml-1 hidden sm:block" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

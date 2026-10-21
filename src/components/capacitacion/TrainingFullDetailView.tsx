@@ -1234,7 +1234,7 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
               >
                 <Plus size={16} />
-                <span>+ Añadir Sesión / Jornada</span>
+                <span>Añadir Sesión / Jornada</span>
               </button>
             )}
           </div>
@@ -1621,7 +1621,7 @@ export const TrainingFullDetailView: React.FC<TrainingFullDetailViewProps> = ({
                   className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
                 >
                   <Plus size={14} />
-                  <span>+ Añadir Ingreso / Cupo</span>
+                  <span>Añadir Ingreso / Cupo</span>
                 </button>
               )}
             </div>

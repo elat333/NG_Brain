@@ -231,9 +231,13 @@ export const StoryDetailView: React.FC<StoryDetailViewProps> = ({
             <button
               type="button"
               onClick={onBack}
-              className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black transition-all shadow-2xs hover:scale-102 cursor-pointer group"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all shadow-md hover:scale-102 cursor-pointer group ${
+                originTabLabel === 'Campaña'
+                  ? 'bg-ng-lime text-ng-black shadow-ng-lime/25 hover:bg-[#d5ed3a] border border-[#c4dc2f]'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 shadow-2xs'
+              }`}
             >
-              <ArrowLeft size={15} className="text-slate-500 group-hover:-translate-x-0.5 transition-transform" />
+              <ArrowLeft size={15} className={`${originTabLabel === 'Campaña' ? 'text-ng-black' : 'text-slate-500'} group-hover:-translate-x-0.5 transition-transform`} />
               <span>Volver a {originTabLabel}</span>
             </button>
 
@@ -328,7 +332,7 @@ export const StoryDetailView: React.FC<StoryDetailViewProps> = ({
               type="button"
               onClick={onBack}
               className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black transition-all border border-slate-200 shadow-2xs flex items-center gap-1.5 cursor-pointer"
-              title="Salir y volver al módulo anterior"
+              title={`Salir y volver a ${originTabLabel}`}
             >
               <span>Salir</span>
             </button>

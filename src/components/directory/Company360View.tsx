@@ -33,6 +33,7 @@ import { Company, TeamMember, Industry, PartyRelation, PartyRelationType } from 
 import { validateRucEcuador, checkIdentificationDuplicate } from '../../lib/fiscalValidators';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { normalizeText } from '../../lib/textUtils';
+import { getMemberAvatarUrl } from '../common/AvatarCropModal';
 
 export interface BreadcrumbItem {
   id: string;
@@ -830,9 +831,9 @@ export const Company360View: React.FC<Company360ViewProps> = ({
                   >
                     <div className="flex items-center gap-3">
                       <img
-                        src={mem.avatar || `https://picsum.photos/seed/${mem.name.replace(/\s/g, '')}/100/100`}
+                        src={getMemberAvatarUrl(mem)}
                         alt=""
-                        className="w-10 h-10 rounded-xl object-cover shadow-sm shrink-0"
+                        className="w-10 h-10 rounded-xl object-cover aspect-square shadow-sm shrink-0"
                       />
                       <div className="truncate">
                         <span className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition-colors block truncate">

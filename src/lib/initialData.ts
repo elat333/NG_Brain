@@ -104,104 +104,9 @@ export const initialProcesses: Process[] = [
   }
 ];
 
-export const initialMembers: TeamMember[] = [
-  {
-    id: "mem-1",
-    name: "Elena Rodriguez",
-    role: "Desarrolladora Fullstack Senior",
-    systemRoleId: "role-lider",
-    categories: ["miembro"],
-    processId: "proc-eng",
-    companyAssociations: [
-      { companyId: "comp-1", role: "Arquitecta de Software" },
-      { companyId: "comp-2", role: "Consultora Técnica" }
-    ],
-    identificationId: "1721548796",
-    hasRuc: true,
-    ruc: "1721548796001",
-    skills: ["React", "Node.js", "PostgreSQL"],
-    responsibilities: ["Arquitectura de API", "Líder de Frontend"],
-    recentAchievements: ["Optimización de consultas de base de datos en un 40%"],
-    avatar: "https://picsum.photos/seed/elena/150/150",
-    personality: "Analítica, meticulosa y muy orientada a la resolución de problemas técnicos complejos.",
-    notes: "Prefiere trabajar en bloques de tiempo enfocados sin interrupciones.",
-    email: "elena.rodriguez@teampulse.ai",
-    phone: "+593 998877665"
-  },
-  {
-    id: "mem-2",
-    name: "Lucas Smith",
-    role: "Marketer de Crecimiento",
-    systemRoleId: "role-colaborador",
-    categories: ["miembro"],
-    processId: "proc-mkt",
-    companyAssociations: [
-      { companyId: "comp-2", role: "Líder de Estrategia" }
-    ],
-    identificationId: "1715487623",
-    hasRuc: false,
-    skills: ["SEO", "Estrategia de Contenido", "GA4"],
-    responsibilities: ["Gestión de campañas", "Optimización SEO"],
-    recentAchievements: ["Primer puesto en términos clave de la industria"],
-    avatar: "https://picsum.photos/seed/lucas/150/150",
-    personality: "Creativo, comunicativo y siempre buscando nuevas tendencias en el mercado digital.",
-    notes: "Excelente para lluvia de ideas grupal.",
-    email: "lucas.smith@teampulse.ai",
-    phone: "+593 997766554"
-  },
-  {
-    id: "mem-3",
-    name: "Sofia Chen",
-    role: "Directora de Operaciones",
-    systemRoleId: "role-admin",
-    categories: ["miembro"],
-    processId: "proc-hr",
-    companyAssociations: [
-      { companyId: "comp-1", role: "Directora Ejecutiva" }
-    ],
-    identificationId: "1709854123",
-    hasRuc: true,
-    ruc: "1709854123001",
-    skills: ["Estrategia", "Presupuesto", "Oratoria"],
-    responsibilities: ["Escalamiento del equipo", "Supervisión de presupuesto"],
-    recentAchievements: ["Cierre de ronda de inversión de $2M"],
-    avatar: "https://picsum.photos/seed/sofia/150/150",
-    personality: "Líder nata, empática y con una visión estratégica muy clara para el crecimiento organizacional.",
-    notes: "Se enfoca mucho en la cultura empresarial.",
-    email: "sofia.chen@teampulse.ai",
-    phone: "+593 996655443"
-  }
-];
+export const initialMembers: TeamMember[] = [];
 
-export const initialTasks: Task[] = [
-  {
-    id: "task-1",
-    title: "Migración a Cloud Run",
-    description: "Mover todos los servicios actuales de la infraestructura antigua a Cloud Run para mejorar escalabilidad.",
-    status: "in_progress",
-    processId: "proc-eng",
-    memberId: "mem-1",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "task-2",
-    title: "Campaña Q2",
-    description: "Diseñar y ejecutar la campaña de marketing para el segundo trimestre.",
-    status: "todo",
-    processId: "proc-mkt",
-    memberId: "mem-2",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "task-3",
-    title: "Contratación Desarrolladores",
-    description: "Entrevistar y seleccionar a los 5 nuevos desarrolladores para el equipo técnico.",
-    status: "backlog",
-    processId: "proc-hr",
-    memberId: "mem-3",
-    createdAt: new Date().toISOString()
-  }
-];
+export const initialTasks: Task[] = [];
 
 export const initialManagementNotes = [
   {
@@ -210,8 +115,8 @@ export const initialManagementNotes = [
     content: "Se acuerda priorizar la auditoría interna ISO 9001/14001 para el segundo semestre, integrando la gestión de riesgos en todos los procesos clave de Novagreen.",
     category: "estrategia" as const,
     tags: ["ISO", "Estrategia", "2026"],
-    authorMemberId: "mem-3",
-    authorName: "Sofia Chen",
+    authorMemberId: "",
+    authorName: "Dirección General",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }

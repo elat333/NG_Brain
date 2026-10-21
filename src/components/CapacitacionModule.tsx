@@ -46,6 +46,12 @@ interface CapacitacionModuleProps {
   onSubTabChange?: (tab: CapacitacionSubTab) => void;
   onCreateMember?: (member: Partial<TeamMember>) => Promise<string>;
   currentMember?: TeamMember | null;
+  tasks?: Task[];
+  projects?: Project[];
+  onOpenTask?: (task: Task) => void;
+  onAddTask?: (taskData: Partial<Task>) => Promise<void>;
+  onAddProject?: (projectData: Partial<Project>) => Promise<void>;
+  onOpenCreateTaskModal?: (initialOverrides?: Partial<Task>) => void;
 }
 
 export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
@@ -58,7 +64,13 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
   activeSubTab = 'management',
   onSubTabChange,
   onCreateMember,
-  currentMember
+  currentMember,
+  tasks = [],
+  projects: passedProjects = [],
+  onOpenTask,
+  onAddTask,
+  onAddProject,
+  onOpenCreateTaskModal
 }) => {
   const [currentTab, setCurrentTab] = useState<CapacitacionSubTab>(activeSubTab);
   
@@ -234,11 +246,17 @@ export const CapacitacionModule: React.FC<CapacitacionModuleProps> = ({
                 plans={plans}
                 clients={clients}
                 campaigns={localCampaigns}
-                projects={projects}
+                projects={(passedProjects && passedProjects.length > 0) ? passedProjects : projects}
                 trainers={trainers}
                 spaces={spaces}
                 members={members}
                 companies={companies}
+                processes={processes}
+                tasks={tasks}
+                onOpenTask={onOpenTask}
+                onAddTask={onAddTask}
+                onAddProject={onAddProject}
+                onOpenCreateTaskModal={onOpenCreateTaskModal}
                 onSaveManagement={handleSaveMgmtAndPlan} 
                 onDeleteManagement={handleDeleteMgmt} 
                 isReadOnly={isManagementReadOnly}

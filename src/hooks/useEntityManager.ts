@@ -65,6 +65,7 @@ export function useEntityManager({
   const [newMemberData, setNewMemberData] = useState({
     name: '',
     role: '',
+    avatar: '',
     systemRoleId: '',
     isSystemAdmin: false,
     moduleAccess: undefined as { [moduleId: string]: 'ninguno' | 'lector' | 'colaborador' | 'lider' | 'administrador' } | undefined,
@@ -173,6 +174,7 @@ export function useEntityManager({
         await updateDoc(doc(db, 'members', editingMember.id), {
           name: newMemberData.name,
           role: newMemberData.role,
+          avatar: newMemberData.avatar ?? editingMember.avatar ?? '',
           systemRoleId: newMemberData.systemRoleId,
           isSystemAdmin: newMemberData.isSystemAdmin || false,
           moduleAccess: newMemberData.moduleAccess || null,
@@ -208,7 +210,7 @@ export function useEntityManager({
           skills: typeof newMemberData.skills === 'string' ? newMemberData.skills.split(',').map(s => s.trim()).filter(s => s !== '') : [],
           responsibilities: typeof newMemberData.responsibilities === 'string' ? newMemberData.responsibilities.split(',').map(r => r.trim()).filter(r => r !== '') : [],
           recentAchievements: [],
-          avatar: `https://picsum.photos/seed/${newMemberData.name.replace(/\s/g, '')}/150/150`,
+          avatar: newMemberData.avatar || '',
           personality: newMemberData.personality || '',
           notes: newMemberData.notes || '',
           email: newMemberData.email || '',
@@ -226,6 +228,7 @@ export function useEntityManager({
     setNewMemberData({
       name: '',
       role: '',
+      avatar: '',
       systemRoleId: '',
       isSystemAdmin: false,
       moduleAccess: undefined,
@@ -270,6 +273,7 @@ export function useEntityManager({
     setNewMemberData({
       name: member.name,
       role: member.role,
+      avatar: member.avatar || '',
       systemRoleId: member.systemRoleId || '',
       isSystemAdmin: member.isSystemAdmin || false,
       moduleAccess: member.moduleAccess,
@@ -325,7 +329,7 @@ export function useEntityManager({
           responsibilities: suggestedMemberDraft.data.responsibilities || [],
           epp: suggestedMemberDraft.data.epp || [],
           recentAchievements: [],
-          avatar: `https://picsum.photos/seed/${(suggestedMemberDraft.data.name || 'new').replace(/\s/g, '')}/150/150`,
+          avatar: '',
           personality: suggestedMemberDraft.data.personality || '',
           notes: suggestedMemberDraft.data.notes || '',
           email: suggestedMemberDraft.data.email || '',

@@ -305,6 +305,25 @@ export const useNavigationGuard = ({
           setSettingsSubTab('general');
         }
       }
+    } else if ((action as any).type === 'module_subtab' && (action as any).targetModuleId && action.targetSubTab) {
+      const modId = (action as any).targetModuleId as string;
+      const sub = action.targetSubTab;
+      const setterMap: Record<string, ((v: any) => void) | undefined> = {
+        settings: setSettingsSubTab,
+        directory: setDirectorySubTab,
+        process_dashboard: setProcessSubTab,
+        gerencia: setManagementSubTab,
+        ventas: setVentasSubTab,
+        capacitacion: setCapacitacionSubTab,
+        acreditacion: setAcreditacionSubTab,
+        productos: setProductosSubTab,
+        inventario: setInventarioSubTab,
+        qhse: setQhseSubTab,
+        importaciones: setImportacionesSubTab,
+        finanzas: setFinanzasSubTab,
+        tasks: setTasksSubTab,
+      };
+      setterMap[modId]?.(sub);
     } else if (action.type === 'settings_subtab' || (action.type === 'subtab' && action.targetSettingsSubTab)) {
       setSettingsSubTab(action.targetSettingsSubTab || action.targetSubTab);
     } else if (action.type === 'directory_subtab' && action.targetDirectorySub) {
@@ -337,7 +356,7 @@ export const useNavigationGuard = ({
   }, [
     setActiveTab, setDirectorySubTab, setSettingsSubTab, getModuleAccess, currentMember, roles, members,
     setProcessSubTab, setManagementSubTab, setVentasSubTab, setCapacitacionSubTab,
-    setAcreditacionSubTab, setProductosSubTab, setQhseSubTab, setImportacionesSubTab, setFinanzasSubTab, setTasksSubTab, setSelectedMemberId
+    setAcreditacionSubTab, setProductosSubTab, setInventarioSubTab, setQhseSubTab, setImportacionesSubTab, setFinanzasSubTab, setTasksSubTab, setSelectedMemberId
   ]);
 
   const navigateWithUnsavedCheck = useCallback((action: PendingExitAction) => {
@@ -373,98 +392,27 @@ export const useNavigationGuard = ({
     });
   }, [navigateWithUnsavedCheck]);
 
-  const handleSettingsSubTabClick = useCallback((subTab: any) => {
+  const handleSubTabClick = useCallback((moduleId: string, subTab: any) => {
     navigateWithUnsavedCheck({
-      type: 'settings_subtab',
-      targetSettingsSubTab: subTab,
+      type: 'module_subtab' as any,
+      targetModuleId: moduleId,
       targetSubTab: subTab
-    });
+    } as any);
   }, [navigateWithUnsavedCheck]);
 
-  const handleDirectorySubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'directory_subtab',
-      targetDirectorySub: subTab,
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
-
-  const handleProcessSubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'process_subtab',
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
-
-  const handleManagementSubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'management_subtab',
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
-
-  const handleVentasSubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'ventas_subtab',
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
-
-  const handleCapacitacionSubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'capacitacion_subtab',
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
-
-  const handleAcreditacionSubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'acreditacion_subtab',
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
-
-  const handleProductosSubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'productos_subtab',
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
-
-  const handleInventarioSubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'inventario_subtab' as any,
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
-
-  const handleQhseSubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'qhse_subtab',
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
-
-  const handleImportacionesSubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'importaciones_subtab',
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
-
-  const handleFinanzasSubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'finanzas_subtab' as any,
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
-
-  const handleTasksSubTabClick = useCallback((subTab: any) => {
-    navigateWithUnsavedCheck({
-      type: 'tasks_subtab',
-      targetSubTab: subTab
-    });
-  }, [navigateWithUnsavedCheck]);
+  const handleSettingsSubTabClick = useCallback((subTab: any) => handleSubTabClick('settings', subTab), [handleSubTabClick]);
+  const handleDirectorySubTabClick = useCallback((subTab: any) => handleSubTabClick('directory', subTab), [handleSubTabClick]);
+  const handleProcessSubTabClick = useCallback((subTab: any) => handleSubTabClick('process_dashboard', subTab), [handleSubTabClick]);
+  const handleManagementSubTabClick = useCallback((subTab: any) => handleSubTabClick('gerencia', subTab), [handleSubTabClick]);
+  const handleVentasSubTabClick = useCallback((subTab: any) => handleSubTabClick('ventas', subTab), [handleSubTabClick]);
+  const handleCapacitacionSubTabClick = useCallback((subTab: any) => handleSubTabClick('capacitacion', subTab), [handleSubTabClick]);
+  const handleAcreditacionSubTabClick = useCallback((subTab: any) => handleSubTabClick('acreditacion', subTab), [handleSubTabClick]);
+  const handleProductosSubTabClick = useCallback((subTab: any) => handleSubTabClick('productos', subTab), [handleSubTabClick]);
+  const handleInventarioSubTabClick = useCallback((subTab: any) => handleSubTabClick('inventario', subTab), [handleSubTabClick]);
+  const handleQhseSubTabClick = useCallback((subTab: any) => handleSubTabClick('qhse', subTab), [handleSubTabClick]);
+  const handleImportacionesSubTabClick = useCallback((subTab: any) => handleSubTabClick('importaciones', subTab), [handleSubTabClick]);
+  const handleFinanzasSubTabClick = useCallback((subTab: any) => handleSubTabClick('finanzas', subTab), [handleSubTabClick]);
+  const handleTasksSubTabClick = useCallback((subTab: any) => handleSubTabClick('tasks', subTab), [handleSubTabClick]);
 
   const handleMemberClick = useCallback((memberId: string) => {
     navigateWithUnsavedCheck({
@@ -589,6 +537,7 @@ export const useNavigationGuard = ({
     setPendingExitAction,
     activeDirtyForm,
     handleTabClick,
+    handleSubTabClick,
     handleSettingsSubTabClick,
     handleDirectorySubTabClick,
     handleProcessSubTabClick,

@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { 
   Settings, 
   BrainCircuit, 
@@ -32,10 +34,12 @@ import {
   Building2, 
   Plus, 
   Edit, 
-  Trash2 
+  Trash2,
+  Camera
 } from 'lucide-react';
 import { TeamMember, Process, Company, Role, SystemRole } from '../../types';
 import { MemberEditorView } from '../common/MemberEditorView';
+import { AvatarCropModal, getMemberAvatarUrl } from '../common/AvatarCropModal';
 
 interface ProcessDetailCardProps {
   proc: Process;
@@ -82,13 +86,31 @@ interface MemberProfileCardProps {
   processName?: string;
   companies?: Company[];
   roles?: Role[];
+  onOpenCropModal?: (member: TeamMember) => void;
 }
 
-const MemberProfileCard: React.FC<MemberProfileCardProps> = ({ member, processName }) => (
+const MemberProfileCard: React.FC<MemberProfileCardProps> = ({ member, processName, onOpenCropModal }) => (
   <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
-    <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 font-black text-lg flex items-center justify-center shrink-0">
-      {member.name.charAt(0)}
-    </div>
+    <button
+      type="button"
+      onClick={(e) => {
+        if (onOpenCropModal) {
+          e.stopPropagation();
+          onOpenCropModal(member);
+        }
+      }}
+      className="relative group/avatar w-14 h-14 rounded-2xl overflow-hidden bg-blue-50 text-blue-600 font-black text-lg flex items-center justify-center shrink-0 aspect-square border border-gray-100 shadow-xs cursor-pointer"
+      title="Cambiar foto de perfil cuadrada (1:1)"
+    >
+      <img
+        src={getMemberAvatarUrl(member)}
+        alt={member.name}
+        className="w-full h-full object-cover aspect-square"
+      />
+      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center text-white">
+        <Camera size={16} className="text-ng-lime" />
+      </div>
+    </button>
     <div className="flex-1 min-w-0">
       <h4 className="font-bold text-gray-900 text-sm truncate">{member.name}</h4>
       <p className="text-xs text-gray-400 truncate">{member.role || 'Sin cargo'}</p>
@@ -198,6 +220,15 @@ export const SettingsContainerView: React.FC<SettingsContainerViewProps> = ({
   setSearchQuery,
   normalizeText
 }) => {
+  const [cropTargetMember, setCropTargetMember] = useState<TeamMember | null>(null);
+
+  const handleSaveMemberAvatar = async (croppedDataUrl: string) => {
+    if (!cropTargetMember?.id) return;
+    await updateDoc(doc(db, 'members', cropTargetMember.id), {
+      avatar: croppedDataUrl,
+    });
+  };
+
   return (
     <motion.div 
       key="settings"
@@ -247,7 +278,9 @@ export const SettingsContainerView: React.FC<SettingsContainerViewProps> = ({
                 <Users size={20} />
               </div>
               <div>
-                <h2 className="text-lg font-black text-gray-900 leading-tight">Integrantes del Equipo</h2>
+                <h2 className="text-lg font-black text-gray-900 leading-tight">
+                  Integrantes ({sortedMembers.filter(m => m.name && (m.categories || []).includes('miembro')).length})
+                </h2>
                 <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">Ajuste de permisos</p>
               </div>
             </div>
@@ -297,8 +330,8 @@ export const SettingsContainerView: React.FC<SettingsContainerViewProps> = ({
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <img 
-                          src={member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}`} 
-                          className="w-9 h-9 rounded-xl object-cover flex-shrink-0" 
+                          src={getMemberAvatarUrl(member)} 
+                          className="w-9 h-9 rounded-xl object-cover aspect-square flex-shrink-0" 
                           alt={member.name} 
                         />
                         <div className="min-w-0">
@@ -354,11 +387,22 @@ export const SettingsContainerView: React.FC<SettingsContainerViewProps> = ({
                 <div className="space-y-8 relative z-10">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-gray-100">
                     <div className="flex items-center gap-4">
-                      <img 
-                        src={member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}`} 
-                        alt={member.name} 
-                        className="w-16 h-16 rounded-2xl object-cover shadow-sm border-2 border-slate-50 flex-shrink-0" 
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setCropTargetMember(member)}
+                        className="relative group/permavatar w-16 h-16 rounded-2xl overflow-hidden shadow-sm border-2 border-slate-50 flex-shrink-0 aspect-square cursor-pointer"
+                        title="Cambiar foto de perfil cuadrada (1:1)"
+                      >
+                        <img 
+                          src={getMemberAvatarUrl(member)} 
+                          alt={member.name} 
+                          className="w-full h-full object-cover aspect-square" 
+                        />
+                        <div className="absolute inset-0 bg-black/55 opacity-0 group-hover/permavatar:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                          <Camera size={16} className="text-ng-lime" />
+                          <span className="text-[8px] font-black uppercase tracking-wider mt-0.5">Foto 1:1</span>
+                        </div>
+                      </button>
                       <div className="min-w-0">
                         <h3 className="text-xl font-black text-gray-900 leading-tight truncate">{member.name}</h3>
                         <p className="text-gray-500 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1 mt-0.5">
@@ -1213,6 +1257,7 @@ export const SettingsContainerView: React.FC<SettingsContainerViewProps> = ({
                   email: '', 
                   phone: '', 
                   epp: '',
+                  avatar: '',
                   isSystemAdmin: false as boolean,
                   moduleAccess: {} as Record<string, "ninguno" | "lector" | "colaborador" | "lider" | "administrador">
                 });
@@ -1255,6 +1300,7 @@ export const SettingsContainerView: React.FC<SettingsContainerViewProps> = ({
                               processName={process.name}
                               companies={companies}
                               roles={roles}
+                              onOpenCropModal={setCropTargetMember}
                             />
                           </div>
                           <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-10">
@@ -1341,6 +1387,7 @@ export const SettingsContainerView: React.FC<SettingsContainerViewProps> = ({
                             processName="Sin Proceso"
                             companies={companies}
                             roles={roles}
+                            onOpenCropModal={setCropTargetMember}
                           />
                         </div>
                         <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-10">
@@ -1372,6 +1419,14 @@ export const SettingsContainerView: React.FC<SettingsContainerViewProps> = ({
           )}
         </div>
       )}
+
+      <AvatarCropModal
+        isOpen={!!cropTargetMember}
+        onClose={() => setCropTargetMember(null)}
+        currentAvatar={cropTargetMember?.avatar}
+        userName={cropTargetMember?.name || 'Usuario'}
+        onSave={handleSaveMemberAvatar}
+      />
     </motion.div>
   );
 };
